@@ -752,9 +752,33 @@ function renderStats(){
   crmData.forEach(function(r){
     if(company&&!matchQ(r.customer||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
-    if(month&&!matchQ(r.delivery||'',month)) return;
     var latestStatus=r.status_w2||r.status_w1||'';
-    allRecords.push({_type:'crm',company:r.customer,model:r.model,qty:parseInt(r.qty)||0,delivery:r.delivery,statusText:latestStatus,sales:r.sales,week:r.week_w2||r.week_w1||'',id:r.id});
+    // 月份篩選：優先用解析後的資料，計算該月份精確台數
+    var matchedQty=0;
+    if(month){
+      if(r.delivery_parsed&&Array.isArray(r.delivery_parsed)){
+        // 從解析後資料找符合月份的台數
+        r.delivery_parsed.forEach(function(d){
+          if(matchQ(d.month||'',month)) matchedQty+=parseInt(d.qty)||0;
+        });
+        if(matchedQty===0) return; // 沒有符合的月份就跳過
+      } else {
+        // 沒有解析資料，fallback 文字比對
+        if(!matchQ(r.delivery||'',month)) return;
+        matchedQty=parseInt(String(r.qty||'').replace(/[^0-9]/g,''))||0;
+      }
+    } else {
+      matchedQty=parseInt(String(r.qty||'').replace(/[^0-9]/g,''))||0;
+    }
+    allRecords.push({
+      _type:'crm',company:r.customer,model:r.model,
+      qty:matchedQty,
+      delivery:r.delivery,
+      delivery_parsed:r.delivery_parsed,
+      statusText:latestStatus,sales:r.sales,
+      week:r.week_w2||r.week_w1||'',id:r.id,
+      hasParsed:!!(r.delivery_parsed&&Array.isArray(r.delivery_parsed))
+    });
   });
 
   if(!allRecords.length){
@@ -786,7 +810,9 @@ function renderStats(){
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;color:var(--text-m);">'
         +'<span><i class="fa-solid fa-microchip" style="font-size:10px;margin-right:3px;"></i>'+escH(r.model||'—')+'</span>'
         +(r.qty?'<span><i class="fa-solid fa-desktop" style="font-size:10px;margin-right:3px;"></i>'+String(r.qty).replace(/[台台]/g,'').trim()+' 台</span>':'')
-        +(r.delivery?'<span><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;"></i>'+escH(r.delivery)+'</span>':'')
+        +(r.delivery_parsed&&Array.isArray(r.delivery_parsed)
+          ?r.delivery_parsed.map(function(d){return '<span><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;"></i>'+escH(d.month)+' '+d.qty+'台</span>';}).join('')
+          :(r.delivery?'<span><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;"></i>'+escH(r.delivery)+'</span>':''))
       +'</div>'
       +(r.raw||r.statusText?'<div style="margin-top:6px;">'
         +'<button onclick="toggleExpand(this)" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;"><i class="fa-solid fa-chevron-down" style="margin-right:3px;font-size:10px;"></i> 展開完整訊息</button>'
@@ -1034,7 +1060,7 @@ function handleExcelFile(e){
   if(!files.length) return;
   var resultEl=document.getElementById('excel-result');
   resultEl.style.display='block';
-  resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在解析 '+files.length+' 個 Excel 檔案...</div>';
+  resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在解析 '+files.length+' 個 Excel 檔案，AI 分析交期中（可能需要 30-60 秒）...</div>';
 
   var importDate=new Date().toISOString().split('T')[0];
   var totalSheets=0,totalRows=0,filesDone=0;
@@ -1132,6 +1158,40 @@ function handleExcelFile(e){
           });
         });
 
+        // AI 解析交期：把有複合交期的拆成 [{month, qty}]
+        async function parseDeliveryWithAI(deliveryStr, totalQty){
+          if(!deliveryStr) return null;
+          // 先用正規表達式快速解析簡單格式
+          var simple=/^(\d{4})[\/\-年](\d{1,2})/;
+          var sm=deliveryStr.match(simple);
+          if(sm&&!/台|机|機|:：/.test(deliveryStr)){
+            // 只有單一日期，直接用總數量
+            return [{month:sm[1]+'/'+(sm[2].length===1?'0':'')+sm[2],qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
+          }
+          // 複雜格式才呼叫 AI
+          try{
+            var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+              model:'claude-sonnet-4-20250514',max_tokens:400,
+              system:'你是交期解析助理。從文字中提取每個月份對應的台數，回傳純JSON陣列，格式：[{"month":"2026/09","qty":8},{"month":"2026/10","qty":8}]。month格式必須是YYYY/MM。已出货/已出貨的也要包含。找不到明確月份就回傳null。只回傳JSON不要其他文字。',
+              messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty}]
+            })});
+            var data=await resp.json();
+            var raw=data.content.map(function(c){return c.text||'';}).join('');
+            var clean=raw.replace(/```json|```/g,'').trim();
+            if(clean==='null') return null;
+            return JSON.parse(clean);
+          }catch(e){return null;}
+        }
+
+        // 批次 AI 解析（每次最多5筆平行，避免太快）
+        var batchAI=5;
+        for(var pi=0;pi<parsed.length;pi+=batchAI){
+          var chunk=parsed.slice(pi,pi+batchAI);
+          await Promise.all(chunk.map(async function(r){
+            r.delivery_parsed=await parseDeliveryWithAI(r.delivery,r.qty);
+          }));
+        }
+
         // 批次存入 Supabase
         var batchSize=50;
         for(var bi=0;bi<parsed.length;bi+=batchSize){
@@ -1224,3 +1284,4 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+

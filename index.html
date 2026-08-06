@@ -1172,8 +1172,8 @@ function handleExcelFile(e){
           try{
             var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
               model:'claude-sonnet-4-20250514',max_tokens:400,
-              system:'你是交期解析助理。從文字中提取每個月份對應的台數，回傳純JSON陣列，格式：[{"month":"2026/09","qty":8},{"month":"2026/10","qty":8}]。month格式必須是YYYY/MM。已出货/已出貨的也要包含。找不到明確月份就回傳null。只回傳JSON不要其他文字。',
-              messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty}]
+              system:'你是交期解析助理。從文字中提取每個月份對應的台數，回傳純JSON陣列，格式：[{"month":"2026/09","qty":8},{"month":"2026/10","qty":8}]。month格式必須是YYYY/MM。\n重要規則：\n1. 格式「年/月/日*N台」中，*是分隔符，*後面的數字才是台數，例如「2026/10月12*8台」=2026年10月12日，8台\n2. 格式「N台：日期」或「日期*N台」或「N台:日期」都是台數+日期的組合\n3. 已出货/已出貨/已出货的也要包含\n4. 找不到明確月份就回傳null\n5. 只回傳JSON不要其他文字',
+              messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty+'\n請解析每個月份對應幾台，注意*號是日期與台數的分隔符，不是乘法'}]
             })});
             var data=await resp.json();
             var raw=data.content.map(function(c){return c.text||'';}).join('');
@@ -1284,4 +1284,3 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-

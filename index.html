@@ -1175,28 +1175,45 @@ function handleExcelFile(e){
             var qFirstMonth=(parseInt(qm[2],10)-1)*3+1; // Q1->1, Q2->4, Q3->7, Q4->10
             return [{month:qm[1]+'/'+(qFirstMonth<10?'0':'')+qFirstMonth,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
           }
-          // 複雜格式才呼叫 AI
-          try{
+          // 複雜格式才呼叫 AI（失敗時重試一次，並把錯誤印到console方便除錯）
+          async function callAIOnce(){
             var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
               model:'claude-sonnet-4-20250514',max_tokens:400,
               system:'你是交期解析助理。從文字中提取每個月份對應的台數，回傳純JSON陣列，格式：[{"month":"2026/09","qty":8},{"month":"2026/10","qty":8}]。month格式必須是YYYY/MM。\n重要規則：\n1. 格式「年/月/日*N台」中，*是分隔符，*後面的數字才是台數，例如「2026/10月12*8台」=2026年10月12日，8台\n2. 格式「N台：日期」或「日期*N台」或「N台:日期」都是台數+日期的組合\n3. 已出货/已出貨/已出货的也要包含\n4. 遇到季度格式（如2026Q3、2026年第3季）且沒有明確月份時，一律歸到該季度的第一個月（Q1→01月，Q2→04月，Q3→07月，Q4→10月），台數為該季度總台數\n5. 完全找不到年份或季度/月份資訊才回傳null\n6. 只回傳JSON不要其他文字',
               messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty+'\n請解析每個月份對應幾台，注意*號是日期與台數的分隔符，不是乘法；季度格式歸到該季度第一個月'}]
             })});
+            if(!resp.ok){
+              var errText=await resp.text().catch(function(){return '(無法讀取錯誤內容)';});
+              throw new Error('HTTP '+resp.status+': '+errText);
+            }
             var data=await resp.json();
+            if(!data||!data.content){throw new Error('AI回應格式異常：'+JSON.stringify(data).slice(0,200));}
             var raw=data.content.map(function(c){return c.text||'';}).join('');
             var clean=raw.replace(/```json|```/g,'').trim();
             if(clean==='null') return null;
             return JSON.parse(clean);
-          }catch(e){return null;}
+          }
+          try{
+            return await callAIOnce();
+          }catch(e1){
+            console.warn('[交期AI解析] 第一次失敗，交期文字：'+deliveryStr+'，錯誤：',e1);
+            try{
+              return await callAIOnce();
+            }catch(e2){
+              console.error('[交期AI解析] 重試後仍失敗，交期文字：'+deliveryStr+'，錯誤：',e2);
+              return null;
+            }
+          }
         }
 
-        // 批次 AI 解析（每次最多5筆平行，避免太快）
-        var batchAI=5;
+        // 批次 AI 解析（每次最多3筆平行，批次間停頓，避免撞到速率限制）
+        var batchAI=3;
         for(var pi=0;pi<parsed.length;pi+=batchAI){
           var chunk=parsed.slice(pi,pi+batchAI);
           await Promise.all(chunk.map(async function(r){
             r.delivery_parsed=await parseDeliveryWithAI(r.delivery,r.qty);
           }));
+          if(pi+batchAI<parsed.length) await new Promise(function(res){setTimeout(res,400);});
         }
 
         // 批次存入 Supabase
@@ -1291,4 +1308,3 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-

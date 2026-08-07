@@ -469,6 +469,116 @@ function hl(text,q){
 }
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+// ══ 台數／交期解析（全域共用：匯入時與需求統計查詢時都會呼叫） ══
+// 統一的台數解析：處理「19台18台」這種刪除線修正寫法(Excel存成純文字後刪除線消失，
+// 兩個數字會黏在一起)，取「台」字前面最後出現的那個數字（代表修正後的值），
+// 不是把所有數字全部黏起來變成一個大數字
+function parseQtyText(raw){
+  var s=String(raw||'');
+  var withUnit=s.match(/\d+(?=\s*台)/g);
+  if(withUnit&&withUnit.length){
+    return parseInt(withUnit[withUnit.length-1],10)||0;
+  }
+  return parseInt(s.replace(/[^0-9]/g,''))||0;
+}
+
+// 純規則解析：完全不呼叫AI，同步執行，免費、瞬間完成
+function parseDeliveryLocal(deliveryStr, totalQty){
+  if(!deliveryStr) return null;
+  var simple=/^(\d{4})[\/\-年](\d{1,2})/;
+  var sm=deliveryStr.match(simple);
+  if(sm&&!/台|机|機|:：/.test(deliveryStr)){
+    return [{month:sm[1]+'/'+(sm[2].length===1?'0':'')+sm[2],qty:parseQtyText(totalQty)}];
+  }
+  var quarter=/^(\d{4})\D{0,2}Q\s*([1-4])/i;
+  var qm=deliveryStr.match(quarter);
+  if(qm&&!/台|机|機|:：/.test(deliveryStr)){
+    var qFirstMonth=(parseInt(qm[2],10)-1)*3+1;
+    return [{month:qm[1]+'/'+(qFirstMonth<10?'0':'')+qFirstMonth,qty:parseQtyText(totalQty)}];
+  }
+  var entries=[];
+  var reWithMonth=/(\d{4})[\/\-年](\d{1,2})月\d{0,2}\*(\d+)\s*台/g;
+  var reAllSlash=/(\d{4})\/(\d{1,2})\/\d{1,2}\*(\d+)\s*台/g;
+  var mm;
+  while((mm=reWithMonth.exec(deliveryStr))!==null){
+    entries.push({month:mm[1]+'/'+(mm[2].length===1?'0':'')+mm[2],qty:parseInt(mm[3],10)||0});
+  }
+  while((mm=reAllSlash.exec(deliveryStr))!==null){
+    entries.push({month:mm[1]+'/'+(mm[2].length===1?'0':'')+mm[2],qty:parseInt(mm[3],10)||0});
+  }
+  if(entries.length>0){
+    var entrySum=entries.reduce(function(s,e){return s+e.qty;},0);
+    var totalNum=parseQtyText(totalQty);
+    if(entrySum!==totalNum){
+      console.warn('[交期規則解析] 台數加總('+entrySum+')與總數量('+totalNum+')不一致，交期文字：'+deliveryStr+'，仍採用規則解析結果，請人工核對');
+    }
+    return entries;
+  }
+  var reQtyColonDate=/(\d+)\s*台[:：]\s*(\d{4})\/(\d{1,2})\/\d{1,2}/g;
+  var monthMap={};
+  var qm2;
+  while((qm2=reQtyColonDate.exec(deliveryStr))!==null){
+    var mk=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
+    monthMap[mk]=(monthMap[mk]||0)+(parseInt(qm2[1],10)||0);
+  }
+  var monthMapKeys=Object.keys(monthMap);
+  if(monthMapKeys.length>0){
+    return monthMapKeys.map(function(k){return {month:k,qty:monthMap[k]};});
+  }
+  var qOnly=deliveryStr.trim().match(/^Q\s*([1-4])$/i);
+  if(qOnly){
+    var curYear=new Date().getFullYear();
+    var qFirstMonth2=(parseInt(qOnly[1],10)-1)*3+1;
+    return [{month:curYear+'/'+(qFirstMonth2<10?'0':'')+qFirstMonth2,qty:parseQtyText(totalQty)}];
+  }
+  return null; // 規則解析不出來，交給呼叫端決定要不要用AI
+}
+
+// AI 解析：只在「查詢當下、規則解不出來」時才呼叫，不在匯入時使用
+async function parseDeliveryWithAI(deliveryStr, totalQty){
+  var local=parseDeliveryLocal(deliveryStr,totalQty);
+  if(local) return local;
+  if(!/\d{4}/.test(deliveryStr)){
+    console.info('[交期解析] 文字中無年份資訊，判定非日期格式，跳過AI呼叫：'+deliveryStr);
+    return [];// 空陣列＝已判定無法辨識，不是「尚未嘗試」
+  }
+  async function callAIOnce(){
+    var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',max_tokens:150,
+      system:'交期解析助理。回傳純JSON陣列：[{"month":"YYYY/MM","qty":N}]，找不到就回傳null，只回傳JSON不要其他文字。*是日期與台數的分隔符不是乘法。',
+      messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty+'\n請解析每個月份對應幾台，注意*號是日期與台數的分隔符，不是乘法；季度格式歸到該季度第一個月'}]
+    })});
+    if(!resp.ok){
+      var errText=await resp.text().catch(function(){return '(無法讀取錯誤內容)';});
+      var err=new Error('HTTP '+resp.status+': '+errText);
+      err.status=resp.status;
+      throw err;
+    }
+    var data=await resp.json();
+    if(!data||!data.content){throw new Error('AI回應格式異常：'+JSON.stringify(data).slice(0,200));}
+    var raw=data.content.map(function(c){return c.text||'';}).join('');
+    var clean=raw.replace(/```json|```/g,'').trim();
+    if(clean==='null') return [];
+    var parsedResult=JSON.parse(clean);
+    return (parsedResult&&parsedResult.length)?parsedResult:[];
+  }
+  var maxRetries=2;
+  for(var attempt=1;attempt<=maxRetries;attempt++){
+    try{
+      return await callAIOnce();
+    }catch(e){
+      var isRateLimit=(e.status===429);
+      if(attempt===maxRetries){
+        console.error('[交期AI解析] 放棄（重試'+(maxRetries-1)+'次後仍失敗），交期文字：'+deliveryStr+'，錯誤：',e);
+        return null; // null＝這次沒問到結果（可能額度問題），下次還可以再試
+      }
+      var waitMs=isRateLimit?3000:800;
+      console.warn('[交期AI解析] 第'+attempt+'次失敗（'+(isRateLimit?'速率限制':'其他錯誤')+'），'+(waitMs/1000)+'秒後重試，交期文字：'+deliveryStr+'，錯誤：',e);
+      await new Promise(function(res){setTimeout(res,waitMs);});
+    }
+  }
+}
+
 // ══ 狀態判斷 ════════════════════════════════════════════════
 function classifyStatus(text){
   if(!text) return 'unknown';
@@ -852,7 +962,7 @@ function renderStats(){
     if(company&&!matchQ(r.customer||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
     var latestStatus=r.status_w2||r.status_w1||'';
-    var totalNum=parseInt(String(r.qty||'').replace(/[^0-9]/g,''))||0;
+    var totalNum=parseQtyText(r.qty);
     var hasParsedData=Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length>0;
     var matchedQty=0,isUnclassified=false;
     if(month){
@@ -1303,104 +1413,6 @@ function handleExcelFile(e){
             });
           });
         });
-
-        // AI 解析交期：把有複合交期的拆成 [{month, qty}]
-        // 純規則解析：完全不呼叫AI，同步執行，免費、瞬間完成
-        function parseDeliveryLocal(deliveryStr, totalQty){
-          if(!deliveryStr) return null;
-          var simple=/^(\d{4})[\/\-年](\d{1,2})/;
-          var sm=deliveryStr.match(simple);
-          if(sm&&!/台|机|機|:：/.test(deliveryStr)){
-            return [{month:sm[1]+'/'+(sm[2].length===1?'0':'')+sm[2],qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
-          }
-          var quarter=/^(\d{4})\D{0,2}Q\s*([1-4])/i;
-          var qm=deliveryStr.match(quarter);
-          if(qm&&!/台|机|機|:：/.test(deliveryStr)){
-            var qFirstMonth=(parseInt(qm[2],10)-1)*3+1;
-            return [{month:qm[1]+'/'+(qFirstMonth<10?'0':'')+qFirstMonth,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
-          }
-          var entries=[];
-          var reWithMonth=/(\d{4})[\/\-年](\d{1,2})月\d{0,2}\*(\d+)\s*台/g;
-          var reAllSlash=/(\d{4})\/(\d{1,2})\/\d{1,2}\*(\d+)\s*台/g;
-          var mm;
-          while((mm=reWithMonth.exec(deliveryStr))!==null){
-            entries.push({month:mm[1]+'/'+(mm[2].length===1?'0':'')+mm[2],qty:parseInt(mm[3],10)||0});
-          }
-          while((mm=reAllSlash.exec(deliveryStr))!==null){
-            entries.push({month:mm[1]+'/'+(mm[2].length===1?'0':'')+mm[2],qty:parseInt(mm[3],10)||0});
-          }
-          if(entries.length>0){
-            var entrySum=entries.reduce(function(s,e){return s+e.qty;},0);
-            var totalNum=parseInt(String(totalQty).replace(/[^0-9]/g,''))||0;
-            if(entrySum!==totalNum){
-              console.warn('[交期規則解析] 台數加總('+entrySum+')與總數量('+totalNum+')不一致，交期文字：'+deliveryStr+'，仍採用規則解析結果，請人工核對');
-            }
-            return entries;
-          }
-          var reQtyColonDate=/(\d+)\s*台[:：]\s*(\d{4})\/(\d{1,2})\/\d{1,2}/g;
-          var monthMap={};
-          var qm2;
-          while((qm2=reQtyColonDate.exec(deliveryStr))!==null){
-            var mk=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
-            monthMap[mk]=(monthMap[mk]||0)+(parseInt(qm2[1],10)||0);
-          }
-          var monthMapKeys=Object.keys(monthMap);
-          if(monthMapKeys.length>0){
-            return monthMapKeys.map(function(k){return {month:k,qty:monthMap[k]};});
-          }
-          var qOnly=deliveryStr.trim().match(/^Q\s*([1-4])$/i);
-          if(qOnly){
-            var curYear=new Date().getFullYear();
-            var qFirstMonth2=(parseInt(qOnly[1],10)-1)*3+1;
-            return [{month:curYear+'/'+(qFirstMonth2<10?'0':'')+qFirstMonth2,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
-          }
-          return null; // 規則解析不出來，交給呼叫端決定要不要用AI
-        }
-
-        // AI 解析：只在「查詢當下、規則解不出來」時才呼叫，不在匯入時使用
-        async function parseDeliveryWithAI(deliveryStr, totalQty){
-          var local=parseDeliveryLocal(deliveryStr,totalQty);
-          if(local) return local;
-          if(!/\d{4}/.test(deliveryStr)){
-            console.info('[交期解析] 文字中無年份資訊，判定非日期格式，跳過AI呼叫：'+deliveryStr);
-            return [];// 空陣列＝已判定無法辨識，不是「尚未嘗試」
-          }
-          async function callAIOnce(){
-            var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              model:'claude-sonnet-4-20250514',max_tokens:150,
-              system:'交期解析助理。回傳純JSON陣列：[{"month":"YYYY/MM","qty":N}]，找不到就回傳null，只回傳JSON不要其他文字。*是日期與台數的分隔符不是乘法。',
-              messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty+'\n請解析每個月份對應幾台，注意*號是日期與台數的分隔符，不是乘法；季度格式歸到該季度第一個月'}]
-            })});
-            if(!resp.ok){
-              var errText=await resp.text().catch(function(){return '(無法讀取錯誤內容)';});
-              var err=new Error('HTTP '+resp.status+': '+errText);
-              err.status=resp.status;
-              throw err;
-            }
-            var data=await resp.json();
-            if(!data||!data.content){throw new Error('AI回應格式異常：'+JSON.stringify(data).slice(0,200));}
-            var raw=data.content.map(function(c){return c.text||'';}).join('');
-            var clean=raw.replace(/```json|```/g,'').trim();
-            if(clean==='null') return [];
-            var parsedResult=JSON.parse(clean);
-            return (parsedResult&&parsedResult.length)?parsedResult:[];
-          }
-          var maxRetries=2;
-          for(var attempt=1;attempt<=maxRetries;attempt++){
-            try{
-              return await callAIOnce();
-            }catch(e){
-              var isRateLimit=(e.status===429);
-              if(attempt===maxRetries){
-                console.error('[交期AI解析] 放棄（重試'+(maxRetries-1)+'次後仍失敗），交期文字：'+deliveryStr+'，錯誤：',e);
-                return null; // null＝這次沒問到結果（可能額度問題），下次還可以再試
-              }
-              var waitMs=isRateLimit?3000:800;
-              console.warn('[交期AI解析] 第'+attempt+'次失敗（'+(isRateLimit?'速率限制':'其他錯誤')+'），'+(waitMs/1000)+'秒後重試，交期文字：'+deliveryStr+'，錯誤：',e);
-              await new Promise(function(res){setTimeout(res,waitMs);});
-            }
-          }
-        }
 
         // 匯入時只用免費規則解析，不呼叫AI，瞬間完成、不燒token
         for(var pi=0;pi<parsed.length;pi++){

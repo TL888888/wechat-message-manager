@@ -956,34 +956,46 @@ function renderStats(){
         +'<div style="font-size:14px;font-weight:700;color:var(--text-h);">📋 無備註需求月份</div>'
         +'<div style="display:flex;align-items:center;gap:10px;">'
           +'<div style="font-size:16px;font-weight:700;color:#7a6a4a;">'+totalUnclassified+' 台 <span style="font-size:12px;color:var(--text-s);">('+unclassified.length+' 筆)</span></div>'
-          +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">用AI試著解析這'+unresolvedIds.length+'筆</button>':'')
+          +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">AI解析中...</button>':'')
         +'</div>'
       +'</div>'
-      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，台數先列在這裡，不會被誤算進其他月份</div>'
+      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，系統正自動嘗試解析，解析完會自動歸類到對應月份</div>'
       +unclassified.map(recordCard).join('')
     +'</div>':'')
     +(unknown.length?'<div class="stat-summary-card" style="border-left:4px solid #a09990;">'
       +'<div style="font-size:14px;font-weight:700;color:var(--text-h);margin-bottom:10px;">⚠️ 狀態不明（'+unknown.length+' 筆）</div>'
       +unknown.map(recordCard).join('')
     +'</div>':'');
+
+  // 查詢當下自動觸發解析（不用等使用者按按鈕），同一時間只跑一批，避免重複觸發
+  if(unresolvedIds.length&&!window._resolvingUnclassified){
+    window._resolvingUnclassified=true;
+    resolveUnclassified().finally(function(){window._resolvingUnclassified=false;});
+  }
 }
 
-// 使用者主動按下「用AI試著解析」時才呼叫AI，只解析目前畫面上這幾筆未分類的，解出來就存回資料庫，之後不會再問第二次
+// 查詢結果裡如果有未分類的資料，畫面一渲染完就自動呼叫AI解析，只解析當下畫面上這幾筆，解出來就存回資料庫，之後同一筆不會再問第二次
 async function resolveUnclassified(){
   var ids=window._statsUnresolvedIds||[];
   if(!ids.length) return;
+  if(window._resolvingUnclassifiedInner) return; // 已經在跑了，避免重複觸發
+  window._resolvingUnclassifiedInner=true;
   var btn=document.getElementById('resolve-unclassified-btn');
-  for(var i=0;i<ids.length;i++){
-    var id=ids[i];
-    var rec=crmData.find(function(r){return r.id===id;});
-    if(!rec) continue;
-    if(btn) btn.textContent='解析中 '+(i+1)+'/'+ids.length+'...';
-    var result=await parseDeliveryWithAI(rec.delivery,rec.qty);
-    if(result!==null){ // null代表這次沒問到（如額度問題），下次可以再試；[]或有內容都算「已嘗試」
-      rec.delivery_parsed=result;
-      await sb.from('crm_records').update({delivery_parsed:result}).eq('id',id);
+  try{
+    for(var i=0;i<ids.length;i++){
+      var id=ids[i];
+      var rec=crmData.find(function(r){return r.id===id;});
+      if(!rec) continue;
+      if(btn) btn.textContent='解析中 '+(i+1)+'/'+ids.length+'...';
+      var result=await parseDeliveryWithAI(rec.delivery,rec.qty);
+      if(result!==null){ // null代表這次沒問到（如額度問題），下次查詢會再自動試；[]或有內容都算「已嘗試」
+        rec.delivery_parsed=result;
+        await sb.from('crm_records').update({delivery_parsed:result}).eq('id',id);
+      }
+      if(i<ids.length-1) await new Promise(function(res){setTimeout(res,1500);});
     }
-    if(i<ids.length-1) await new Promise(function(res){setTimeout(res,1500);});
+  } finally {
+    window._resolvingUnclassifiedInner=false;
   }
   renderStats();
 }

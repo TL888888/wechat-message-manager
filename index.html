@@ -130,7 +130,43 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     <button class="btn-primary" style="width:100%;justify-content:center;" onclick="doLogin()" id="login-btn">
       <i class="fa-solid fa-right-to-bracket"></i> 登入
     </button>
+    <div style="text-align:center;margin-top:14px;">
+      <a href="javascript:void(0)" onclick="toggleForgotPw(true)" style="font-size:12px;color:var(--accent);text-decoration:underline;">忘記密碼？</a>
+    </div>
     <div id="login-error" style="display:none;margin-top:12px;background:var(--red-bg);border:1px solid #f0b8b8;border-radius:8px;padding:10px;font-size:13px;color:var(--red);text-align:center;"></div>
+  </div>
+</div>
+
+<!-- ══ 忘記密碼 ══ -->
+<div id="forgot-pw-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;">
+  <div class="login-box" style="max-width:360px;">
+    <div style="font-size:16px;font-weight:700;color:var(--text-h);margin-bottom:6px;">重設密碼</div>
+    <div style="font-size:12px;color:var(--text-s);margin-bottom:16px;">輸入您的登入 Email，我們會寄一封重設密碼的信給您</div>
+    <div style="margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">Email</div>
+      <input id="forgot-pw-email" class="input-field" type="email" placeholder="your@email.com" />
+    </div>
+    <button class="btn-primary" style="width:100%;justify-content:center;" onclick="sendResetEmail()" id="forgot-pw-btn">寄送重設信</button>
+    <button style="width:100%;justify-content:center;margin-top:8px;background:none;border:none;color:var(--text-s);font-size:12px;cursor:pointer;padding:8px;" onclick="toggleForgotPw(false)">取消，返回登入</button>
+    <div id="forgot-pw-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- ══ 設定新密碼（從重設信連結進來時顯示） ══ -->
+<div id="new-pw-screen" style="display:none;position:fixed;inset:0;background:var(--bg,#f3f4f6);z-index:210;align-items:center;justify-content:center;">
+  <div class="login-box" style="max-width:360px;">
+    <div style="font-size:16px;font-weight:700;color:var(--text-h);margin-bottom:6px;">設定新密碼</div>
+    <div style="font-size:12px;color:var(--text-s);margin-bottom:16px;">請輸入您的新密碼（至少6碼）</div>
+    <div style="margin-bottom:14px;">
+      <div class="filter-label" style="margin-bottom:6px;">新密碼</div>
+      <input id="new-pw-1" class="input-field" type="password" placeholder="••••••••" />
+    </div>
+    <div style="margin-bottom:20px;">
+      <div class="filter-label" style="margin-bottom:6px;">再輸入一次</div>
+      <input id="new-pw-2" class="input-field" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitNewPassword()" />
+    </div>
+    <button class="btn-primary" style="width:100%;justify-content:center;" onclick="submitNewPassword()" id="new-pw-btn">確認更新密碼</button>
+    <div id="new-pw-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
   </div>
 </div>
 
@@ -369,6 +405,13 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+sb.auth.onAuthStateChange(function(event,session){
+  if(event==='PASSWORD_RECOVERY'){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='none';
+    document.getElementById('new-pw-screen').style.display='flex';
+  }
+});
 const WORKER_URL = 'https://withered-sound-43b8.michelle-chang.workers.dev';
 
 var currentUser = null;
@@ -453,6 +496,57 @@ async function doLogin(){
   await onLogin(data.user);
 }
 function showLoginErr(msg){var e=document.getElementById('login-error');e.textContent=msg;e.style.display='block';}
+
+// ══ 忘記密碼 ════════════════════════════════════════════════
+function toggleForgotPw(show){
+  document.getElementById('forgot-pw-screen').style.display=show?'flex':'none';
+  var msgEl=document.getElementById('forgot-pw-msg');
+  msgEl.style.display='none';
+  if(show) document.getElementById('forgot-pw-email').value=document.getElementById('login-email').value||'';
+}
+async function sendResetEmail(){
+  var email=document.getElementById('forgot-pw-email').value.trim();
+  var msgEl=document.getElementById('forgot-pw-msg');
+  var btn=document.getElementById('forgot-pw-btn');
+  if(!email){msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';msgEl.textContent='請輸入 Email';return;}
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 寄送中...';
+  var redirectUrl=window.location.origin+window.location.pathname;
+  var {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:redirectUrl});
+  btn.disabled=false;btn.innerHTML='寄送重設信';
+  msgEl.style.display='block';
+  if(error){
+    msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='寄送失敗：'+error.message;
+  }else{
+    msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
+    msgEl.textContent='已寄出重設信，請到您的信箱點連結設定新密碼（記得也check垃圾郵件）';
+  }
+}
+// ══ 設定新密碼（從Email連結點進來會帶 type=recovery） ══════
+async function submitNewPassword(){
+  var pw1=document.getElementById('new-pw-1').value;
+  var pw2=document.getElementById('new-pw-2').value;
+  var msgEl=document.getElementById('new-pw-msg');
+  var btn=document.getElementById('new-pw-btn');
+  msgEl.style.display='none';
+  if(!pw1||pw1.length<6){msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';msgEl.textContent='密碼至少需要6碼';return;}
+  if(pw1!==pw2){msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';msgEl.textContent='兩次輸入的密碼不一致';return;}
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 更新中...';
+  var {error}=await sb.auth.updateUser({password:pw1});
+  btn.disabled=false;btn.innerHTML='確認更新密碼';
+  if(error){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='更新失敗：'+error.message;
+    return;
+  }
+  msgEl.style.display='block';msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
+  msgEl.textContent='密碼更新成功！2秒後跳轉到系統首頁...';
+  setTimeout(function(){
+    document.getElementById('new-pw-screen').style.display='none';
+    window.location.hash='';
+    window.location.reload();
+  },2000);
+}
 async function onLogin(user){
   currentUser=user;
   // 從 users 表取得角色
@@ -485,6 +579,10 @@ window.onload=async function(){
   var today=new Date().toISOString().split('T')[0];
   document.getElementById('m-date')&&(document.getElementById('m-date').value=today);
   document.getElementById('e-date')&&(document.getElementById('e-date').value=today);
+  if(window.location.hash.indexOf('type=recovery')!==-1){
+    // 從重設密碼信連結進來，交給 onAuthStateChange 的 PASSWORD_RECOVERY 事件處理，這裡不自動登入
+    return;
+  }
   var {data:{session}}=await sb.auth.getSession();
   if(session){await onLogin(session.user);}
 };
@@ -1060,7 +1158,7 @@ function handleExcelFile(e){
   if(!files.length) return;
   var resultEl=document.getElementById('excel-result');
   resultEl.style.display='block';
-  resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在解析 '+files.length+' 個 Excel 檔案，AI 分析交期中（可能需要 30-60 秒）...</div>';
+  resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在解析 '+files.length+' 個 Excel 檔案，AI 逐筆分析交期中，資料筆數多的話可能需要數分鐘，請耐心等候，不要關閉視窗...</div>';
 
   var importDate=new Date().toISOString().split('T')[0];
   var totalSheets=0,totalRows=0,filesDone=0;
@@ -1175,7 +1273,7 @@ function handleExcelFile(e){
             var qFirstMonth=(parseInt(qm[2],10)-1)*3+1; // Q1->1, Q2->4, Q3->7, Q4->10
             return [{month:qm[1]+'/'+(qFirstMonth<10?'0':'')+qFirstMonth,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
           }
-          // 複雜格式才呼叫 AI（失敗時重試一次，並把錯誤印到console方便除錯）
+          // 複雜格式才呼叫 AI（遇429速率限制會等待後重試，並把錯誤印到console方便除錯）
           async function callAIOnce(){
             var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
               model:'claude-sonnet-4-20250514',max_tokens:400,
@@ -1184,7 +1282,9 @@ function handleExcelFile(e){
             })});
             if(!resp.ok){
               var errText=await resp.text().catch(function(){return '(無法讀取錯誤內容)';});
-              throw new Error('HTTP '+resp.status+': '+errText);
+              var err=new Error('HTTP '+resp.status+': '+errText);
+              err.status=resp.status;
+              throw err;
             }
             var data=await resp.json();
             if(!data||!data.content){throw new Error('AI回應格式異常：'+JSON.stringify(data).slice(0,200));}
@@ -1193,27 +1293,27 @@ function handleExcelFile(e){
             if(clean==='null') return null;
             return JSON.parse(clean);
           }
-          try{
-            return await callAIOnce();
-          }catch(e1){
-            console.warn('[交期AI解析] 第一次失敗，交期文字：'+deliveryStr+'，錯誤：',e1);
+          var maxRetries=4;
+          for(var attempt=1;attempt<=maxRetries;attempt++){
             try{
               return await callAIOnce();
-            }catch(e2){
-              console.error('[交期AI解析] 重試後仍失敗，交期文字：'+deliveryStr+'，錯誤：',e2);
-              return null;
+            }catch(e){
+              var isRateLimit=(e.status===429);
+              if(attempt===maxRetries){
+                console.error('[交期AI解析] 重試'+(maxRetries-1)+'次後仍失敗，交期文字：'+deliveryStr+'，錯誤：',e);
+                return null;
+              }
+              var waitMs=isRateLimit?(6000*attempt):(1000*attempt);
+              console.warn('[交期AI解析] 第'+attempt+'次失敗（'+(isRateLimit?'速率限制':'其他錯誤')+'），'+(waitMs/1000)+'秒後重試，交期文字：'+deliveryStr+'，錯誤：',e);
+              await new Promise(function(res){setTimeout(res,waitMs);});
             }
           }
         }
 
-        // 批次 AI 解析（每次最多3筆平行，批次間停頓，避免撞到速率限制）
-        var batchAI=3;
-        for(var pi=0;pi<parsed.length;pi+=batchAI){
-          var chunk=parsed.slice(pi,pi+batchAI);
-          await Promise.all(chunk.map(async function(r){
-            r.delivery_parsed=await parseDeliveryWithAI(r.delivery,r.qty);
-          }));
-          if(pi+batchAI<parsed.length) await new Promise(function(res){setTimeout(res,400);});
+        // 批次 AI 解析：完全依序執行（不平行），每筆間隔2.2秒，避免撞到AI服務每分鐘30次的速率限制
+        for(var pi=0;pi<parsed.length;pi++){
+          parsed[pi].delivery_parsed=await parseDeliveryWithAI(parsed[pi].delivery,parsed[pi].qty);
+          if(pi<parsed.length-1) await new Promise(function(res){setTimeout(res,2200);});
         }
 
         // 批次存入 Supabase

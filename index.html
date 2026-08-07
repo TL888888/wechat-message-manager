@@ -105,7 +105,27 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 
 /* 統計區 */
 .stat-summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;}
+
+/* ══ 手機版優化 ══════════════════════════════════════════════ */
+@media (max-width: 640px){
+  main{padding:10px !important;}
+  .tab-bar,#tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;flex-wrap:nowrap !important;}
+  .tab-btn{padding:10px 12px;font-size:13px;flex-shrink:0;}
+  .filter-grid,[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important;}
+  .login-box,.modal-box{max-width:94vw !important;width:94vw !important;padding:18px !important;}
+  .modal-overlay{padding:8px;}
+  .input-field{font-size:16px;} /* 避免iOS Safari輸入框自動放大畫面 */
+  .btn-primary,.btn-ghost{font-size:13px;padding:8px 12px;}
+  .record-row{padding:10px 12px !important;}
+  .stat-pill{font-size:11px;padding:4px 8px;}
+  #nav-user-info{display:none;} /* 手機上省空間，隱藏使用者資訊文字 */
+  table{display:block;overflow-x:auto;white-space:nowrap;}
+}
+@media (max-width: 400px){
+  .tab-btn{padding:9px 10px;font-size:12px;}
+}
 </style>
+<meta name="theme-color" content="#ffffff" />
 </head>
 <body>
 
@@ -206,10 +226,7 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
       <i class="fa-solid fa-handshake" style="margin-right:5px;font-size:13px;"></i>客戶商務
     </button>
     <button id="tab-stat-btn" class="tab-btn" onclick="switchTab('stats')">
-      <i class="fa-solid fa-chart-bar" style="margin-right:5px;font-size:13px;"></i>需求統計
-    </button>
-    <button id="tab-eng-btn" class="tab-btn" onclick="switchTab('engineer')">
-      <i class="fa-solid fa-gears" style="margin-right:5px;font-size:13px;"></i>設備／技術
+      <i class="fa-solid fa-chart-bar" style="margin-right:5px;font-size:13px;"></i>CRM需求統計
     </button>
     <button id="tab-users-btn" class="tab-btn" onclick="switchTab('users')" style="display:none;">
       <i class="fa-solid fa-users-gear" style="margin-right:5px;font-size:13px;"></i>帳號管理
@@ -225,7 +242,7 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     <div class="filter-panel">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
         <div>
-          <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶公司（模糊搜尋）</div>
+          <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶名稱（模糊搜尋）</div>
           <input id="f-uni-company" class="filter-input" placeholder="例：龍南、無錫..." oninput="debounceUnified()" />
         </div>
         <div>
@@ -254,7 +271,7 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
   <div id="tab-stats" style="display:none;">
     <div class="filter-panel">
       <div style="margin-bottom:10px;">
-        <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶公司</div>
+        <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶名稱</div>
         <input id="f-stat-company" class="filter-input" placeholder="例：龍南、無錫深南..." oninput="debounceStats()" />
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -392,7 +409,6 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     <div style="font-size:12px;color:var(--text-m);margin-bottom:7px;">訊息類型</div>
     <div style="display:flex;gap:8px;margin-bottom:16px;">
       <button class="type-btn active" id="type-customer-btn" onclick="setMsgType('customer')"><i class="fa-solid fa-handshake" style="margin-right:4px;"></i>客戶商務</button>
-      <button class="type-btn" id="type-engineer-btn" onclick="setMsgType('engineer')"><i class="fa-solid fa-gears" style="margin-right:4px;"></i>設備／技術</button>
     </div>
     <div class="divider"><span>方式一：貼入聊天記錄，AI 自動解析</span></div>
     <textarea id="paste-input" class="input-field" style="height:140px;margin-bottom:10px;font-size:13px;"
@@ -408,7 +424,7 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     <!-- 客戶商務表單 -->
     <div id="manual-customer-form">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶公司 *</div><input id="m-company" class="input-field" placeholder="例：華通" /></div>
+        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶名稱 *</div><input id="m-company" class="input-field" placeholder="例：華通" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">聯絡人 *</div><input id="m-contact" class="input-field" placeholder="例：王大明" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">機型</div><input id="m-model" class="input-field" placeholder="例：RU6HM" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">數量（台）</div><input id="m-qty" class="input-field" type="number" placeholder="例：2" /></div>
@@ -494,6 +510,7 @@ var currentTab = 'customer';
 var currentMsgType = 'customer';
 var custData = [];
 var crmData = [];
+var visitData = [];
 var engData = [];
 
 // ══ 繁簡轉換 ════════════════════════════════════════════════
@@ -806,17 +823,19 @@ async function loadAllData(){
     .single();
   var latestDate=latestImport.data?latestImport.data.import_date:null;
 
-  var [wRes,cRes,eRes,uRes]=await Promise.all([
+  var [wRes,cRes,eRes,uRes,vRes]=await Promise.all([
     sb.from('wechat_messages').select('*').order('created_at',{ascending:false}),
     latestDate
       ? sb.from('crm_records').select('*').eq('import_date',latestDate).order('created_at',{ascending:false})
       : sb.from('crm_records').select('*').order('created_at',{ascending:false}),
     sb.from('engineer_messages').select('*').order('created_at',{ascending:false}),
-    sb.from('users').select('id,name,role')
+    sb.from('users').select('id,name,role'),
+    sb.from('visit_records').select('*').order('created_at',{ascending:false})
   ]);
   custData=wRes.data||[];
   crmData=cRes.data||[];
   engData=eRes.data||[];
+  visitData=vRes.data||[];
   // 建立 users 對照表
   (uRes.data||[]).forEach(function(u){usersMap[u.id]=u;});
   if(latestDate) console.log('[CRM] 載入最新匯入：'+latestDate+'，共'+crmData.length+'筆');
@@ -836,15 +855,14 @@ function formatCreatedAt(ts){
 // ══ TAB ═════════════════════════════════════════════════════
 function switchTab(tab){
   currentTab=tab;
-  ['customer','stats','engineer','users'].forEach(function(t){
+  ['customer','stats','users'].forEach(function(t){
     var panel=document.getElementById('tab-'+t);
     if(panel) panel.style.display=t===tab?'':'none';
-    var btn=document.getElementById('tab-'+(t==='customer'?'cust':t==='stats'?'stat':t==='engineer'?'eng':'users')+'-btn');
+    var btn=document.getElementById('tab-'+(t==='customer'?'cust':t==='stats'?'stat':'users')+'-btn');
     if(btn) btn.classList.toggle('active',t===tab);
   });
   if(tab==='customer') renderUnified();
   else if(tab==='stats') renderStats();
-  else if(tab==='engineer') renderEngineer();
   else if(tab==='users') renderUsersList();
 }
 
@@ -879,6 +897,14 @@ function renderUnified(){
     if(keyword&&!matchQ([r.customer,r.sales,r.model,r.delivery,r.status_w1,r.status_w2].join(' '),keyword)) return false;
     return true;
   });
+  // 篩選拜訪紀錄
+  var fVisit=visitData.filter(function(r){
+    if(company&&!matchQ(r.customer,company)) return false;
+    if(model&&!matchQ(r.model||'',model)) return false;
+    if(person&&!matchQ(r.sales,person)) return false;
+    if(keyword&&!matchQ([r.customer,r.sales,r.model,r.customer_info,r.competitor,r.market_info,r.other,r.work,r.work_purpose,r.next_action].join(' '),keyword)) return false;
+    return true;
+  });
 
   // 統計列
   var statsEl=document.getElementById('unified-stats-row');
@@ -886,12 +912,13 @@ function renderUnified(){
     statsEl.innerHTML=
       '<span class="stat-pill">微信訊息 <b>'+custData.length+'</b></span>'
       +'<span class="stat-pill">CRM筆數 <b>'+crmData.length+'</b></span>'
-      +(q?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> CRM<b>'+fCRM.length+'</b></span>':'');
+      +'<span class="stat-pill">拜訪紀錄 <b>'+visitData.length+'</b></span>'
+      +(q?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> CRM<b>'+fCRM.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
   }
 
   var el=document.getElementById('unified-records');
   if(!el) return;
-  if(!fCust.length&&!fCRM.length){
+  if(!fCust.length&&!fCRM.length&&!fVisit.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合紀錄</div>';
     return;
   }
@@ -912,6 +939,13 @@ function renderUnified(){
     if(!groups[key].models[mk]) groups[key].models[mk]={model:mk,records:[]};
     groups[key].models[mk].records.push(Object.assign({},r,{_type:'crm'}));
   });
+  fVisit.forEach(function(r){
+    var key=r.customer||'（未知客戶）';
+    if(!groups[key]) groups[key]={name:key,models:{}};
+    var mk=r.model||'（未指定機型）';
+    if(!groups[key].models[mk]) groups[key].models[mk]={model:mk,records:[]};
+    groups[key].models[mk].records.push(Object.assign({},r,{_type:'visit'}));
+  });
 
   // 排序：客戶名稱字母順序
   var sortedCompanies=Object.keys(groups).sort();
@@ -925,8 +959,8 @@ function renderUnified(){
       var records=mGroup.records;
       // 依時間排序（最新在前）
       records.sort(function(a,b){
-        var da=a._type==='wechat'?a.date:a.week_w2||a.week_w1||'';
-        var db=b._type==='wechat'?b.date:b.week_w2||b.week_w1||'';
+        var da=a._type==='wechat'?a.date:(a._type==='visit'?a.report_date:a.week_w2||a.week_w1)||'';
+        var db=b._type==='wechat'?b.date:(b._type==='visit'?b.report_date:b.week_w2||b.week_w1)||'';
         return (db||'').localeCompare(da||'');
       });
 
@@ -955,6 +989,30 @@ function renderUnified(){
               +'<div class="expand-content" style="display:none;margin-top:8px;background:var(--bg);border-radius:8px;padding:10px 12px;">'
                 +(r.raw?'<div style="font-size:13px;color:var(--text-b);line-height:1.7;white-space:pre-wrap;">'+hl(r.raw,q)+'</div>':'')
                 +(r.note?'<div style="font-size:12px;color:var(--text-m);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><i class="fa-solid fa-note-sticky" style="font-size:10px;margin-right:4px;"></i>'+escH(r.note)+'</div>':'')
+              +'</div>'
+            +'</div>':'')
+          +'</div>';
+        } else if(r._type==='visit'){
+          return '<div class="record-row" style="padding:12px 14px;">'
+            +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">'
+              +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
+                +'<span style="font-size:11px;background:#f0e6d2;color:#8a6a1a;border-radius:6px;padding:2px 8px;font-weight:600;"><i class="fa-solid fa-clipboard-list" style="margin-right:3px;"></i>拜訪紀錄</span>'
+                +(r.sales?'<span style="font-size:12px;color:var(--text-m);font-weight:500;"><i class="fa-solid fa-user-tie" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i>'+escH(r.sales)+'</span>':'')
+                +(r.report_date?'<span style="font-size:11px;color:var(--text-s);">'+escH(r.report_date)+'</span>':'')
+                +(r.industry?'<span style="font-size:11px;color:var(--text-s);">'+escH(r.industry)+'</span>':'')
+              +'</div>'
+              +(canDelete(r)?'<button class="del-btn" onclick="deleteVisitRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'')
+            +'</div>'
+            +((r.work||r.work_purpose)?'<div style="font-size:12px;color:var(--text-m);margin-bottom:6px;">'+escH(r.work||'')+(r.work_purpose?' · '+escH(r.work_purpose):'')+'</div>':'')
+            +(r.customer_info?'<div style="font-size:13px;color:var(--text-b);line-height:1.7;white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:10px 12px;">'+hl(r.customer_info,q)+'</div>':'')
+            +((r.competitor||r.market_info||r.other||r.companion||r.next_action)?'<div style="margin-top:8px;">'
+              +'<button onclick="toggleExpand(this)" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-chevron-down" style="font-size:10px;"></i><span>展開更多欄位</span></button>'
+              +'<div class="expand-content" style="display:none;margin-top:8px;background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-m);line-height:1.8;">'
+                +(r.competitor?'<div><b>競爭對手：</b>'+escH(r.competitor)+'</div>':'')
+                +(r.market_info?'<div><b>市場訊息：</b>'+escH(r.market_info)+'</div>':'')
+                +(r.other?'<div><b>其他：</b>'+escH(r.other)+'</div>':'')
+                +(r.companion?'<div><b>陪同人員：</b>'+escH(r.companion)+'</div>':'')
+                +(r.next_action?'<div><b>後續行動：</b>'+escH(r.next_action)+'</div>':'')
               +'</div>'
             +'</div>':'')
           +'</div>';
@@ -1031,6 +1089,12 @@ async function deleteCRMRecord(id){
   if(!confirm('確定刪除這筆CRM紀錄？')) return;
   await sb.from('crm_records').delete().eq('id',id);
   crmData=crmData.filter(function(r){return r.id!==id;});
+  renderUnified();
+}
+async function deleteVisitRecord(id){
+  if(!confirm('確定刪除這筆拜訪紀錄？')) return;
+  await sb.from('visit_records').delete().eq('id',id);
+  visitData=visitData.filter(function(r){return r.id!==id;});
   renderUnified();
 }
 
@@ -1418,9 +1482,11 @@ function closeImport(){document.getElementById('import-modal').style.display='no
 function setMsgType(type){
   currentMsgType=type;
   document.getElementById('type-customer-btn').classList.toggle('active',type==='customer');
-  document.getElementById('type-engineer-btn').classList.toggle('active',type==='engineer');
+  var engBtn=document.getElementById('type-engineer-btn');
+  if(engBtn) engBtn.classList.toggle('active',type==='engineer');
   document.getElementById('manual-customer-form').style.display=type==='customer'?'':'none';
-  document.getElementById('manual-engineer-form').style.display=type==='engineer'?'':'none';
+  var engForm=document.getElementById('manual-engineer-form');
+  if(engForm) engForm.style.display=type==='engineer'?'':'none';
 }
 
 async function parseMessage(){
@@ -1493,7 +1559,7 @@ async function parseMessage(){
 async function manualSaveCustomer(){
   var company=document.getElementById('m-company').value.trim();
   var contact=document.getElementById('m-contact').value.trim();
-  if(!company||!contact){alert('請填入客戶公司與聯絡人');return;}
+  if(!company||!contact){alert('請填入客戶名稱與聯絡人');return;}
   var {data:inserted,error}=await sb.from('wechat_messages').insert({
     company,contact,
     date:document.getElementById('m-date').value,
@@ -1556,6 +1622,7 @@ function handleExcelFile(e){
         var workbook=XLSX.read(data,{type:'array'});
         var skipSheets=['已接訂單','已無需求_結案','Sheet1','Sheet2'];
         var parsed=[];
+        var parsedVisit=[];
         var sheetCount=0,rowCount=0;
 
         workbook.SheetNames.forEach(function(sheetName){
@@ -1579,6 +1646,39 @@ function handleExcelFile(e){
           });
 
           var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+
+          // 自動偵測是不是「拜訪紀錄」格式（表頭含 客戶資訊＋競爭對手 這兩個特徵欄位）
+          var headerRow0=(rows[0]||[]).map(function(c){return String(c||'').trim();});
+          var isVisitFormat=headerRow0.indexOf('客戶資訊')>-1&&headerRow0.indexOf('競爭對手')>-1;
+
+          if(isVisitFormat){
+            // 拜訪紀錄格式：單號/業務/申報日期/客戶名稱/產業別/工作/工作目的/需求機型/客戶資訊/競爭對手/市場訊息/其他/陪同人員/後續行動
+            for(var vi=1;vi<rows.length;vi++){
+              var vrow=rows[vi];
+              var vCustomer=String(vrow[3]||'').trim();
+              var vCustomerInfo=String(vrow[8]||'').trim();
+              if(!vCustomer&&!vCustomerInfo) continue; // 跳過空白列
+              rowCount++;
+              parsedVisit.push({
+                doc_no:String(vrow[0]||'').trim(),
+                sales:String(vrow[1]||'').trim()||sheetName,
+                report_date:String(vrow[2]||'').trim(),
+                customer:vCustomer,
+                industry:String(vrow[4]||'').trim(),
+                work:String(vrow[5]||'').trim(),
+                work_purpose:String(vrow[6]||'').trim(),
+                model:String(vrow[7]||'').trim(),
+                customer_info:vCustomerInfo,
+                competitor:String(vrow[9]||'').trim(),
+                market_info:String(vrow[10]||'').trim(),
+                other:String(vrow[11]||'').trim(),
+                companion:String(vrow[12]||'').trim(),
+                next_action:String(vrow[13]||'').trim(),
+                sheet:sheetName,import_date:importDate,created_by:currentUser.id
+              });
+            }
+            return; // 這個sheet是拜訪紀錄格式，不走下面CRM那套解析
+          }
 
           // 自動偵測週次標題列
           var weekHeaderRowIdx=-1;
@@ -1606,13 +1706,27 @@ function handleExcelFile(e){
           var w2=weekCols.length>=1?weekCols[weekCols.length-1]:null;
           var dataStartRow=weekHeaderRowIdx>=0?weekHeaderRowIdx+1:3;
 
+          // 判斷是「上週/本週並排區塊」的新格式，還是只有單一欄位的舊格式
+          // 新格式：機型/數量/需求時間 緊接在該週次欄位左邊3欄（型/量/期/狀態）
+          // 舊格式：機型/數量/需求時間 固定在最前面幾欄，週次欄位只用來記錄狀態文字
+          var isDualBlockFormat=weekCols.length>=2;
+
           rows.forEach(function(row,idx){
             if(idx<dataStartRow) return;
             var sales=String(row[0]||'').trim();
             var customer=String(row[1]||'').trim();
-            var model=String(row[2]||'').trim();
-            var qty=String(row[3]||'').trim();
-            var delivery=String(row[4]||'').trim();
+
+            var model,qty,delivery;
+            if(isDualBlockFormat&&w2){
+              // 永遠讀「本週」（最新那個週次區塊）的機型/數量/需求時間，不管上週寫什麼
+              model=String(row[w2.idx-3]||'').trim();
+              qty=String(row[w2.idx-2]||'').trim();
+              delivery=String(row[w2.idx-1]||'').trim();
+            } else {
+              model=String(row[2]||'').trim();
+              qty=String(row[3]||'').trim();
+              delivery=String(row[4]||'').trim();
+            }
             if(!model) return;
             if(model==='機種/機型'||model==='機型') return;
 
@@ -1653,6 +1767,11 @@ function handleExcelFile(e){
           var {error:bErr}=await sb.from('crm_records').insert(batch);
           if(bErr) throw new Error(bErr.message);
         }
+        for(var vbi=0;vbi<parsedVisit.length;vbi+=batchSize){
+          var vbatch=parsedVisit.slice(vbi,vbi+batchSize);
+          var {error:vbErr}=await sb.from('visit_records').insert(vbatch);
+          if(vbErr) throw new Error('拜訪紀錄寫入失敗：'+vbErr.message);
+        }
         totalSheets+=sheetCount;
         totalRows+=rowCount;
       }catch(err){
@@ -1663,10 +1782,12 @@ function handleExcelFile(e){
       if(filesDone===files.length){
         var {data:newCRM}=await sb.from('crm_records').select('*').eq('import_date',importDate).order('created_at',{ascending:false});
         crmData=newCRM||[];
+        var {data:newVisit}=await sb.from('visit_records').select('*').order('created_at',{ascending:false});
+        visitData=newVisit||[];
         resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
-          +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜<b>'+totalRows+'</b> 筆</div>'
-          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">下次匯入時系統將自動切換至最新一份，舊資料保留備查。</div>'
+          +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM <b>'+totalRows+'</b> 筆（含拜訪紀錄）</div>'
+          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">系統會自動判斷每個工作表是CRM需求統計格式、還是拜訪紀錄格式，分別存到對應的地方。下次匯入CRM時系統將自動切換至最新一份，舊資料保留備查；拜訪紀錄則是每次累加不覆蓋。</div>'
           +'<button class="btn-primary" style="margin-top:10px;width:100%;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')">'
           +'<i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看'
           +'</button></div>';
@@ -1738,4 +1859,3 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-

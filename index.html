@@ -841,6 +841,7 @@ function renderStats(){
 
   // 合併所有資料篩選
   var allRecords=[];
+  var unresolvedIds=[]; // 尚未嘗試解析過(delivery_parsed===null)的crm記錄id，供「解析未分類」按鈕使用
   custData.forEach(function(r){
     if(company&&!matchQ(r.company||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
@@ -851,22 +852,23 @@ function renderStats(){
     if(company&&!matchQ(r.customer||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
     var latestStatus=r.status_w2||r.status_w1||'';
-    // 月份篩選：優先用解析後的資料，計算該月份精確台數
-    var matchedQty=0;
+    var totalNum=parseInt(String(r.qty||'').replace(/[^0-9]/g,''))||0;
+    var hasParsedData=Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length>0;
+    var matchedQty=0,isUnclassified=false;
     if(month){
-      if(r.delivery_parsed&&Array.isArray(r.delivery_parsed)){
-        // 從解析後資料找符合月份的台數
+      if(hasParsedData){
         r.delivery_parsed.forEach(function(d){
           if(matchQ(d.month||'',month)) matchedQty+=parseInt(d.qty)||0;
         });
-        if(matchedQty===0) return; // 沒有符合的月份就跳過
+        if(matchedQty===0) return; // 有解析資料、但確定不在這個月份，跳過（不是無法辨識，是真的不是這個月）
       } else {
-        // 沒有解析資料，fallback 文字比對
-        if(!matchQ(r.delivery||'',month)) return;
-        matchedQty=parseInt(String(r.qty||'').replace(/[^0-9]/g,''))||0;
+        // delivery_parsed是null(還沒嘗試解析)或[](AI判定無法辨識)，一律歸入「無備註需求月份」，不猜測月份
+        matchedQty=totalNum;
+        isUnclassified=true;
+        if(r.delivery_parsed===null||r.delivery_parsed===undefined) unresolvedIds.push(r.id);
       }
     } else {
-      matchedQty=parseInt(String(r.qty||'').replace(/[^0-9]/g,''))||0;
+      matchedQty=totalNum;
     }
     allRecords.push({
       _type:'crm',company:r.customer,model:r.model,
@@ -875,19 +877,22 @@ function renderStats(){
       delivery_parsed:r.delivery_parsed,
       statusText:latestStatus,sales:r.sales,
       week:r.week_w2||r.week_w1||'',id:r.id,
-      hasParsed:!!(r.delivery_parsed&&Array.isArray(r.delivery_parsed))
+      hasParsed:hasParsedData,
+      isUnclassified:isUnclassified
     });
   });
+  window._statsUnresolvedIds=unresolvedIds; // 給「解析未分類」按鈕使用
 
   if(!allRecords.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合資料</div>';
     return;
   }
 
-  // 分類統計
-  var confirmed=[],ongoing=[],lost=[],unknown=[];
-  var totalConfirmed=0,totalOngoing=0,totalLost=0;
+  // 分類統計（無備註需求月份的獨立出來，不混進已確認/進行中/流失）
+  var confirmed=[],ongoing=[],lost=[],unknown=[],unclassified=[];
+  var totalConfirmed=0,totalOngoing=0,totalLost=0,totalUnclassified=0;
   allRecords.forEach(function(r){
+    if(r.isUnclassified){unclassified.push(r);totalUnclassified+=r.qty;return;}
     var sc=classifyStatus(r.statusText);
     if(sc==='confirmed'){confirmed.push(r);totalConfirmed+=r.qty;}
     else if(sc==='ongoing'){ongoing.push(r);totalOngoing+=r.qty;}
@@ -946,10 +951,41 @@ function renderStats(){
     +section('已確認','#1a7a4a',confirmed,totalConfirmed,'✅')
     +section('進行中','#8a5a00',ongoing,totalOngoing,'🔄')
     +section('流失/結案','#b03030',lost,totalLost,'❌')
+    +(unclassified.length?'<div class="stat-summary-card" style="border-left:4px solid #7a6a4a;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">'
+        +'<div style="font-size:14px;font-weight:700;color:var(--text-h);">📋 無備註需求月份</div>'
+        +'<div style="display:flex;align-items:center;gap:10px;">'
+          +'<div style="font-size:16px;font-weight:700;color:#7a6a4a;">'+totalUnclassified+' 台 <span style="font-size:12px;color:var(--text-s);">('+unclassified.length+' 筆)</span></div>'
+          +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">用AI試著解析這'+unresolvedIds.length+'筆</button>':'')
+        +'</div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，台數先列在這裡，不會被誤算進其他月份</div>'
+      +unclassified.map(recordCard).join('')
+    +'</div>':'')
     +(unknown.length?'<div class="stat-summary-card" style="border-left:4px solid #a09990;">'
       +'<div style="font-size:14px;font-weight:700;color:var(--text-h);margin-bottom:10px;">⚠️ 狀態不明（'+unknown.length+' 筆）</div>'
       +unknown.map(recordCard).join('')
     +'</div>':'');
+}
+
+// 使用者主動按下「用AI試著解析」時才呼叫AI，只解析目前畫面上這幾筆未分類的，解出來就存回資料庫，之後不會再問第二次
+async function resolveUnclassified(){
+  var ids=window._statsUnresolvedIds||[];
+  if(!ids.length) return;
+  var btn=document.getElementById('resolve-unclassified-btn');
+  for(var i=0;i<ids.length;i++){
+    var id=ids[i];
+    var rec=crmData.find(function(r){return r.id===id;});
+    if(!rec) continue;
+    if(btn) btn.textContent='解析中 '+(i+1)+'/'+ids.length+'...';
+    var result=await parseDeliveryWithAI(rec.delivery,rec.qty);
+    if(result!==null){ // null代表這次沒問到（如額度問題），下次可以再試；[]或有內容都算「已嘗試」
+      rec.delivery_parsed=result;
+      await sb.from('crm_records').update({delivery_parsed:result}).eq('id',id);
+    }
+    if(i<ids.length-1) await new Promise(function(res){setTimeout(res,1500);});
+  }
+  renderStats();
 }
 
 // ══ 設備/技術 ════════════════════════════════════════════════
@@ -1158,7 +1194,7 @@ function handleExcelFile(e){
   if(!files.length) return;
   var resultEl=document.getElementById('excel-result');
   resultEl.style.display='block';
-  resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在解析 '+files.length+' 個 Excel 檔案，AI 逐筆分析交期中，資料筆數多的話可能需要數分鐘，請耐心等候，不要關閉視窗...</div>';
+  resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在匯入 '+files.length+' 個 Excel 檔案（僅用規則解析交期，不呼叫AI，速度很快）...</div>';
 
   var importDate=new Date().toISOString().split('T')[0];
   var totalSheets=0,totalRows=0,filesDone=0;
@@ -1257,24 +1293,20 @@ function handleExcelFile(e){
         });
 
         // AI 解析交期：把有複合交期的拆成 [{month, qty}]
-        async function parseDeliveryWithAI(deliveryStr, totalQty){
+        // 純規則解析：完全不呼叫AI，同步執行，免費、瞬間完成
+        function parseDeliveryLocal(deliveryStr, totalQty){
           if(!deliveryStr) return null;
-          // 先用正規表達式快速解析簡單格式（年/月）
           var simple=/^(\d{4})[\/\-年](\d{1,2})/;
           var sm=deliveryStr.match(simple);
           if(sm&&!/台|机|機|:：/.test(deliveryStr)){
-            // 只有單一日期，直接用總數量
             return [{month:sm[1]+'/'+(sm[2].length===1?'0':'')+sm[2],qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
           }
-          // 季度格式（如 2026Q3 / 2026-Q3 / 2026年Q3）：歸到該季度第一個月，全部台數
           var quarter=/^(\d{4})\D{0,2}Q\s*([1-4])/i;
           var qm=deliveryStr.match(quarter);
           if(qm&&!/台|机|機|:：/.test(deliveryStr)){
-            var qFirstMonth=(parseInt(qm[2],10)-1)*3+1; // Q1->1, Q2->4, Q3->7, Q4->10
+            var qFirstMonth=(parseInt(qm[2],10)-1)*3+1;
             return [{month:qm[1]+'/'+(qFirstMonth<10?'0':'')+qFirstMonth,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
           }
-          // 多筆組合格式（如「2026/9月24*8台 2026/10月12*8台」「2026/11/2*10台 2026/12/8*6台」）
-          // 用規則直接抓出每一段「年/月...*台數台」，不需要呼叫AI
           var entries=[];
           var reWithMonth=/(\d{4})[\/\-年](\d{1,2})月\d{0,2}\*(\d+)\s*台/g;
           var reAllSlash=/(\d{4})\/(\d{1,2})\/\d{1,2}\*(\d+)\s*台/g;
@@ -1293,7 +1325,6 @@ function handleExcelFile(e){
             }
             return entries;
           }
-          // 格式「N台：YYYY/MM/DD」（可能重複多行，同月份自動加總）
           var reQtyColonDate=/(\d+)\s*台[:：]\s*(\d{4})\/(\d{1,2})\/\d{1,2}/g;
           var monthMap={};
           var qm2;
@@ -1305,18 +1336,27 @@ function handleExcelFile(e){
           if(monthMapKeys.length>0){
             return monthMapKeys.map(function(k){return {month:k,qty:monthMap[k]};});
           }
-          // 單獨季度格式，沒有年份（如「Q3」「Q4」）：假設是今年，歸到該季度第一個月，全部台數
           var qOnly=deliveryStr.trim().match(/^Q\s*([1-4])$/i);
           if(qOnly){
             var curYear=new Date().getFullYear();
             var qFirstMonth2=(parseInt(qOnly[1],10)-1)*3+1;
             return [{month:curYear+'/'+(qFirstMonth2<10?'0':'')+qFirstMonth2,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
           }
-          // 複雜格式才呼叫 AI（遇429速率限制會等待後重試，並把錯誤印到console方便除錯）
+          return null; // 規則解析不出來，交給呼叫端決定要不要用AI
+        }
+
+        // AI 解析：只在「查詢當下、規則解不出來」時才呼叫，不在匯入時使用
+        async function parseDeliveryWithAI(deliveryStr, totalQty){
+          var local=parseDeliveryLocal(deliveryStr,totalQty);
+          if(local) return local;
+          if(!/\d{4}/.test(deliveryStr)){
+            console.info('[交期解析] 文字中無年份資訊，判定非日期格式，跳過AI呼叫：'+deliveryStr);
+            return [];// 空陣列＝已判定無法辨識，不是「尚未嘗試」
+          }
           async function callAIOnce(){
             var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              model:'claude-sonnet-4-20250514',max_tokens:400,
-              system:'你是交期解析助理。從文字中提取每個月份對應的台數，回傳純JSON陣列，格式：[{"month":"2026/09","qty":8},{"month":"2026/10","qty":8}]。month格式必須是YYYY/MM。\n重要規則：\n1. 格式「年/月/日*N台」中，*是分隔符，*後面的數字才是台數，例如「2026/10月12*8台」=2026年10月12日，8台\n2. 格式「N台：日期」或「日期*N台」或「N台:日期」都是台數+日期的組合\n3. 已出货/已出貨/已出货的也要包含\n4. 遇到季度格式（如2026Q3、2026年第3季）且沒有明確月份時，一律歸到該季度的第一個月（Q1→01月，Q2→04月，Q3→07月，Q4→10月），台數為該季度總台數\n5. 完全找不到年份或季度/月份資訊才回傳null\n6. 只回傳JSON不要其他文字',
+              model:'claude-sonnet-4-20250514',max_tokens:150,
+              system:'交期解析助理。回傳純JSON陣列：[{"month":"YYYY/MM","qty":N}]，找不到就回傳null，只回傳JSON不要其他文字。*是日期與台數的分隔符不是乘法。',
               messages:[{role:'user',content:'交期文字：'+deliveryStr+'\n總數量：'+totalQty+'\n請解析每個月份對應幾台，注意*號是日期與台數的分隔符，不是乘法；季度格式歸到該季度第一個月'}]
             })});
             if(!resp.ok){
@@ -1329,8 +1369,9 @@ function handleExcelFile(e){
             if(!data||!data.content){throw new Error('AI回應格式異常：'+JSON.stringify(data).slice(0,200));}
             var raw=data.content.map(function(c){return c.text||'';}).join('');
             var clean=raw.replace(/```json|```/g,'').trim();
-            if(clean==='null') return null;
-            return JSON.parse(clean);
+            if(clean==='null') return [];
+            var parsedResult=JSON.parse(clean);
+            return (parsedResult&&parsedResult.length)?parsedResult:[];
           }
           var maxRetries=2;
           for(var attempt=1;attempt<=maxRetries;attempt++){
@@ -1340,7 +1381,7 @@ function handleExcelFile(e){
               var isRateLimit=(e.status===429);
               if(attempt===maxRetries){
                 console.error('[交期AI解析] 放棄（重試'+(maxRetries-1)+'次後仍失敗），交期文字：'+deliveryStr+'，錯誤：',e);
-                return null;
+                return null; // null＝這次沒問到結果（可能額度問題），下次還可以再試
               }
               var waitMs=isRateLimit?3000:800;
               console.warn('[交期AI解析] 第'+attempt+'次失敗（'+(isRateLimit?'速率限制':'其他錯誤')+'），'+(waitMs/1000)+'秒後重試，交期文字：'+deliveryStr+'，錯誤：',e);
@@ -1349,10 +1390,9 @@ function handleExcelFile(e){
           }
         }
 
-        // 批次 AI 解析：完全依序執行（不平行），每筆間隔2.2秒，避免撞到AI服務每分鐘30次的速率限制
+        // 匯入時只用免費規則解析，不呼叫AI，瞬間完成、不燒token
         for(var pi=0;pi<parsed.length;pi++){
-          parsed[pi].delivery_parsed=await parseDeliveryWithAI(parsed[pi].delivery,parsed[pi].qty);
-          if(pi<parsed.length-1) await new Promise(function(res){setTimeout(res,2200);});
+          parsed[pi].delivery_parsed=parseDeliveryLocal(parsed[pi].delivery,parsed[pi].qty);
         }
 
         // 批次存入 Supabase

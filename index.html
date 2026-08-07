@@ -1293,6 +1293,25 @@ function handleExcelFile(e){
             }
             return entries;
           }
+          // 格式「N台：YYYY/MM/DD」（可能重複多行，同月份自動加總）
+          var reQtyColonDate=/(\d+)\s*台[:：]\s*(\d{4})\/(\d{1,2})\/\d{1,2}/g;
+          var monthMap={};
+          var qm2;
+          while((qm2=reQtyColonDate.exec(deliveryStr))!==null){
+            var mk=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
+            monthMap[mk]=(monthMap[mk]||0)+(parseInt(qm2[1],10)||0);
+          }
+          var monthMapKeys=Object.keys(monthMap);
+          if(monthMapKeys.length>0){
+            return monthMapKeys.map(function(k){return {month:k,qty:monthMap[k]};});
+          }
+          // 單獨季度格式，沒有年份（如「Q3」「Q4」）：假設是今年，歸到該季度第一個月，全部台數
+          var qOnly=deliveryStr.trim().match(/^Q\s*([1-4])$/i);
+          if(qOnly){
+            var curYear=new Date().getFullYear();
+            var qFirstMonth2=(parseInt(qOnly[1],10)-1)*3+1;
+            return [{month:curYear+'/'+(qFirstMonth2<10?'0':'')+qFirstMonth2,qty:parseInt(String(totalQty).replace(/[^0-9]/g,''))||0}];
+          }
           // 複雜格式才呼叫 AI（遇429速率限制會等待後重試，並把錯誤印到console方便除錯）
           async function callAIOnce(){
             var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
@@ -1313,17 +1332,17 @@ function handleExcelFile(e){
             if(clean==='null') return null;
             return JSON.parse(clean);
           }
-          var maxRetries=4;
+          var maxRetries=2;
           for(var attempt=1;attempt<=maxRetries;attempt++){
             try{
               return await callAIOnce();
             }catch(e){
               var isRateLimit=(e.status===429);
               if(attempt===maxRetries){
-                console.error('[交期AI解析] 重試'+(maxRetries-1)+'次後仍失敗，交期文字：'+deliveryStr+'，錯誤：',e);
+                console.error('[交期AI解析] 放棄（重試'+(maxRetries-1)+'次後仍失敗），交期文字：'+deliveryStr+'，錯誤：',e);
                 return null;
               }
-              var waitMs=isRateLimit?(6000*attempt):(1000*attempt);
+              var waitMs=isRateLimit?3000:800;
               console.warn('[交期AI解析] 第'+attempt+'次失敗（'+(isRateLimit?'速率限制':'其他錯誤')+'），'+(waitMs/1000)+'秒後重試，交期文字：'+deliveryStr+'，錯誤：',e);
               await new Promise(function(res){setTimeout(res,waitMs);});
             }

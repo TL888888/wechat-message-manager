@@ -955,24 +955,26 @@ function renderUnified(){
           var sc=classifyStatus(r.status);
           return '<div class="record-row">'
             +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
-              +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
-                +'<span class="badge-wechat" style="font-size:11px;"><i class="fa-brands fa-weixin" style="margin-right:3px;"></i>微信</span>'
-                +(r.contact?'<span style="font-size:12px;color:var(--text-m);font-weight:500;"><i class="fa-regular fa-user" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i>'+escH(r.contact)+'</span>':'')
-                +(r.date?'<span style="font-size:11px;color:var(--text-s);">'+escH(r.date)+'</span>':'')
-                +(getUserName(r.created_by)?'<span style="font-size:11px;color:var(--accent);font-weight:500;"><i class="fa-solid fa-circle-user" style="font-size:10px;margin-right:3px;"></i>'+escH(getUserName(r.created_by))+' 貼入</span>':'')
-                +(r.created_at?'<span style="font-size:11px;color:var(--text-s);"><i class="fa-regular fa-clock" style="font-size:10px;margin-right:3px;"></i>'+formatCreatedAt(r.created_at)+'</span>':'')
-                +(r.delivery?'<span style="font-size:12px;color:var(--text-m);"><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i>交期：<b>'+escH(r.delivery)+'</b></span>':'')
-                +(r.qty?'<span style="font-size:12px;color:var(--text-m);"><i class="fa-solid fa-desktop" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i><b>'+escH(String(r.qty).replace(/[台台]/g,'').trim())+'</b> 台</span>':'')
-                +(r.price&&r.price!=='—'?'<span style="font-size:12px;color:var(--green);font-weight:500;"><i class="fa-solid fa-tag" style="font-size:10px;margin-right:3px;"></i>'+escH(r.price)+'</span>':'')
+              +'<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text-b);">'
+                +'<span class="badge-wechat"><i class="fa-brands fa-weixin" style="margin-right:3px;"></i>微信</span>'
+                +(r.contact?'<span><i class="fa-regular fa-user" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(r.contact)+'</span>':'')
+                +(r.date?'<span style="color:var(--text-m);"><i class="fa-regular fa-calendar-days" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(r.date)+'</span>':'')
+                +(r.qty?'<span><i class="fa-solid fa-desktop" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(String(r.qty).replace(/[台台]/g,'').trim())+' 台</span>':'')
+                +(r.delivery?'<span><i class="fa-regular fa-calendar" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>交期 '+escH(r.delivery)+'</span>':'')
+                +(r.price&&r.price!=='—'?'<span style="color:var(--green);"><i class="fa-solid fa-tag" style="font-size:11px;margin-right:4px;"></i>'+escH(r.price)+'</span>':'')
               +'</div>'
-              +'<div style="display:flex;align-items:center;gap:6px;">'
-                +'<span class="badge '+statusBadgeCls[sc]+'" style="font-size:11px;padding:3px 10px;">'+statusLabel[sc]+'</span>'
+              +'<div style="display:flex;align-items:center;gap:8px;">'
+                +'<span class="badge '+statusBadgeCls[sc]+'">'+statusLabel[sc]+'</span>'
                 +(canDelete(r)?'<button class="del-btn" onclick="deleteCustRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'')
               +'</div>'
             +'</div>'
+            +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text-s);margin-top:6px;">'
+              +(getUserName(r.created_by)?'<span><i class="fa-solid fa-circle-user" style="font-size:10px;margin-right:3px;"></i>'+escH(getUserName(r.created_by))+' 貼入</span>':'')
+              +(r.created_at?'<span><i class="fa-regular fa-clock" style="font-size:10px;margin-right:3px;"></i>'+formatCreatedAt(r.created_at)+'</span>':'')
+            +'</div>'
             +(r.raw||r.note?'<div style="margin-top:8px;">'
-              +'<button onclick="toggleExpand(this)" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-chevron-down" style="font-size:10px;"></i><span>展開完整訊息</span></button>'
-              +'<div class="expand-content" style="display:none;margin-top:8px;background:var(--bg);border-radius:8px;padding:10px 12px;">'
+              +'<button onclick="toggleExpand(this)" style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-chevron-down" style="font-size:10px;"></i><span>展開完整訊息</span></button>'
+              +'<div class="expand-content" style="display:none;margin-top:8px;background:#fafbfc;border:1px solid var(--border);border-radius:6px;padding:10px 12px;">'
                 +(r.raw?'<div style="font-size:13px;color:var(--text-b);line-height:1.7;white-space:pre-wrap;">'+hl(r.raw,q)+'</div>':'')
                 +(r.note?'<div style="font-size:12px;color:var(--text-m);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><i class="fa-solid fa-note-sticky" style="font-size:10px;margin-right:4px;"></i>'+escH(r.note)+'</div>':'')
               +'</div>'
@@ -1034,22 +1036,20 @@ function renderUnified(){
       }).join('');
 
       return '<div class="model-block">'
-        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:9px 12px;background:#eef3fb;border-radius:8px;border-left:4px solid var(--accent);">'
-          +'<i class="fa-solid fa-microchip" style="color:var(--accent);font-size:13px;"></i>'
-          +'<span style="font-size:15px;font-weight:700;color:var(--accent);font-family:monospace,sans-serif;letter-spacing:0.8px;">'+hl(mk,q)+'</span>'
-          +'<span style="font-size:11px;color:var(--text-s);margin-left:4px;">'+records.length+' 筆</span>'
+        +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding:7px 10px;background:#fafbfc;border-radius:6px;border-left:2px solid var(--accent);">'
+          +'<i class="fa-solid fa-microchip" style="color:var(--text-s);font-size:12px;"></i>'
+          +'<span style="font-size:13px;font-weight:600;color:var(--text-h);letter-spacing:0.3px;">'+hl(mk,q)+'</span>'
+          +'<span style="font-size:11px;color:var(--text-s);margin-left:2px;">'+records.length+' 筆</span>'
         +'</div>'
         +recordsHtml
       +'</div>';
     }).join('');
 
     return '<div class="company-card">'
-      +'<div class="company-header" style="background:linear-gradient(135deg,#deeaf8 0%,#e8f0fa 100%);border-bottom:2px solid var(--accent);">'
-        +'<div style="background:var(--accent);border-radius:7px;padding:5px 8px;display:inline-flex;align-items:center;">'
-          +'<i class="fa-regular fa-building" style="color:#fff;font-size:13px;"></i>'
-        +'</div>'
-        +'<span style="font-size:17px;font-weight:800;color:var(--accent);letter-spacing:0.3px;">'+hl(companyName,q)+'</span>'
-        +'<span style="font-size:11px;color:var(--accent);opacity:0.7;background:rgba(59,118,212,0.1);border-radius:10px;padding:2px 8px;">'+modelKeys.length+' 個機型</span>'
+      +'<div class="company-header">'
+        +'<i class="fa-regular fa-building" style="color:var(--text-s);font-size:13px;"></i>'
+        +'<span style="font-size:14px;font-weight:600;color:var(--text-h);">'+hl(companyName,q)+'</span>'
+        +'<span style="font-size:11px;color:var(--text-s);background:var(--bg);border-radius:4px;padding:2px 7px;">'+modelKeys.length+' 個機型</span>'
       +'</div>'
       +modelsHtml
     +'</div>';
@@ -1853,4 +1853,3 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-

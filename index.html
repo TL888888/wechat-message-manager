@@ -881,20 +881,12 @@ function renderUnified(){
   var keyword=(document.getElementById('f-uni-keyword')||{}).value||'';
   var q=company||model||person||keyword;
 
-  // 篩選微信
+  // 篩選微信（同事手動貼上/AI解析的個別訊息）
   var fCust=custData.filter(function(r){
     if(company&&!matchQ(r.company,company)) return false;
     if(model&&!matchQ([r.model,r.raw].join(' '),model)) return false;
     if(person&&!matchQ([r.contact,r.raw].join(' '),person)) return false;
     if(keyword&&!matchQ([r.company,r.contact,r.model,r.price,r.delivery,r.status,r.note,r.raw].join(' '),keyword)) return false;
-    return true;
-  });
-  // 篩選CRM
-  var fCRM=crmData.filter(function(r){
-    if(company&&!matchQ(r.customer,company)) return false;
-    if(model&&!matchQ([r.model,r.status_w1,r.status_w2].join(' '),model)) return false;
-    if(person&&!matchQ(r.sales,person)) return false;
-    if(keyword&&!matchQ([r.customer,r.sales,r.model,r.delivery,r.status_w1,r.status_w2].join(' '),keyword)) return false;
     return true;
   });
   // 篩選拜訪紀錄
@@ -905,20 +897,21 @@ function renderUnified(){
     if(keyword&&!matchQ([r.customer,r.sales,r.model,r.customer_info,r.competitor,r.market_info,r.other,r.work,r.work_purpose,r.next_action].join(' '),keyword)) return false;
     return true;
   });
+  // 注意：客戶商務頁籤故意不放CRM資料（crm_records），CRM只在「CRM需求統計」頁籤顯示，
+  // 避免同一筆訂單在兩個頁籤都出現、造成重複計算或混淆
 
   // 統計列
   var statsEl=document.getElementById('unified-stats-row');
   if(statsEl){
     statsEl.innerHTML=
       '<span class="stat-pill">微信訊息 <b>'+custData.length+'</b></span>'
-      +'<span class="stat-pill">CRM筆數 <b>'+crmData.length+'</b></span>'
       +'<span class="stat-pill">拜訪紀錄 <b>'+visitData.length+'</b></span>'
-      +(q?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> CRM<b>'+fCRM.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
+      +(q?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
   }
 
   var el=document.getElementById('unified-records');
   if(!el) return;
-  if(!fCust.length&&!fCRM.length&&!fVisit.length){
+  if(!fCust.length&&!fVisit.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合紀錄</div>';
     return;
   }
@@ -931,13 +924,6 @@ function renderUnified(){
     var mk=r.model||'（未知機型）';
     if(!groups[key].models[mk]) groups[key].models[mk]={model:mk,records:[]};
     groups[key].models[mk].records.push(Object.assign({},r,{_type:'wechat'}));
-  });
-  fCRM.forEach(function(r){
-    var key=r.customer||'（未知客戶）';
-    if(!groups[key]) groups[key]={name:key,models:{}};
-    var mk=r.model||'（未知機型）';
-    if(!groups[key].models[mk]) groups[key].models[mk]={model:mk,records:[]};
-    groups[key].models[mk].records.push(Object.assign({},r,{_type:'crm'}));
   });
   fVisit.forEach(function(r){
     var key=r.customer||'（未知客戶）';
@@ -1500,40 +1486,48 @@ async function parseMessage(){
 
   var isCustomer=currentMsgType==='customer';
   var systemPrompt=isCustomer
-    ?'你是工業設備商務訊息解析助理。支援中文和英文訊息。從聊天記錄或客戶來信中提取資訊，回傳純JSON（不含markdown）包含：company(客戶公司名稱，英文信件從寄件人公司或信件內容判斷), contact(聯絡人姓名), date(日期YYYY-MM-DD，若無填今天), model(機型或產品名稱), qty(數量純數字，單位為台), price(價格含幣別，若有多個都記錄), delivery(交期，格式YYYY/MM/DD或描述), status(根據訊息內容判斷：已確認/進行中/流失，預設進行中), note(重要備註), raw(原始訊息完整文字), tags(4至8個關鍵標籤陣列：若訊息為英文必須加入對應中文翻譯標籤，涵蓋機型、客戶、關鍵詞的中英文對照)。'
+    ?'你是工業設備商務訊息解析助理。支援中文和英文訊息。訊息開頭常常是日期（如「8/06」），接著可能包含一個或多個客戶的拜訪/會議記錄（每個客戶通常自成一段，段落開頭是客戶名稱）。\n請針對訊息中「每一個客戶」各自產生一筆資料，回傳純JSON陣列（不含markdown），格式：[{...},{...}]。就算只有一個客戶，也要用陣列包起來（陣列裡只有一個物件）。\n每個物件包含：company(客戶公司名稱), contact(該段提到的聯絡人姓名，可能多個用頓號分隔，找不到填空字串), date(日期YYYY-MM-DD，用訊息開頭那個日期，年份若沒寫用今年，格式如"8/06"要轉成"2026-08-06"), model(機型或產品名稱，找不到填空字串), qty(數量純數字，找不到填null), price(價格含幣別，找不到填空字串), delivery(交期，找不到填空字串), status(根據該段內容判斷：已確認/進行中/流失，預設進行中), note(把該客戶這一段的完整內容摘要整理成重點，保留關鍵數字與事項), raw(該客戶這一段的原始文字，不要包含其他客戶的內容), tags(4至8個關鍵標籤陣列：涵蓋機型、客戶、關鍵詞，若為英文需加中文對照)。'
     :'你是工業設備技術訊息解析助理。支援中文和英文訊息。嚴格規則：只填寫訊息中明確出現的資訊，找不到就填空字串或null，絕對不可猜測或編造。回傳純JSON（不含markdown）包含：topic(從訊息內容摘要主題，格式"機型或主題 — 具體事項"), company(訊息中明確提到的客戶公司名稱，找不到填空字串), model(訊息中明確出現的機型代號如RU6M2/DG6Z等，找不到填空字串), engineer(訊息中明確出現的人名，找不到填空字串), instruction(訊息的主要內容摘要), issue(訊息中明確描述的異常或問題，找不到填空字串), progress(訊息中明確描述的進度，找不到填"尚未回報"), status(待處理/進行中/完成 三選一，根據訊息內容判斷), raw(原始訊息完整文字，必填), tags(4至8個關鍵標籤：涵蓋機型、零件名稱、廠商、技術關鍵字；若訊息為英文必須同時加入中文對照標籤如scale→光學尺、spindle→主軸、bearing→軸承)。';
 
   try{
-    var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,system:systemPrompt,messages:[{role:'user',content:text}]})});
+    var resp=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1800,system:systemPrompt,messages:[{role:'user',content:text}]})});
     var data=await resp.json();
     if(data.error) throw new Error(typeof data.error==='string'?data.error:JSON.stringify(data.error));
     var raw=data.content.map(function(c){return c.text||'';}).join('');
     var clean=raw.replace(/```json|```/g,'').trim();
     var parsed=JSON.parse(clean);
-    if(!parsed.tags) parsed.tags=[];
 
     if(isCustomer){
-      if(!parsed.raw) parsed.raw=text;
-      // 存到 Supabase
-      var {data:inserted,error:err}=await sb.from('wechat_messages').insert({
-        company:parsed.company,contact:parsed.contact,date:parsed.date,
-        model:parsed.model,qty:parsed.qty,price:parsed.price,
-        delivery:parsed.delivery,status:parsed.status,note:parsed.note,
-        raw:parsed.raw,tags:parsed.tags,created_by:currentUser.id
-      }).select().single();
+      // 一次貼上可能有多個客戶，統一用陣列處理；如果AI回傳單一物件（舊格式），也自動包成陣列
+      var parsedArr=Array.isArray(parsed)?parsed:[parsed];
+      var rowsToInsert=parsedArr.map(function(p){
+        if(!p.tags) p.tags=[];
+        if(!p.raw) p.raw=text;
+        return {
+          company:p.company,contact:p.contact,date:p.date,
+          model:p.model,qty:p.qty,price:p.price,
+          delivery:p.delivery,status:p.status,note:p.note,
+          raw:p.raw,tags:p.tags,created_by:currentUser.id
+        };
+      });
+      var {data:inserted,error:err}=await sb.from('wechat_messages').insert(rowsToInsert).select();
       if(err) throw new Error(err.message);
-      custData.unshift(inserted);
+      (inserted||[]).forEach(function(row){custData.unshift(row);});
       resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
-        +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>解析成功，已儲存至資料庫</div>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:5px;">'
-        +(parsed.company?'<span class="badge badge-blue">'+escH(parsed.company)+'</span>':'')
-        +(parsed.model?'<span class="badge badge-gray">'+escH(parsed.model)+'</span>':'')
-        +(parsed.qty?'<span class="badge badge-gray">'+parsed.qty+' 台</span>':'')
-        +(parsed.delivery?'<span class="badge badge-amber">交期 '+escH(parsed.delivery)+'</span>':'')
-        +'</div></div>';
+        +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>解析成功，共 '+parsedArr.length+' 位客戶，已分別儲存至資料庫</div>'
+        +parsedArr.map(function(p){
+          return '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;">'
+            +(p.company?'<span class="badge badge-blue">'+escH(p.company)+'</span>':'')
+            +(p.model?'<span class="badge badge-gray">'+escH(p.model)+'</span>':'')
+            +(p.qty?'<span class="badge badge-gray">'+p.qty+' 台</span>':'')
+            +(p.delivery?'<span class="badge badge-amber">交期 '+escH(p.delivery)+'</span>':'')
+          +'</div>';
+        }).join('')
+        +'</div>';
       document.getElementById('paste-input').value='';
       if(currentTab==='customer') renderUnified();
     } else {
+      if(!parsed.tags) parsed.tags=[];
       if(!parsed.raw) parsed.raw=text;
       var {data:insertedE,error:errE}=await sb.from('engineer_messages').insert({
         topic:parsed.topic,company:parsed.company,model:parsed.model,
@@ -1859,3 +1853,4 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+

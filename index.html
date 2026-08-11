@@ -1332,7 +1332,7 @@ function renderStats(){
           +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">AI解析中...</button>':'')
         +'</div>'
       +'</div>'
-      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，系統正自動嘗試解析，解析完會自動歸類到對應月份</div>'
+      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，系統正自動嘗試解析，解析完會自動歸類到對應月份'+(month?'。<b>此清單不受目前所選月份「'+escH(month)+'」篩選影響</b>——只要符合客戶／機型條件、交期又無法判斷月份，不管選哪個月份查詢都會顯示同一批，並不代表這些紀錄屬於「'+escH(month)+'」':'')+'</div>'
       +unclassified.map(recordCard).join('')
     +'</div>':'')
     +(unknown.length?'<div class="stat-summary-card" style="border-left:3px solid #cbd0d8;">'
@@ -1786,6 +1786,11 @@ function handleExcelFile(e){
 
   var importDate=new Date().toISOString().split('T')[0];
   var totalSheets=0,totalRows=0,totalVisitRows=0,filesDone=0;
+  // 這次匯入（可能包含多個檔案）視為一份完整的「CRM需求統計」最新快照，
+  // 舊的crm_records資料若不清掉，重複匯入/測試會不斷疊加，
+  // 造成「無備註需求月份」等統計數字暴增、同樣客戶重複出現。
+  // 用共用的Promise確保不管幾個檔案、幾個非同步callback，實際上只清空一次。
+  var crmClearedPromise=null;
 
   files.forEach(function(file){
     var reader=new FileReader();
@@ -1935,6 +1940,14 @@ function handleExcelFile(e){
 
         // 批次存入 Supabase
         var batchSize=50;
+        if(parsed.length>0){
+          // 這批CRM資料要寫入前，先確保舊的crm_records已經清空（整個匯入流程只會清空一次）
+          if(!crmClearedPromise){
+            crmClearedPromise=sb.from('crm_records').delete().not('id','is',null);
+          }
+          var {error:clearErr}=await crmClearedPromise;
+          if(clearErr) throw new Error('清空舊CRM資料失敗：'+clearErr.message);
+        }
         for(var bi=0;bi<parsed.length;bi+=batchSize){
           var batch=parsed.slice(bi,bi+batchSize);
           var {error:bErr}=await sb.from('crm_records').insert(batch);
@@ -2035,4 +2048,5 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
 

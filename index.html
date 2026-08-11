@@ -885,7 +885,7 @@ function renderUnified(){
   var fCust=custData.filter(function(r){
     if(company&&!matchQ(r.company,company)) return false;
     if(model&&!matchQ([r.model,r.raw].join(' '),model)) return false;
-    if(person&&!matchQ([r.contact,r.raw].join(' '),person)) return false;
+    if(person&&!matchQ([r.sales,r.contact,r.raw].join(' '),person)) return false;
     if(keyword&&!matchQ([r.company,r.contact,r.model,r.price,r.delivery,r.status,r.note,r.raw].join(' '),keyword)) return false;
     return true;
   });
@@ -957,6 +957,7 @@ function renderUnified(){
             +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
               +'<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text-b);">'
                 +'<span class="badge-wechat"><i class="fa-brands fa-weixin" style="margin-right:3px;"></i>微信</span>'
+                +(r.sales?'<span style="color:var(--accent);font-weight:600;"><i class="fa-solid fa-user-tie" style="font-size:11px;margin-right:4px;"></i>'+escH(r.sales)+'</span>':'<span style="color:var(--red);"><i class="fa-solid fa-triangle-exclamation" style="font-size:11px;margin-right:4px;"></i>未填業務</span>')
                 +(r.contact?'<span><i class="fa-regular fa-user" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(r.contact)+'</span>':'')
                 +(r.date?'<span style="color:var(--text-m);"><i class="fa-regular fa-calendar-days" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(r.date)+'</span>':'')
                 +(r.qty?'<span><i class="fa-solid fa-desktop" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(String(r.qty).replace(/[台台]/g,'').trim())+' 台</span>':'')
@@ -1475,6 +1476,80 @@ function setMsgType(type){
   if(engForm) engForm.style.display=type==='engineer'?'':'none';
 }
 
+// 解析完先讓使用者確認每位客戶的業務姓名（AI很少能從貼上的內容判斷出業務是誰），
+// 業務姓名沒填完整之前不能儲存
+function renderCustomerParseConfirm(parsedArr){
+  var resultEl=document.getElementById('parse-result');
+  resultEl.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">'
+    +'<div style="font-size:13px;font-weight:600;color:var(--text-h);margin-bottom:4px;"><i class="fa-solid fa-circle-info" style="color:var(--accent);margin-right:5px;"></i>解析出 '+parsedArr.length+' 位客戶，請確認「業務姓名」後再儲存</div>'
+    +'<div style="font-size:12px;color:var(--text-m);margin-bottom:12px;">內容裡通常不會寫業務是誰，麻煩手動選填，儲存前每一筆都要填。</div>'
+    +parsedArr.map(function(p,i){
+      return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fafbfc;">'
+        +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
+          +(p.company?'<span class="badge badge-blue">'+escH(p.company)+'</span>':'<span class="badge badge-gray">（未偵測到客戶名稱）</span>')
+          +(p.model?'<span class="badge badge-gray">'+escH(p.model)+'</span>':'')
+          +(p.qty?'<span class="badge badge-gray">'+p.qty+' 台</span>':'')
+          +(p.delivery?'<span class="badge badge-amber">交期 '+escH(p.delivery)+'</span>':'')
+        +'</div>'
+        +'<div class="filter-label" style="margin-bottom:4px;">業務姓名 <span style="color:var(--red);">*必填</span></div>'
+        +'<input class="input-field pending-sales-input" data-idx="'+i+'" placeholder="例：王韻萍" value="'+escH(p.sales||'')+'" style="font-size:13px;padding:7px 10px;" />'
+      +'</div>';
+    }).join('')
+    +'<div id="confirm-save-msg" style="display:none;font-size:12px;color:var(--red);margin-bottom:8px;"></div>'
+    +'<div style="display:flex;gap:8px;">'
+      +'<button class="btn-primary" id="confirm-save-btn" onclick="confirmSaveCustomerParse()" style="flex:1;justify-content:center;">確認並儲存</button>'
+      +'<button class="btn-ghost" onclick="cancelCustomerParse()">取消</button>'
+    +'</div>'
+  +'</div>';
+}
+
+function cancelCustomerParse(){
+  window._pendingCustomerParse=null;
+  document.getElementById('parse-result').style.display='none';
+}
+
+async function confirmSaveCustomerParse(){
+  var parsedArr=window._pendingCustomerParse;
+  if(!parsedArr){return;}
+  var inputs=document.querySelectorAll('.pending-sales-input');
+  var msgEl=document.getElementById('confirm-save-msg');
+  var missing=false;
+  inputs.forEach(function(inp){
+    var idx=parseInt(inp.getAttribute('data-idx'),10);
+    var val=inp.value.trim();
+    parsedArr[idx].sales=val;
+    if(!val){missing=true;inp.style.borderColor='var(--red)';}
+    else{inp.style.borderColor='';}
+  });
+  if(missing){
+    msgEl.style.display='block';
+    msgEl.textContent='還有業務姓名沒填，請全部填完才能儲存。';
+    return;
+  }
+  var btn=document.getElementById('confirm-save-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
+  var rowsToInsert=parsedArr.map(function(p){
+    return {
+      company:p.company,sales:p.sales,contact:p.contact,date:p.date,
+      model:p.model,qty:p.qty,price:p.price,
+      delivery:p.delivery,status:p.status,note:p.note,
+      raw:p.raw,tags:p.tags,created_by:currentUser.id
+    };
+  });
+  var {data:inserted,error:err}=await sb.from('wechat_messages').insert(rowsToInsert).select();
+  if(err){
+    msgEl.style.display='block';
+    msgEl.textContent='儲存失敗：'+err.message;
+    btn.disabled=false;btn.innerHTML='確認並儲存';
+    return;
+  }
+  (inserted||[]).forEach(function(row){custData.unshift(row);});
+  window._pendingCustomerParse=null;
+  document.getElementById('parse-result').innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;font-size:13px;color:var(--green);"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>已儲存 '+rowsToInsert.length+' 筆</div>';
+  document.getElementById('paste-input').value='';
+  if(currentTab==='customer') renderUnified();
+}
+
 async function parseMessage(){
   var text=document.getElementById('paste-input').value.trim();
   if(!text){alert('請先貼入微信聊天記錄');return;}
@@ -1486,7 +1561,7 @@ async function parseMessage(){
 
   var isCustomer=currentMsgType==='customer';
   var systemPrompt=isCustomer
-    ?'你是工業設備商務訊息解析助理。支援中文和英文訊息。訊息開頭常常是日期（如「8/06」），接著可能包含一個或多個客戶的拜訪/會議記錄（每個客戶通常自成一段，段落開頭是客戶名稱）。\n請針對訊息中「每一個客戶」各自產生一筆資料，回傳純JSON陣列（不含markdown），格式：[{...},{...}]。就算只有一個客戶，也要用陣列包起來（陣列裡只有一個物件）。\n每個物件包含：company(客戶公司名稱), contact(該段提到的聯絡人姓名，可能多個用頓號分隔，找不到填空字串), date(日期YYYY-MM-DD，用訊息開頭那個日期，年份若沒寫用今年，格式如"8/06"要轉成"2026-08-06"), model(機型或產品名稱，找不到填空字串), qty(數量純數字，找不到填null), price(價格含幣別，找不到填空字串), delivery(交期，找不到填空字串), status(根據該段內容判斷：已確認/進行中/流失，預設進行中), note(把該客戶這一段的完整內容摘要整理成重點，保留關鍵數字與事項), raw(該客戶這一段的原始文字，不要包含其他客戶的內容), tags(4至8個關鍵標籤陣列：涵蓋機型、客戶、關鍵詞，若為英文需加中文對照)。'
+    ?'你是工業設備商務訊息解析助理。支援中文和英文訊息。訊息開頭常常是日期（如「8/06」），接著可能包含一個或多個客戶的拜訪/會議記錄（每個客戶通常自成一段，段落開頭是客戶名稱）。\n請針對訊息中「每一個客戶」各自產生一筆資料，回傳純JSON陣列（不含markdown），格式：[{...},{...}]。就算只有一個客戶，也要用陣列包起來（陣列裡只有一個物件）。\n每個物件包含：company(客戶公司名稱), sales(訊息中若有明確提到承辦業務/業務姓名就填，找不到填空字串，不可猜測), contact(該段提到的聯絡人姓名，可能多個用頓號分隔，找不到填空字串), date(日期YYYY-MM-DD，用訊息開頭那個日期，年份若沒寫用今年，格式如"8/06"要轉成"2026-08-06"), model(機型或產品名稱，找不到填空字串), qty(數量純數字，找不到填null), price(價格含幣別，找不到填空字串), delivery(交期，找不到填空字串), status(根據該段內容判斷：已確認/進行中/流失，預設進行中), note(把該客戶這一段的完整內容摘要整理成重點，保留關鍵數字與事項), raw(該客戶這一段的原始文字，不要包含其他客戶的內容), tags(4至8個關鍵標籤陣列：涵蓋機型、客戶、關鍵詞，若為英文需加中文對照)。'
     :'你是工業設備技術訊息解析助理。支援中文和英文訊息。嚴格規則：只填寫訊息中明確出現的資訊，找不到就填空字串或null，絕對不可猜測或編造。回傳純JSON（不含markdown）包含：topic(從訊息內容摘要主題，格式"機型或主題 — 具體事項"), company(訊息中明確提到的客戶公司名稱，找不到填空字串), model(訊息中明確出現的機型代號如RU6M2/DG6Z等，找不到填空字串), engineer(訊息中明確出現的人名，找不到填空字串), instruction(訊息的主要內容摘要), issue(訊息中明確描述的異常或問題，找不到填空字串), progress(訊息中明確描述的進度，找不到填"尚未回報"), status(待處理/進行中/完成 三選一，根據訊息內容判斷), raw(原始訊息完整文字，必填), tags(4至8個關鍵標籤：涵蓋機型、零件名稱、廠商、技術關鍵字；若訊息為英文必須同時加入中文對照標籤如scale→光學尺、spindle→主軸、bearing→軸承)。';
 
   try{
@@ -1500,32 +1575,11 @@ async function parseMessage(){
     if(isCustomer){
       // 一次貼上可能有多個客戶，統一用陣列處理；如果AI回傳單一物件（舊格式），也自動包成陣列
       var parsedArr=Array.isArray(parsed)?parsed:[parsed];
-      var rowsToInsert=parsedArr.map(function(p){
-        if(!p.tags) p.tags=[];
-        if(!p.raw) p.raw=text;
-        return {
-          company:p.company,contact:p.contact,date:p.date,
-          model:p.model,qty:p.qty,price:p.price,
-          delivery:p.delivery,status:p.status,note:p.note,
-          raw:p.raw,tags:p.tags,created_by:currentUser.id
-        };
-      });
-      var {data:inserted,error:err}=await sb.from('wechat_messages').insert(rowsToInsert).select();
-      if(err) throw new Error(err.message);
-      (inserted||[]).forEach(function(row){custData.unshift(row);});
-      resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
-        +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>解析成功，共 '+parsedArr.length+' 位客戶，已分別儲存至資料庫</div>'
-        +parsedArr.map(function(p){
-          return '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;">'
-            +(p.company?'<span class="badge badge-blue">'+escH(p.company)+'</span>':'')
-            +(p.model?'<span class="badge badge-gray">'+escH(p.model)+'</span>':'')
-            +(p.qty?'<span class="badge badge-gray">'+p.qty+' 台</span>':'')
-            +(p.delivery?'<span class="badge badge-amber">交期 '+escH(p.delivery)+'</span>':'')
-          +'</div>';
-        }).join('')
-        +'</div>';
-      document.getElementById('paste-input').value='';
-      if(currentTab==='customer') renderUnified();
+      parsedArr.forEach(function(p){if(!p.tags)p.tags=[];if(!p.raw)p.raw=text;});
+      window._pendingCustomerParse=parsedArr;
+      renderCustomerParseConfirm(parsedArr);
+      btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> AI 解析並儲存';
+      return;
     } else {
       if(!parsed.tags) parsed.tags=[];
       if(!parsed.raw) parsed.raw=text;

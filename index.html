@@ -576,14 +576,24 @@ function parseQtyText(raw){
 // 純規則解析：完全不呼叫AI，同步執行，免費、瞬間完成
 function parseDeliveryLocal(deliveryStr, totalQty){
   if(!deliveryStr) return null;
+  deliveryStr=String(deliveryStr).trim();
+  function inferYearForMonth(m){
+    var todayNow=new Date();
+    var y=todayNow.getFullYear();
+    if(m<todayNow.getMonth()+1) y+=1;
+    return y;
+  }
+  // 判斷字串裡是不是「真的」有複合結構（多筆台數/冒號），而不是單純文字裡剛好出現「機」字
+  // （例如「已出機」這種備註，不代表有多筆台數組合）
+  var hasComposite=/\d\s*台|[:：]/.test(deliveryStr);
   var simple=/^(\d{4})[\/\-年](\d{1,2})/;
   var sm=deliveryStr.match(simple);
-  if(sm&&!/台|机|機|:：/.test(deliveryStr)){
+  if(sm&&!hasComposite){
     return [{month:sm[1]+'/'+(sm[2].length===1?'0':'')+sm[2],qty:parseQtyText(totalQty)}];
   }
   var quarter=/^(\d{4})\D{0,2}Q\s*([1-4])/i;
   var qm=deliveryStr.match(quarter);
-  if(qm&&!/台|机|機|:：/.test(deliveryStr)){
+  if(qm&&!hasComposite){
     var qFirstMonth=(parseInt(qm[2],10)-1)*3+1;
     return [{month:qm[1]+'/'+(qFirstMonth<10?'0':'')+qFirstMonth,qty:parseQtyText(totalQty)}];
   }
@@ -612,6 +622,47 @@ function parseDeliveryLocal(deliveryStr, totalQty){
     var mk=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
     monthMap[mk]=(monthMap[mk]||0)+(parseInt(qm2[1],10)||0);
   }
+  // 「N台：YYYY/M」有年份但沒有日期
+  var reQtyColonYearMonth=/(\d+)\s*台[:：]\s*(\d{4})\/(\d{1,2})(?!\/)(?!\d)/g;
+  while((qm2=reQtyColonYearMonth.exec(deliveryStr))!==null){
+    var mkym=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
+    monthMap[mkym]=(monthMap[mkym]||0)+(parseInt(qm2[1],10)||0);
+  }
+  // 「N台YYYY/M/D」台數緊接著完整日期，中間沒有冒號或星號分隔
+  var reQtyDirectDate=/(\d+)\s*台\s*(\d{4})\/(\d{1,2})\/\d{1,2}/g;
+  while((qm2=reQtyDirectDate.exec(deliveryStr))!==null){
+    var mkdd=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
+    monthMap[mkdd]=(monthMap[mkdd]||0)+(parseInt(qm2[1],10)||0);
+  }
+  // 「N台：YY'M/D」兩位數年份縮寫（如「27'2/1」代表2027/2/1）
+  var reQtyColonShortYear=/(\d+)\s*台[:：]\s*(\d{2})['＇](\d{1,2})\/(\d{1,2})/g;
+  while((qm2=reQtyColonShortYear.exec(deliveryStr))!==null){
+    var mksy='20'+qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
+    monthMap[mksy]=(monthMap[mksy]||0)+(parseInt(qm2[1],10)||0);
+  }
+  // 「N台：YYYY年M月D日」中文日期格式
+  var reQtyColonCnDate=/(\d+)\s*台[:：]\s*(\d{4})年(\d{1,2})月\d{1,2}日/g;
+  while((qm2=reQtyColonCnDate.exec(deliveryStr))!==null){
+    var mkc=qm2[2]+'/'+(qm2[3].length===1?'0':'')+qm2[3];
+    monthMap[mkc]=(monthMap[mkc]||0)+(parseInt(qm2[1],10)||0);
+  }
+  // 「N台：M/D」沒有年份（用今年/明年推算）
+  var reQtyColonNoYear=/(\d+)\s*台\s*[:：]\s*(?!\d{4})(\d{1,2})\/(\d{1,2})(?!\d)/g;
+  while((qm2=reQtyColonNoYear.exec(deliveryStr))!==null){
+    var qnyM=parseInt(qm2[2],10);
+    if(qnyM<1||qnyM>12) continue;
+    var mky=inferYearForMonth(qnyM)+'/'+(qnyM<10?'0':'')+qnyM;
+    monthMap[mky]=(monthMap[mky]||0)+(parseInt(qm2[1],10)||0);
+  }
+  // 反過來寫「M/D:N台」（日期在前、台數在後，沒有年份）
+  var reDateColonQty=/(?<!\d)(\d{1,2})\/(\d{1,2})\s*[:：]\s*(\d+)\s*台/g;
+  var dcq;
+  while((dcq=reDateColonQty.exec(deliveryStr))!==null){
+    var dcqM=parseInt(dcq[1],10);
+    if(dcqM<1||dcqM>12) continue;
+    var mkd=inferYearForMonth(dcqM)+'/'+(dcqM<10?'0':'')+dcqM;
+    monthMap[mkd]=(monthMap[mkd]||0)+(parseInt(dcq[3],10)||0);
+  }
   var monthMapKeys=Object.keys(monthMap);
   if(monthMapKeys.length>0){
     return monthMapKeys.map(function(k){return {month:k,qty:monthMap[k]};});
@@ -621,6 +672,14 @@ function parseDeliveryLocal(deliveryStr, totalQty){
     var curYear=new Date().getFullYear();
     var qFirstMonth2=(parseInt(qOnly[1],10)-1)*3+1;
     return [{month:curYear+'/'+(qFirstMonth2<10?'0':'')+qFirstMonth2,qty:parseQtyText(totalQty)}];
+  }
+  // 單獨一個月份，沒有其他資訊（如「10月」單獨一格）：用推算年份，全部台數算進去
+  var monthOnly=deliveryStr.match(/^(\d{1,2})月$/);
+  if(monthOnly){
+    var moM3=parseInt(monthOnly[1],10);
+    if(moM3>=1&&moM3<=12){
+      return [{month:inferYearForMonth(moM3)+'/'+(moM3<10?'0':'')+moM3,qty:parseQtyText(totalQty)}];
+    }
   }
   // 沒有年份的「M/D*N台」重複格式（如「12/14*10台 1/6*10台」）：
   // 用目前年份推算，月份比現在小就當作是明年（交期本來就是往後排的）
@@ -641,6 +700,61 @@ function parseDeliveryLocal(deliveryStr, totalQty){
     noYearEntries.forEach(function(e){mergedMap[e.month]=(mergedMap[e.month]||0)+e.qty;});
     console.info('[交期規則解析] 「'+deliveryStr+'」沒有年份，已依目前日期推算年份，請人工核對是否正確');
     return Object.keys(mergedMap).map(function(k){return {month:k,qty:mergedMap[k]};});
+  }
+  // 年份+季度+台數組合（如「2027Q3*5台」）：歸到該季度第一個月
+  var reYearQtyQuarter=/(\d{4})\D{0,2}Q\s*([1-4])\s*\*\s*(\d+)\s*台/g;
+  var yqEntries=[];
+  var yqMatch;
+  while((yqMatch=reYearQtyQuarter.exec(deliveryStr))!==null){
+    var yqFirstMonth=(parseInt(yqMatch[2],10)-1)*3+1;
+    yqEntries.push({month:yqMatch[1]+'/'+(yqFirstMonth<10?'0':'')+yqFirstMonth,qty:parseInt(yqMatch[3],10)||0});
+  }
+  if(yqEntries.length>0){
+    var yqMap={};
+    yqEntries.forEach(function(e){yqMap[e.month]=(yqMap[e.month]||0)+e.qty;});
+    return Object.keys(yqMap).map(function(k){return {month:k,qty:yqMap[k]};});
+  }
+  // 年/月（無日期）*台數，沒有「月」字（如「2026/9*1台」）
+  var reYearMonthNoDay=/(\d{4})\/(\d{1,2})\*(\d+)\s*台/g;
+  var ymEntries=[];
+  var ymMatch;
+  while((ymMatch=reYearMonthNoDay.exec(deliveryStr))!==null){
+    ymEntries.push({month:ymMatch[1]+'/'+(ymMatch[2].length===1?'0':'')+ymMatch[2],qty:parseInt(ymMatch[3],10)||0});
+  }
+  if(ymEntries.length>0){
+    var ymMap={};
+    ymEntries.forEach(function(e){ymMap[e.month]=(ymMap[e.month]||0)+e.qty;});
+    return Object.keys(ymMap).map(function(k){return {month:k,qty:ymMap[k]};});
+  }
+  // 無年份的月份+台數格式，用「今年/明年」推算（如「10月*12」「11月上~中旬：4台」重複多行）
+  var reMonthOnlyStar=/(?<!\d)(\d{1,2})月\s*\*\s*(\d+)(?!\d)/g;
+  var reMonthOnlyColon=/(?<!\d)(\d{1,2})月[^：:0-9]{0,6}[：:]\s*(\d+)\s*台/g;
+  var moEntries=[];
+  var moMatch;
+  while((moMatch=reMonthOnlyStar.exec(deliveryStr))!==null){
+    var moM=parseInt(moMatch[1],10);
+    if(moM<1||moM>12) continue;
+    moEntries.push({month:inferYearForMonth(moM)+'/'+(moM<10?'0':'')+moM,qty:parseInt(moMatch[2],10)||0});
+  }
+  while((moMatch=reMonthOnlyColon.exec(deliveryStr))!==null){
+    var moM2=parseInt(moMatch[1],10);
+    if(moM2<1||moM2>12) continue;
+    moEntries.push({month:inferYearForMonth(moM2)+'/'+(moM2<10?'0':'')+moM2,qty:parseInt(moMatch[2],10)||0});
+  }
+  if(moEntries.length>0){
+    var moMap={};
+    moEntries.forEach(function(e){moMap[e.month]=(moMap[e.month]||0)+e.qty;});
+    console.info('[交期規則解析] 「'+deliveryStr+'」沒有年份，已依目前日期推算年份，請人工核對是否正確');
+    return Object.keys(moMap).map(function(k){return {month:k,qty:moMap[k]};});
+  }
+  // 最後備援：字串開頭就是「M/D」沒有年份、也沒有其他複合結構（例如純粹一個日期加備註文字），
+  // 用推算年份，全部台數算進去
+  var bareNoYear=deliveryStr.match(/^(\d{1,2})\/(\d{1,2})(?!\d)/);
+  if(bareNoYear&&!hasComposite){
+    var bnyM=parseInt(bareNoYear[1],10);
+    if(bnyM>=1&&bnyM<=12){
+      return [{month:inferYearForMonth(bnyM)+'/'+(bnyM<10?'0':'')+bnyM,qty:parseQtyText(totalQty)}];
+    }
   }
   return null; // 規則解析不出來，交給呼叫端決定要不要用AI
 }
@@ -1338,16 +1452,27 @@ async function deleteEngRecord(id){
 var EDGE_FN_URL=SUPABASE_URL+'/functions/v1/admin-user-management';
 
 async function callAdminFn(payload){
-  var {data:{session}}=await sb.auth.getSession();
-  var token=session?session.access_token:'';
-  var resp=await fetch(EDGE_FN_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-    body:JSON.stringify(payload)
-  });
-  var result=await resp.json().catch(function(){return {error:'伺服器回應格式異常'};});
-  if(!resp.ok||result.error){throw new Error(result.error||'發生未知錯誤');}
-  return result;
+  async function doCall(){
+    var {data:{session}}=await sb.auth.getSession();
+    var token=session?session.access_token:'';
+    var resp=await fetch(EDGE_FN_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify(payload)
+    });
+    var result=await resp.json().catch(function(){return {error:'伺服器回應格式異常'};});
+    return {ok:resp.ok,result:result};
+  }
+  var first=await doCall();
+  if(!first.ok&&first.result.error==='登入憑證無效'){
+    // 憑證可能過期，嘗試刷新登入狀態後重試一次
+    await sb.auth.refreshSession();
+    var second=await doCall();
+    if(!second.ok||second.result.error){throw new Error(second.result.error||'發生未知錯誤');}
+    return second.result;
+  }
+  if(!first.ok||first.result.error){throw new Error(first.result.error||'發生未知錯誤');}
+  return first.result;
 }
 
 async function renderUsersList(){
@@ -1660,7 +1785,7 @@ function handleExcelFile(e){
   resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在匯入 '+files.length+' 個 Excel 檔案（僅用規則解析交期，不呼叫AI，速度很快）...</div>';
 
   var importDate=new Date().toISOString().split('T')[0];
-  var totalSheets=0,totalRows=0,filesDone=0;
+  var totalSheets=0,totalRows=0,totalVisitRows=0,filesDone=0;
 
   files.forEach(function(file){
     var reader=new FileReader();
@@ -1671,7 +1796,7 @@ function handleExcelFile(e){
         var skipSheets=['已接訂單','已無需求_結案','Sheet1','Sheet2'];
         var parsed=[];
         var parsedVisit=[];
-        var sheetCount=0,rowCount=0;
+        var sheetCount=0,rowCount=0,visitRowCount=0;
 
         workbook.SheetNames.forEach(function(sheetName){
           if(skipSheets.indexOf(sheetName)>-1) return;
@@ -1706,7 +1831,7 @@ function handleExcelFile(e){
               var vCustomer=String(vrow[3]||'').trim();
               var vCustomerInfo=String(vrow[8]||'').trim();
               if(!vCustomer&&!vCustomerInfo) continue; // 跳過空白列
-              rowCount++;
+              visitRowCount++;
               parsedVisit.push({
                 doc_no:String(vrow[0]||'').trim(),
                 sales:String(vrow[1]||'').trim()||sheetName,
@@ -1822,6 +1947,7 @@ function handleExcelFile(e){
         }
         totalSheets+=sheetCount;
         totalRows+=rowCount;
+        totalVisitRows+=visitRowCount;
       }catch(err){
         resultEl.innerHTML='<div style="background:var(--red-bg);border:1px solid #f0b8b8;border-radius:10px;padding:12px;font-size:13px;color:var(--red);"><i class="fa-solid fa-circle-exclamation" style="margin-right:5px;"></i>'+escH(file.name)+' 解析失敗：'+escH(err.message)+'</div>';
         return;
@@ -1834,12 +1960,14 @@ function handleExcelFile(e){
         visitData=newVisit||[];
         resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
-          +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM <b>'+totalRows+'</b> 筆（含拜訪紀錄）</div>'
-          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">系統會自動判斷每個工作表是CRM需求統計格式、還是拜訪紀錄格式，分別存到對應的地方。下次匯入CRM時系統將自動切換至最新一份，舊資料保留備查；拜訪紀錄則是每次累加不覆蓋。</div>'
-          +'<button class="btn-primary" style="margin-top:10px;width:100%;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')">'
-          +'<i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看'
-          +'</button></div>';
+          +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+'</div>'
+          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是每次累加不覆蓋。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
+          +'<div style="display:flex;gap:8px;margin-top:10px;">'
+          +(totalRows>0?'<button class="btn-primary" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'stats\')"><i class="fa-solid fa-chart-line"></i> 前往CRM需求統計查看</button>':'')
+          +(totalVisitRows>0?'<button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')"><i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看拜訪紀錄</button>':'')
+          +'</div></div>';
         if(currentTab==='customer') renderUnified();
+        if(currentTab==='stats') renderStats();
       }
     };
     reader.readAsArrayBuffer(file);
@@ -1907,4 +2035,5 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
 

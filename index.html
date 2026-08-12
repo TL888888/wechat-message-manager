@@ -451,11 +451,15 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     </div>
     <div style="margin-bottom:16px;">
       <div class="filter-label" style="margin-bottom:6px;">角色</div>
-      <select id="eu-role" class="input-field">
+      <select id="eu-role" class="input-field" onchange="toggleEuAssistantSection()">
         <option value="sales">業務 sales</option>
         <option value="assistant">助理 assistant</option>
         <option value="admin">管理員 admin</option>
       </select>
+    </div>
+    <div id="eu-assistant-section" style="display:none;margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">這位助理管哪些業務（可複選，只會看得到這幾位業務的商務訊息）</div>
+      <div id="eu-assistant-sales-list" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;max-height:160px;overflow-y:auto;font-size:13px;"></div>
     </div>
     <button class="btn-primary" style="width:100%;justify-content:center;" id="eu-submit-btn" onclick="submitEditUser()">儲存</button>
     <div id="eu-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
@@ -1701,9 +1705,29 @@ async function submitCreateUser(){
   btn.disabled=false;btn.innerHTML='建立帳號';
 }
 
-// 編輯帳號資料（姓名／業務姓名／角色）
+// 編輯帳號資料（姓名／業務姓名／角色／助理管的業務清單）
 var editUserTargetId=null;
-function openEditUser(userId){
+function toggleEuAssistantSection(){
+  var role=document.getElementById('eu-role').value;
+  var sec=document.getElementById('eu-assistant-section');
+  sec.style.display=(role==='assistant')?'':'none';
+}
+function renderEuAssistantSalesCheckboxes(selectedNames){
+  var wrap=document.getElementById('eu-assistant-sales-list');
+  var names=window._salesNameList||[];
+  if(!names.length){
+    wrap.innerHTML='<div style="color:var(--text-s);">目前還沒有任何業務姓名資料，先去「新增帳號」建立業務帳號後才有得選</div>';
+    return;
+  }
+  wrap.innerHTML=names.map(function(n){
+    var checked=selectedNames.indexOf(n)>-1?'checked':'';
+    return '<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;">'
+      +'<input type="checkbox" class="eu-assistant-sales-cb" value="'+escH(n)+'" '+checked+' />'
+      +escH(n)
+    +'</label>';
+  }).join('');
+}
+async function openEditUser(userId){
   var u=(window._usersListData||[]).find(function(x){return x.id===userId;});
   if(!u){alert('找不到這筆帳號資料，麻煩重新整理頁面再試一次');return;}
   editUserTargetId=userId;
@@ -1712,6 +1736,13 @@ function openEditUser(userId){
   document.getElementById('eu-sales-name').value=u.sales_name||'';
   document.getElementById('eu-role').value=u.role||'sales';
   document.getElementById('eu-msg').style.display='none';
+  toggleEuAssistantSection();
+  if(u.role==='assistant'){
+    var {data:mapped}=await sb.from('assistant_managed_sales').select('sales_name').eq('assistant_user_id',userId);
+    renderEuAssistantSalesCheckboxes((mapped||[]).map(function(r){return r.sales_name;}));
+  } else {
+    renderEuAssistantSalesCheckboxes([]);
+  }
   document.getElementById('edit-user-modal').style.display='flex';
 }
 function closeEditUser(){document.getElementById('edit-user-modal').style.display='none';editUserTargetId=null;}
@@ -1729,6 +1760,10 @@ async function submitEditUser(){
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
   try{
     await callAdminFn({action:'update_profile',target_user_id:editUserTargetId,name:name,role:role,sales_name:sales_name});
+    if(role==='assistant'){
+      var checkedNames=Array.prototype.slice.call(document.querySelectorAll('.eu-assistant-sales-cb:checked')).map(function(cb){return cb.value;});
+      await callAdminFn({action:'set_assistant_sales',target_user_id:editUserTargetId,sales_names:checkedNames});
+    }
     msgEl.style.display='block';msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
     msgEl.textContent='儲存成功！';
     await renderUsersList();
@@ -2293,5 +2328,7 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
+
 
 

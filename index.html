@@ -1076,6 +1076,7 @@ async function loadAllData(){
   var dl=document.getElementById('sales-name-datalist');
   if(dl) dl.innerHTML=window._salesNameList.map(function(n){return '<option value="'+escH(n)+'"></option>';}).join('');
   if(latestDate) console.log('[CRM] 載入最新匯入：'+latestDate+'，共'+crmData.length+'筆');
+  refreshCategoryDropdown();
 }
 
 function getUserName(id){
@@ -1337,17 +1338,10 @@ function renderStats(){
     return;
   }
 
-  // 合併所有資料篩選
+  // 只統計CRM Excel匯入的資料(crmData)，商務訊息(custData，來自「匯入訊息」貼上/手動或客戶商務Excel)
+  // 不算進這裡，避免同一筆商機在商務訊息跟CRM需求統計兩邊都被加總、數字膨脹混亂
   var allRecords=[];
   var unresolvedIds=[]; // 尚未嘗試解析過(delivery_parsed===null)的crm記錄id，供「解析未分類」按鈕使用
-  custData.forEach(function(r){
-    if(company&&!matchQ(r.company||'',company)) return;
-    if(model&&!matchQ(r.model||'',model)) return;
-    if(sales&&!matchQ(r.sales||'',sales)) return;
-    if(category&&getCategoryForModel(r.model)!==category) return;
-    if(month&&!matchQ(r.delivery||'',month)) return;
-    allRecords.push({_type:'wechat',company:r.company,model:r.model,qty:parseInt(r.qty)||0,delivery:r.delivery,statusText:r.status,contact:r.contact,date:r.date,raw:r.raw,id:r.id});
-  });
   crmData.forEach(function(r){
     if(company&&!matchQ(r.customer||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
@@ -1582,17 +1576,24 @@ async function deleteEngRecord(id){
 // 「鑽孔」與「鑽孔機」、「成型」與「成型機」在來源資料裡是同一類東西打字不統一，這裡已合併成統一名稱。
 // 之後如果分類有異動，重新匯出CSV請Claude更新這個物件即可。
 var STK_CATEGORY_MAP={"3SVF":"雕銑機","AF1GEP1":"光電產品","AF1M":"光電產品","AF1M-S":"光電產品","AXI1A":"其他","BST1":"鑽針研磨機","BST1-1":"鑽針研磨機","BST1-2":"鑽針研磨機","BST1-3":"鑽針研磨機","DG1AF":"鑽孔機","DG1AF2":"鑽孔機","DG1AF3":"鑽孔機","DG1AF3-2":"鑽孔機","DG1AF4":"鑽孔機","DG1D":"鑽孔機","DG1Dx2630":"鑽孔機","DG1H":"鑽孔機","DG1H-GC":"鑽孔機","DG1H2":"鑽孔機","DG1P":"鑽孔機","DG1S":"鑽孔機","DG1S-BC":"鑽孔機","DG1S2":"鑽孔機","DG1XL":"鑽孔機","DG2H":"鑽孔機","DG2L":"鑽孔機","DG2M":"鑽孔機","DG2S":"鑽孔機","DG2ZL":"鑽孔機","DG2ZM":"鑽孔機","DG2ZM-M280":"鑽孔機","DG5H":"鑽孔機","DG5S":"鑽孔機","DG5Z":"鑽孔機","DG5ZL":"鑽孔機","DG5ZXL":"鑽孔機","DG6A2":"鑽孔機","DG6AF":"鑽孔機","DG6BQ":"鑽孔機","DG6H":"鑽孔機","DG6H(NJ)":"鑽孔機","DG6L":"鑽孔機","DG6L2":"鑽孔機","DG6M":"鑽孔機","DG6M2":"鑽孔機","DG6M3":"鑽孔機","DG6M3-H":"鑽孔機","DG6M3-HA":"鑽孔機","DG6M3-MES":"鑽孔機","DG6M3(對外:DG6M3-HA)":"鑽孔機","DG6ML":"鑽孔機","DG6N":"鑽孔機","DG6N2":"鑽孔機","DG6S":"鑽孔機","DG6S-BQ":"鑽孔機","DG6Z":"鑽孔機","DG6ZL":"鑽孔機","DG6ZL2":"鑽孔機","DG6ZL2-TM":"鑽孔機","DG6ZM":"鑽孔機","DG6ZM-C":"鑽孔機","DG6ZM-HA":"鑽孔機","DG6ZM-M280":"鑽孔機","DG6ZM-TM":"鑽孔機","DG6ZN":"鑽孔機","DG6ZXL":"鑽孔機","DG6ZXL(實際機型) (對內：DG6ZL)":"鑽孔機","DG7H":"鑽孔機","DGGZM":"鑽孔機","DPR":"雕銑機","DPR1B":"雕銑機","DPR1C":"雕銑機","DPR1D":"雕銑機","DPR1E":"雕銑機","DPR1F":"雕銑機","DPR1G":"雕銑機","DPR1L":"薄板機","DPR1S":"光電產品","DPR1Z":"光電產品","DPRX":"雕銑機","DR1":"鑽孔機","DR1(對外：DR2L)":"鑽孔機","DR2A":"鑽孔機","DR2L":"鑽孔機","DR6":"鑽孔機","FVI-360":"半導體","GEP":"其他","GEP1A (NJ)":"光電產品","GEP1F":"光電產品","GEP1G":"其他","GEP1L":"塗佈機","GEP1M":"光電產品","GEP3-Q":"其他","GEP3-SA":"其他","GEP4A":"其他","GPR1A":"玻璃機","GPR1A-DG":"玻璃機","GPR1A-PA":"玻璃機","GPR1A-PA (中古機)":"玻璃機","GPR1A-VM":"雕銑機","GPR1A3":"玻璃機","GPR1A5":"玻璃機","GPR1B":"玻璃機","GPR1BL":"薄板機","GPR1C":"玻璃機","GPR1D":"玻璃機","GPR1E":"玻璃機","GPR2A":"玻璃機","GPR2B":"玻璃機","GPR6B":"玻璃機","GPRT1":"光電產品","GPRT2":"光電產品","HI01":"測溫儀","HI01-A":"測溫儀","KAT1A":"光電產品","LGP1A":"光電產品","LGP2A":"光電產品","LM-GO":"其他","NTL-DG1H":"鑽孔機","NTL-DG2H":"鑽孔機","NTL-DG2L":"鑽孔機","NTL-DG2S":"鑽孔機","NTL-DG6H":"鑽孔機","NTL-DG6L":"鑽孔機","NTL-DG6S":"鑽孔機","NTL-DG6Z":"鑽孔機","NTL-DR2A":"鑽孔機","NTL-GPR1A":"玻璃機","NTL-GPR1B":"玻璃機","NTL-LGP1A":"光電產品","NTL-RP1A":"成型機","NTL-RU2B":"成型機","NTL-RU2HL":"成型機","NTL-RU2L":"成型機","NTL-RU4B":"成型機","NTL-RU4BII-F":"成型機","NTL-RU4G":"成型機","NTL-RU5E":"成型機","NTL-RU6E":"成型機","NTL-RU6E2":"成型機","NTL-RU6EL":"成型機","NTL-RU6G":"成型機","NTL-RU6H2":"成型機","NTL-RU6L":"成型機","NTL-SVF2":"薄板機","R455LWS":"成型機","RU1A":"成型機","RU1A-BC":"成型機","RU1A-CBD":"成型機","RU1HM":"成型機","RU2B":"成型機","RU2D":"成型機","RU2GL":"成型機","RU2GM":"成型機","RU2HL":"成型機","RU2HM":"成型機","RU2L":"成型機","RU2M":"成型機","RU2ML":"成型機","RU2XL":"成型機","RU4B":"成型機","RU4B (中古機)":"成型機","RU4BII":"成型機","RU4D":"成型機","RU4G":"成型機","RU4M":"成型機","RU5E":"成型機","RU5G":"成型機","RU5H":"成型機","RU5ML":"成型機","RU6AF":"成型機","RU6AFL":"成型機","RU6B":"成型機","RU6D":"成型機","RU6E":"成型機","RU6E(NJ)":"成型機","RU6E3":"成型機","RU6EL":"成型機","RU6G":"成型機","RU6G-CCD":"成型機","RU6GL":"成型機","RU6GL(對外:RU6GL2)":"成型機","RU6GM":"成型機","RU6GM-HA":"成型機","RU6GML":"成型機","RU6H":"成型機","RU6H2":"成型機","RU6HL":"成型機","RU6HM":"成型機","RU6HM (對外: RU6H2)":"成型機","RU6HM-125":"成型機","RU6HM-HA":"成型機","RU6HM(對外:RU6H2)":"成型機","RU6L":"成型機","RU6M":"成型機","RU6M2":"成型機","RU6M2(對外:RU6E)":"成型機","RU6ML":"成型機","RU6ML2":"成型機","RU6N":"成型機","RU6N2":"成型機","RU6N3":"成型機","RU6XL":"成型機","SGC1U":"光電產品","SLR700T":"雷鑽機","SLR700TGIIIs":"雷鑽機","SV1A":"雕銑機","SV4B":"光電產品","SVF2":"雕銑機","SVF3":"雕銑機","SVF3B":"雕銑機","SVF3C":"雕銑機","SVP2":"其他","TL-2404":"封測機","TL-DG6S":"鑽孔機","TL-DPR":"薄板機","TL-MAG":"其他","TL-RU4BII":"成型機","TL-RU6E":"成型機","TM2":"其他","TM2-A":"內層銅檢查機","TM3":"其他","TM3-A":"內層銅檢查機","TM4":"其他","TSM1B":"其他","玻璃鐳射裂片設備":"半導體","玻璃鐳射高速切割設備":"半導體"};
-var STK_CATEGORY_LIST=["光電產品", "內層銅檢查機", "其他", "半導體", "塗佈機", "封測機", "成型機", "測溫儀", "玻璃機", "薄板機", "鑽孔機", "鑽針研磨機", "雕銑機", "雷鑽機"];
-(function(){
+// 分類下拉選單改成動態抓「目前資料庫裡實際出現過」的分類，而不是把出貨實績系統整套分類都列出來
+// （wechat-manager這邊的CRM資料本來就只會用到其中幾種，全列出來選單會很亂、大部分選了也沒資料）
+function refreshCategoryDropdown(){
   var sel=document.getElementById('f-stat-category');
-  if(sel){
-    STK_CATEGORY_LIST.forEach(function(c){
-      var opt=document.createElement('option');
-      opt.value=c;opt.textContent=c;
-      sel.appendChild(opt);
-    });
-  }
-})();
+  if(!sel) return;
+  var seen={};
+  crmData.forEach(function(r){var c=getCategoryForModel(r.model);if(c) seen[c]=true;});
+  var found=Object.keys(seen).sort();
+  var prevValue=sel.value;
+  sel.innerHTML='<option value="">全部分類</option>';
+  found.forEach(function(c){
+    var opt=document.createElement('option');
+    opt.value=c;opt.textContent=c;
+    sel.appendChild(opt);
+  });
+  // 保留原本選的值(如果重新整理後這個分類還存在資料的話)
+  if(found.indexOf(prevValue)>-1) sel.value=prevValue;
+}
 // 依機型文字找出對應分類：優先精確比對，找不到再用「最長前綴」比對
 // （例如DG6ZM-TM要對到「DG6ZM-TM」這筆而不是回退成「DG6ZM」，避免分類抓錯）
 var _stkKeysSorted=Object.keys(STK_CATEGORY_MAP).sort(function(a,b){return b.length-a.length;});
@@ -1909,6 +1910,7 @@ async function confirmSaveCustomerParse(){
     return;
   }
   (inserted||[]).forEach(function(row){custData.unshift(row);});
+  refreshCategoryDropdown();
   window._pendingCustomerParse=null;
   document.getElementById('parse-result').innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;font-size:13px;color:var(--green);"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>已儲存 '+rowsToInsert.length+' 筆</div>';
   document.getElementById('paste-input').value='';
@@ -1988,6 +1990,7 @@ async function manualSaveCustomer(){
   }).select().single();
   if(error){alert('儲存失敗：'+error.message);return;}
   custData.unshift(inserted);
+  refreshCategoryDropdown();
   ['m-company','m-contact','m-sales','m-model','m-qty','m-price','m-delivery','m-note'].forEach(function(id){document.getElementById(id).value='';});
   closeImport();
   if(currentTab==='customer') renderUnified();
@@ -2290,4 +2293,5 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
 

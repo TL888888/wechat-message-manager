@@ -212,6 +212,9 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
       <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openImport()">
         <i class="fa-solid fa-plus" style="font-size:11px;"></i> 匯入訊息
       </button>
+      <button class="btn-ghost" style="font-size:13px;padding:6px 10px;" onclick="openChangeOwnPw()" title="修改密碼">
+        <i class="fa-solid fa-key"></i>
+      </button>
       <button class="btn-ghost" style="font-size:13px;padding:6px 10px;" onclick="doLogout()" title="登出">
         <i class="fa-solid fa-right-from-bracket"></i>
       </button>
@@ -283,6 +286,10 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
           <div class="filter-label"><i class="fa-regular fa-calendar" style="margin-right:3px;"></i>需求月份</div>
           <input id="f-stat-month" class="filter-input" placeholder="例：6月、2026/7、Q3..." oninput="debounceStats()" />
         </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div class="filter-label"><i class="fa-solid fa-user-tie" style="margin-right:3px;"></i>業務姓名</div>
+        <input id="f-stat-sales" class="filter-input" list="sales-name-datalist" placeholder="例：黃榮傑、魏得志..." oninput="debounceStats()" />
       </div>
     </div>
     <div id="stats-records"></div>
@@ -397,6 +404,27 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
   </div>
 </div>
 
+<!-- ══ 登入者自己修改密碼 MODAL ══ -->
+<div id="own-pw-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeChangeOwnPw()">
+  <div class="modal-box slide-in" style="max-width:360px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-key" style="color:var(--accent);margin-right:8px;"></i>修改我的密碼</div>
+      <button onclick="closeChangeOwnPw()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">新密碼（至少6碼）</div>
+      <div style="position:relative;">
+        <input id="own-pw-password" class="input-field" type="password" style="padding-right:36px;" />
+        <button type="button" onclick="toggleOwnPwVisible()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-s);cursor:pointer;padding:4px;">
+          <i class="fa-solid fa-eye" id="own-pw-eye"></i>
+        </button>
+      </div>
+    </div>
+    <button class="btn-primary" style="width:100%;justify-content:center;" id="own-pw-submit-btn" onclick="submitChangeOwnPw()">確認修改</button>
+    <div id="own-pw-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
+
 <!-- ══ IMPORT MODAL ══ -->
 <div id="import-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeImport()">
   <div class="modal-box slide-in">
@@ -426,6 +454,7 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶名稱 *</div><input id="m-company" class="input-field" placeholder="例：華通" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">聯絡人 *</div><input id="m-contact" class="input-field" placeholder="例：王大明" /></div>
+        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">業務 *</div><input id="m-sales" class="input-field" list="sales-name-datalist" placeholder="例：王韻萍（可直接點選已建立過的業務）" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">機型</div><input id="m-model" class="input-field" placeholder="例：RU6HM" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">數量（台）</div><input id="m-qty" class="input-field" type="number" placeholder="例：2" /></div>
         <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">價格</div><input id="m-price" class="input-field" placeholder="例：NT$85萬" /></div>
@@ -484,6 +513,9 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     <div id="excel-result" style="display:none;"></div>
   </div>
 </div>
+
+<!-- 業務姓名下拉選單資料，供匯入表單的業務欄位使用（在loadAllData時填入） -->
+<datalist id="sales-name-datalist"></datalist>
 
 <!-- ══ DETAIL MODAL ══ -->
 <div id="detail-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeDetail()">
@@ -551,6 +583,51 @@ function toS(s){return String(s||'').split('').map(function(c){return T2S[c]||c;
 function toT(s){return String(s||'').split('').map(function(c){return S2T[c]||c;}).join('');}
 function norm(s){var v=String(s||'').toLowerCase();return v+' '+toS(v)+' '+toT(v);}
 function matchQ(hay,q){if(!q)return true;var n=q.toLowerCase();var h=norm(hay);return h.indexOf(n)>-1||h.indexOf(toS(n))>-1||h.indexOf(toT(n))>-1;}
+// 專門比對「delivery_parsed裡的month欄位」（固定存成YYYY/MM）跟使用者在需求月份輸入框打的查詢字串。
+// 使用者可能打「10月」「10」「2026/10」「2026」「Q3」這幾種格式（輸入框placeholder就是這樣提示的），
+// 用matchQ做單純字串包含比對會抓不到「10月」「Q3」這類格式（因為YYYY/MM裡根本沒有「月」字或季度資訊），
+// 所以拆解查詢字串的實際意義（月份/年份/季度）再跟YYYY/MM結構化比對，而不是猜字串裡有沒有出現。
+function matchMonthQuery(entryMonthStr,query){
+  if(!query) return true;
+  if(!entryMonthStr) return false;
+  var q=String(query).trim();
+  var parts=entryMonthStr.split('/');
+  var eYear=parts[0]||'',eMonth=parts[1]||'';
+
+  var mOnly=q.match(/^(\d{1,2})月$/);
+  if(mOnly){
+    var mm=(mOnly[1].length===1?'0':'')+mOnly[1];
+    return eMonth===mm;
+  }
+  var numOnly=q.match(/^(\d{1,2})$/);
+  if(numOnly){
+    var mm2=(numOnly[1].length===1?'0':'')+numOnly[1];
+    return eMonth===mm2;
+  }
+  var ym=q.match(/^(\d{4})[\/\-年](\d{1,2})/);
+  if(ym){
+    var mm3=(ym[2].length===1?'0':'')+ym[2];
+    return eYear===ym[1]&&eMonth===mm3;
+  }
+  var yq=q.match(/^(\d{4})\D{0,2}Q\s*([1-4])$/i);
+  if(yq){
+    var yqNum=parseInt(yq[2],10);
+    var yqMonths=[(yqNum-1)*3+1,(yqNum-1)*3+2,(yqNum-1)*3+3].map(function(m){return (m<10?'0':'')+m;});
+    return eYear===yq[1]&&yqMonths.indexOf(eMonth)>-1;
+  }
+  var yOnly=q.match(/^(\d{4})$/);
+  if(yOnly){
+    return eYear===yOnly[1];
+  }
+  var qtr=q.match(/^Q\s*([1-4])$/i);
+  if(qtr){
+    var qNum=parseInt(qtr[1],10);
+    var qMonths=[(qNum-1)*3+1,(qNum-1)*3+2,(qNum-1)*3+3].map(function(m){return (m<10?'0':'')+m;});
+    return qMonths.indexOf(eMonth)>-1;
+  }
+  // 其他打法無法辨識意義時，退回原本的模糊字串比對保底
+  return matchQ(entryMonthStr,q);
+}
 function hl(text,q){
   if(!q||!text) return escH(String(text||''));
   var variants=[q,toS(q),toT(q)].filter(function(v,i,a){return a.indexOf(v)===i&&v;});
@@ -943,7 +1020,7 @@ async function loadAllData(){
       ? sb.from('crm_records').select('*').eq('import_date',latestDate).order('created_at',{ascending:false})
       : sb.from('crm_records').select('*').order('created_at',{ascending:false}),
     sb.from('engineer_messages').select('*').order('created_at',{ascending:false}),
-    sb.from('users').select('id,name,role'),
+    sb.from('users').select('id,name,role,sales_name'),
     sb.from('visit_records').select('*').order('created_at',{ascending:false})
   ]);
   custData=wRes.data||[];
@@ -952,6 +1029,15 @@ async function loadAllData(){
   visitData=vRes.data||[];
   // 建立 users 對照表
   (uRes.data||[]).forEach(function(u){usersMap[u.id]=u;});
+  // 建立「業務姓名」選單資料（給匯入表單的業務欄位做下拉選擇用），去重、去空白
+  var salesSet={};
+  (uRes.data||[]).forEach(function(u){
+    var sn=(u.sales_name||'').trim();
+    if(sn) salesSet[sn]=true;
+  });
+  window._salesNameList=Object.keys(salesSet).sort();
+  var dl=document.getElementById('sales-name-datalist');
+  if(dl) dl.innerHTML=window._salesNameList.map(function(n){return '<option value="'+escH(n)+'"></option>';}).join('');
   if(latestDate) console.log('[CRM] 載入最新匯入：'+latestDate+'，共'+crmData.length+'筆');
 }
 
@@ -1204,11 +1290,12 @@ function renderStats(){
   var company=(document.getElementById('f-stat-company')||{}).value||'';
   var model=(document.getElementById('f-stat-model')||{}).value||'';
   var month=(document.getElementById('f-stat-month')||{}).value||'';
+  var sales=(document.getElementById('f-stat-sales')||{}).value||'';
   var el=document.getElementById('stats-records');
   if(!el) return;
 
-  if(!company&&!model&&!month){
-    el.innerHTML='<div class="empty-state"><i class="fa-solid fa-chart-bar" style="font-size:36px;display:block;margin-bottom:12px;"></i>請輸入客戶、機型或月份進行統計</div>';
+  if(!company&&!model&&!month&&!sales){
+    el.innerHTML='<div class="empty-state"><i class="fa-solid fa-chart-bar" style="font-size:36px;display:block;margin-bottom:12px;"></i>請輸入客戶、機型、業務或月份進行統計</div>';
     return;
   }
 
@@ -1218,12 +1305,14 @@ function renderStats(){
   custData.forEach(function(r){
     if(company&&!matchQ(r.company||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
+    if(sales&&!matchQ(r.sales||'',sales)) return;
     if(month&&!matchQ(r.delivery||'',month)) return;
     allRecords.push({_type:'wechat',company:r.company,model:r.model,qty:parseInt(r.qty)||0,delivery:r.delivery,statusText:r.status,contact:r.contact,date:r.date,raw:r.raw,id:r.id});
   });
   crmData.forEach(function(r){
     if(company&&!matchQ(r.customer||'',company)) return;
     if(model&&!matchQ(r.model||'',model)) return;
+    if(sales&&!matchQ(r.sales||'',sales)) return;
     var latestStatus=r.status_w2||r.status_w1||'';
     var totalNum=parseQtyText(r.qty);
     var hasParsedData=Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length>0;
@@ -1231,7 +1320,7 @@ function renderStats(){
     if(month){
       if(hasParsedData){
         r.delivery_parsed.forEach(function(d){
-          if(matchQ(d.month||'',month)) matchedQty+=parseInt(d.qty)||0;
+          if(matchMonthQuery(d.month||'',month)) matchedQty+=parseInt(d.qty)||0;
         });
         if(matchedQty===0) return; // 有解析資料、但確定不在這個月份，跳過（不是無法辨識，是真的不是這個月）
       } else {
@@ -1313,7 +1402,7 @@ function renderStats(){
 
   el.innerHTML=
     '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">'
-      +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+(model?'機型 <b>'+escH(model)+'</b> ':'')+(month?'月份 <b>'+escH(month)+'</b>':'')+'</div>'
+      +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+(company?'客戶 <b>'+escH(company)+'</b> ':'')+(model?'機型 <b>'+escH(model)+'</b> ':'')+(sales?'業務 <b>'+escH(sales)+'</b> ':'')+(month?'月份 <b>'+escH(month)+'</b>':'')+'</div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--green);">'+totalConfirmed+'</div><div style="font-size:11px;color:var(--text-s);">已確認 (台)</div></div>'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--amber);">'+totalOngoing+'</div><div style="font-size:11px;color:var(--text-s);">進行中 (台)</div></div>'
@@ -1530,6 +1619,7 @@ async function submitCreateUser(){
     msgEl.style.display='block';msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
     msgEl.textContent='帳號建立成功！';
     await renderUsersList();
+    await loadAllData();
     setTimeout(closeCreateUser,900);
   }catch(e){
     msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
@@ -1588,6 +1678,44 @@ async function deleteUserAccount(userId,displayName){
   }
 }
 
+// 登入者自己修改密碼（任何角色都能用，直接呼叫supabase auth改自己的密碼，
+// 不透過admin-user-management Edge Function，所以不受帳號id比對問題影響）
+function openChangeOwnPw(){
+  document.getElementById('own-pw-password').value='';
+  document.getElementById('own-pw-msg').style.display='none';
+  document.getElementById('own-pw-modal').style.display='flex';
+}
+function closeChangeOwnPw(){document.getElementById('own-pw-modal').style.display='none';}
+function toggleOwnPwVisible(){
+  var inp=document.getElementById('own-pw-password');
+  var eye=document.getElementById('own-pw-eye');
+  var show=inp.type==='password';
+  inp.type=show?'text':'password';
+  eye.className=show?'fa-solid fa-eye-slash':'fa-solid fa-eye';
+}
+async function submitChangeOwnPw(){
+  var newPw=document.getElementById('own-pw-password').value;
+  var msgEl=document.getElementById('own-pw-msg');
+  var btn=document.getElementById('own-pw-submit-btn');
+  msgEl.style.display='none';
+  if(!newPw||newPw.length<6){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='密碼至少需要6碼';return;
+  }
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 處理中...';
+  try{
+    var {error}=await sb.auth.updateUser({password:newPw});
+    if(error) throw new Error(error.message);
+    msgEl.style.display='block';msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
+    msgEl.textContent='密碼修改成功！';
+    setTimeout(closeChangeOwnPw,900);
+  }catch(e){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent=e.message;
+  }
+  btn.disabled=false;btn.innerHTML='確認修改';
+}
+
 // ══ 匯入微信訊息 ════════════════════════════════════════════
 function openImport(){document.getElementById('import-modal').style.display='flex';document.getElementById('parse-result').style.display='none';setMsgType(currentTab==='engineer'?'engineer':'customer');}
 function closeImport(){document.getElementById('import-modal').style.display='none';}
@@ -1617,7 +1745,7 @@ function renderCustomerParseConfirm(parsedArr){
           +(p.delivery?'<span class="badge badge-amber">交期 '+escH(p.delivery)+'</span>':'')
         +'</div>'
         +'<div class="filter-label" style="margin-bottom:4px;">業務姓名 <span style="color:var(--red);">*必填</span></div>'
-        +'<input class="input-field pending-sales-input" data-idx="'+i+'" placeholder="例：王韻萍" value="'+escH(p.sales||'')+'" style="font-size:13px;padding:7px 10px;" />'
+        +'<input class="input-field pending-sales-input" data-idx="'+i+'" list="sales-name-datalist" placeholder="例：王韻萍（可直接點選已建立過的業務）" value="'+escH(p.sales||'')+'" style="font-size:13px;padding:7px 10px;" />'
       +'</div>';
     }).join('')
     +'<div id="confirm-save-msg" style="display:none;font-size:12px;color:var(--red);margin-bottom:8px;"></div>'
@@ -1732,9 +1860,11 @@ async function parseMessage(){
 async function manualSaveCustomer(){
   var company=document.getElementById('m-company').value.trim();
   var contact=document.getElementById('m-contact').value.trim();
+  var sales=document.getElementById('m-sales').value.trim();
   if(!company||!contact){alert('請填入客戶名稱與聯絡人');return;}
+  if(!sales){alert('請填入業務姓名，這筆才能儲存');return;}
   var {data:inserted,error}=await sb.from('wechat_messages').insert({
-    company,contact,
+    company,contact,sales,
     date:document.getElementById('m-date').value,
     model:document.getElementById('m-model').value.trim(),
     qty:parseInt(document.getElementById('m-qty').value)||null,
@@ -1746,7 +1876,7 @@ async function manualSaveCustomer(){
   }).select().single();
   if(error){alert('儲存失敗：'+error.message);return;}
   custData.unshift(inserted);
-  ['m-company','m-contact','m-model','m-qty','m-price','m-delivery','m-note'].forEach(function(id){document.getElementById(id).value='';});
+  ['m-company','m-contact','m-sales','m-model','m-qty','m-price','m-delivery','m-note'].forEach(function(id){document.getElementById(id).value='';});
   closeImport();
   if(currentTab==='customer') renderUnified();
 }
@@ -2048,5 +2178,4 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-
 

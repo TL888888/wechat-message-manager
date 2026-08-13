@@ -277,14 +277,15 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
         <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶名稱</div>
         <input id="f-stat-company" class="filter-input" placeholder="例：龍南、無錫深南..." oninput="debounceStats()" />
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <div class="filter-label"><i class="fa-solid fa-microchip" style="margin-right:3px;"></i>機型</div>
-          <input id="f-stat-model" class="filter-input" placeholder="例：RU6HM、DG6ZM..." oninput="debounceStats()" />
-        </div>
-        <div>
-          <div class="filter-label"><i class="fa-regular fa-calendar" style="margin-right:3px;"></i>需求月份</div>
-          <input id="f-stat-month" class="filter-input" placeholder="例：6月、2026/7、Q3..." oninput="debounceStats()" />
+      <div style="margin-bottom:10px;">
+        <div class="filter-label"><i class="fa-solid fa-microchip" style="margin-right:3px;"></i>機型</div>
+        <input id="f-stat-model" class="filter-input" placeholder="例：RU6HM、DG6ZM..." oninput="debounceStats()" />
+      </div>
+      <div style="margin-top:10px;">
+        <div class="filter-label"><i class="fa-regular fa-calendar" style="margin-right:3px;"></i>需求月份區間（只填其中一個代表「這個月份以後」或「這個月份以前」，都不填代表不限月份）</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <input id="f-stat-month-from" class="filter-input" type="month" oninput="debounceStats()" />
+          <input id="f-stat-month-to" class="filter-input" type="month" oninput="debounceStats()" />
         </div>
       </div>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -365,15 +366,24 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
       <input id="cu-name" class="input-field" type="text" placeholder="例：王韻萍" />
     </div>
     <div style="margin-bottom:12px;">
-      <div class="filter-label" style="margin-bottom:6px;">業務姓名（用於權限比對，可與姓名相同）</div>
+      <div class="filter-label" style="margin-bottom:6px;">業務姓名（用於權限比對，業務/總監/助理都要填；業務姓名要跟業務自己的一致，總監/助理填自己的姓名即可）</div>
       <input id="cu-sales-name" class="input-field" type="text" placeholder="例：王韻萍" />
     </div>
     <div style="margin-bottom:12px;">
       <div class="filter-label" style="margin-bottom:6px;">角色</div>
-      <select id="cu-role" class="input-field">
+      <select id="cu-role" class="input-field" onchange="toggleCuRegionField()">
         <option value="sales">業務 sales</option>
+        <option value="director">總監 director</option>
         <option value="assistant">助理 assistant</option>
-        <option value="admin">管理員 admin</option>
+        <option value="admin">大總管 admin</option>
+      </select>
+    </div>
+    <div id="cu-region-section" style="margin-bottom:12px;">
+      <div class="filter-label" style="margin-bottom:6px;">地區（業務屬於哪一區；總監/助理管哪一區；台灣/海外業務不用選，留空即可，只有大總管看得到）</div>
+      <select id="cu-region" class="input-field">
+        <option value="">（不指定，僅大總管看得到）</option>
+        <option value="華東">華東</option>
+        <option value="華南">華南</option>
       </select>
     </div>
     <div style="margin-bottom:16px;">
@@ -451,18 +461,47 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     </div>
     <div style="margin-bottom:16px;">
       <div class="filter-label" style="margin-bottom:6px;">角色</div>
-      <select id="eu-role" class="input-field" onchange="toggleEuAssistantSection()">
+      <select id="eu-role" class="input-field" onchange="toggleEuRegionField()">
         <option value="sales">業務 sales</option>
+        <option value="director">總監 director</option>
         <option value="assistant">助理 assistant</option>
-        <option value="admin">管理員 admin</option>
+        <option value="admin">大總管 admin</option>
       </select>
     </div>
-    <div id="eu-assistant-section" style="display:none;margin-bottom:16px;">
-      <div class="filter-label" style="margin-bottom:6px;">這位助理管哪些業務（可複選，只會看得到這幾位業務的商務訊息）</div>
-      <div id="eu-assistant-sales-list" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;max-height:160px;overflow-y:auto;font-size:13px;"></div>
+    <div id="eu-region-section" style="margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">地區（業務屬於哪一區；總監/助理管哪一區；台灣/海外業務不用選，留空即可，只有大總管看得到）</div>
+      <select id="eu-region" class="input-field">
+        <option value="">（不指定，僅大總管看得到）</option>
+        <option value="華東">華東</option>
+        <option value="華南">華南</option>
+      </select>
     </div>
     <button class="btn-primary" style="width:100%;justify-content:center;" id="eu-submit-btn" onclick="submitEditUser()">儲存</button>
     <div id="eu-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- ══ 編輯商務訊息 MODAL ══ -->
+<div id="edit-wechat-msg-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeEditWechatMsg()">
+  <div class="modal-box slide-in" style="max-width:400px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-pen" style="color:var(--accent);margin-right:8px;"></i>編輯商務訊息</div>
+      <button onclick="closeEditWechatMsg()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="filter-label" style="margin-bottom:6px;">客戶名稱 *</div>
+      <input id="ewm-company" class="input-field" />
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="filter-label" style="margin-bottom:6px;">業務姓名 *</div>
+      <input id="ewm-sales" class="input-field" list="sales-name-datalist" />
+    </div>
+    <div style="margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">商務訊息 *</div>
+      <textarea id="ewm-note" class="input-field" style="height:100px;"></textarea>
+    </div>
+    <button class="btn-primary" style="width:100%;justify-content:center;" id="ewm-submit-btn" onclick="submitEditWechatMsg()">儲存</button>
+    <div id="ewm-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
   </div>
 </div>
 
@@ -490,21 +529,19 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
     </div>
     <div id="parse-result" style="display:none;margin-bottom:14px;"></div>
     <div class="divider"><span>方式二：手動輸入</span></div>
-    <!-- 客戶商務表單 -->
+    <!-- 客戶商務表單：業務普遍懶得逐欄填，簡化成3個必填欄位，內容整段貼進「商務訊息」即可 -->
     <div id="manual-customer-form">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶名稱 *</div><input id="m-company" class="input-field" placeholder="例：華通" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">聯絡人 *</div><input id="m-contact" class="input-field" placeholder="例：王大明" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">業務 *</div><input id="m-sales" class="input-field" list="sales-name-datalist" placeholder="例：王韻萍（可直接點選已建立過的業務）" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">機型</div><input id="m-model" class="input-field" placeholder="例：RU6HM" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">數量（台）</div><input id="m-qty" class="input-field" type="number" placeholder="例：2" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">價格</div><input id="m-price" class="input-field" placeholder="例：NT$85萬" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">交期</div><input id="m-delivery" class="input-field" placeholder="例：2026/9" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">日期</div><input id="m-date" class="input-field" type="date" /></div>
-        <div><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">狀態</div>
-          <select id="m-status" class="input-field"><option value="進行中">進行中</option><option value="已確認">已確認</option><option value="流失">流失/結案</option></select>
-        </div>
-        <div style="grid-column:1/-1;"><div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">備註</div><textarea id="m-note" class="input-field" style="height:56px;" placeholder="其他備註..."></textarea></div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶名稱 *</div>
+        <input id="m-company" class="input-field" placeholder="例：華通" />
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">業務姓名 *</div>
+        <input id="m-sales" class="input-field" list="sales-name-datalist" placeholder="例：王韻萍（可直接點選已建立過的業務）" />
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">商務訊息 *</div>
+        <textarea id="m-note" class="input-field" style="height:90px;" placeholder="把跟客戶談的內容整段貼進來就好"></textarea>
       </div>
       <div style="display:flex;justify-content:flex-end;"><button class="btn-primary" onclick="manualSaveCustomer()"><i class="fa-solid fa-floppy-disk"></i> 儲存</button></div>
     </div>
@@ -575,7 +612,9 @@ sb.auth.onAuthStateChange(function(event,session){
     document.getElementById('new-pw-screen').style.display='flex';
   }
 });
-const WORKER_URL = 'https://withered-sound-43b8.michelle-chang.workers.dev';
+// AI解析改走Vercel伺服器端中繼(/api/ai-proxy)，不再讓瀏覽器直接連Cloudflare Worker，
+// 解決中國大陸連線不穩定的問題（詳見api/ai-proxy.js的說明）
+const WORKER_URL = '/api/ai-proxy';
 
 var currentUser = null;
 var currentUserProfile = null;
@@ -624,50 +663,33 @@ function toS(s){return String(s||'').split('').map(function(c){return T2S[c]||c;
 function toT(s){return String(s||'').split('').map(function(c){return S2T[c]||c;}).join('');}
 function norm(s){var v=String(s||'').toLowerCase();return v+' '+toS(v)+' '+toT(v);}
 function matchQ(hay,q){if(!q)return true;var n=q.toLowerCase();var h=norm(hay);return h.indexOf(n)>-1||h.indexOf(toS(n))>-1||h.indexOf(toT(n))>-1;}
-// 專門比對「delivery_parsed裡的month欄位」（固定存成YYYY/MM）跟使用者在需求月份輸入框打的查詢字串。
-// 使用者可能打「10月」「10」「2026/10」「2026」「Q3」這幾種格式（輸入框placeholder就是這樣提示的），
-// 用matchQ做單純字串包含比對會抓不到「10月」「Q3」這類格式（因為YYYY/MM裡根本沒有「月」字或季度資訊），
-// 所以拆解查詢字串的實際意義（月份/年份/季度）再跟YYYY/MM結構化比對，而不是猜字串裡有沒有出現。
-function matchMonthQuery(entryMonthStr,query){
-  if(!query) return true;
-  if(!entryMonthStr) return false;
-  var q=String(query).trim();
-  var parts=entryMonthStr.split('/');
-  var eYear=parts[0]||'',eMonth=parts[1]||'';
-
-  var mOnly=q.match(/^(\d{1,2})月$/);
-  if(mOnly){
-    var mm=(mOnly[1].length===1?'0':'')+mOnly[1];
-    return eMonth===mm;
-  }
-  var numOnly=q.match(/^(\d{1,2})$/);
-  if(numOnly){
-    var mm2=(numOnly[1].length===1?'0':'')+numOnly[1];
-    return eMonth===mm2;
-  }
-  var ym=q.match(/^(\d{4})[\/\-年](\d{1,2})/);
-  if(ym){
-    var mm3=(ym[2].length===1?'0':'')+ym[2];
-    return eYear===ym[1]&&eMonth===mm3;
-  }
-  var yq=q.match(/^(\d{4})\D{0,2}Q\s*([1-4])$/i);
-  if(yq){
-    var yqNum=parseInt(yq[2],10);
-    var yqMonths=[(yqNum-1)*3+1,(yqNum-1)*3+2,(yqNum-1)*3+3].map(function(m){return (m<10?'0':'')+m;});
-    return eYear===yq[1]&&yqMonths.indexOf(eMonth)>-1;
-  }
-  var yOnly=q.match(/^(\d{4})$/);
-  if(yOnly){
-    return eYear===yOnly[1];
-  }
-  var qtr=q.match(/^Q\s*([1-4])$/i);
-  if(qtr){
-    var qNum=parseInt(qtr[1],10);
-    var qMonths=[(qNum-1)*3+1,(qNum-1)*3+2,(qNum-1)*3+3].map(function(m){return (m<10?'0':'')+m;});
-    return qMonths.indexOf(eMonth)>-1;
-  }
-  // 其他打法無法辨識意義時，退回原本的模糊字串比對保底
-  return matchQ(entryMonthStr,q);
+// 需求月份區間比對：畫面上的月份篩選已改成<input type="month">選擇器，
+// 值固定是「YYYY-MM」格式；delivery_parsed裡存的是「YYYY/MM」格式，
+// 分隔符號不同，統一轉成「年*12+月」的數字來比較大小，這樣才能正確處理跨年度的區間
+// （例如 2026/11 ~ 2027/02 這種橫跨年底的區間）。
+function monthToNum(s){
+  if(!s) return null;
+  var parts=String(s).split(/[\/\-]/);
+  var y=parseInt(parts[0],10), m=parseInt(parts[1],10);
+  if(!y||!m) return null;
+  return y*12+m;
+}
+function monthInRange(entryMonthStr,fromStr,toStr){
+  var e=monthToNum(entryMonthStr);
+  if(e===null) return false;
+  var f=monthToNum(fromStr), t=monthToNum(toStr);
+  if(f!==null&&e<f) return false;
+  if(t!==null&&e>t) return false;
+  return true;
+}
+// 畫面上顯示用的區間文字，例如「2026/09 ~ 2026/12」、「2026/09 以後」、「2026/12 以前」
+function monthRangeLabel(fromStr,toStr){
+  var f=fromStr?fromStr.replace('-','/'):'';
+  var t=toStr?toStr.replace('-','/'):'';
+  if(f&&t) return f+' ~ '+t;
+  if(f) return f+' 以後';
+  if(t) return t+' 以前';
+  return '';
 }
 function hl(text,q){
   if(!q||!text) return escH(String(text||''));
@@ -1016,12 +1038,18 @@ async function onLogin(user){
   document.getElementById('nav-user-info').textContent=currentUserProfile.name+' · '+roleLabel(currentUserProfile.role);
   var usersBtn=document.getElementById('tab-users-btn');
   if(usersBtn) usersBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
+  // 助理只有「客戶商務」權限，CRM需求統計分頁籤整個藏起來
+  var statBtn=document.getElementById('tab-stat-btn');
+  if(statBtn) statBtn.style.display=(currentUserProfile.role==='assistant')?'none':'';
+  // CRM Excel匯入只開放給大總管(其他角色資料庫層級也會擋，這裡先把按鈕藏起來避免點了才發現失敗)
+  var excelBtn=document.getElementById('btn-excel-import');
+  if(excelBtn) excelBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
   var btn=document.getElementById('login-btn');
   btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> 登入';
   await loadAllData();
   renderUnified();
 }
-function roleLabel(r){return r==='admin'?'管理員':r==='sales'?'業務':r==='assistant'?'助理':r;}
+function roleLabel(r){return r==='admin'?'大總管':r==='director'?'總監':r==='sales'?'業務':r==='assistant'?'助理':r;}
 async function doLogout(){
   await sb.auth.signOut();
   currentUser=null;currentUserProfile=null;
@@ -1032,7 +1060,6 @@ async function doLogout(){
 // 頁面載入時檢查登入狀態
 window.onload=async function(){
   var today=new Date().toISOString().split('T')[0];
-  document.getElementById('m-date')&&(document.getElementById('m-date').value=today);
   document.getElementById('e-date')&&(document.getElementById('e-date').value=today);
   if(window.location.hash.indexOf('type=recovery')!==-1){
     // 從重設密碼信連結進來，交給 onAuthStateChange 的 PASSWORD_RECOVERY 事件處理，這裡不自動登入
@@ -1061,7 +1088,7 @@ async function loadAllData(){
       ? sb.from('crm_records').select('*').eq('import_date',latestDate).order('created_at',{ascending:false})
       : sb.from('crm_records').select('*').order('created_at',{ascending:false}),
     sb.from('engineer_messages').select('*').order('created_at',{ascending:false}),
-    sb.from('users').select('id,name,role,sales_name'),
+    sb.from('users').select('id,name,role,sales_name,region'),
     sb.from('visit_records').select('*').order('created_at',{ascending:false})
   ]);
   custData=wRes.data||[];
@@ -1208,6 +1235,7 @@ function renderUnified(){
               +'</div>'
               +'<div style="display:flex;align-items:center;gap:8px;">'
                 +'<span class="badge '+statusBadgeCls[sc]+'">'+statusLabel[sc]+'</span>'
+                +(canEdit(r)?'<button class="del-btn" onclick="openEditWechatMsg(\''+r.id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'')
                 +(canDelete(r)?'<button class="del-btn" onclick="deleteCustRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'')
               +'</div>'
             +'</div>'
@@ -1299,13 +1327,17 @@ function renderUnified(){
   }).join('');
 }
 
+// 能不能編輯/刪除某一筆商務訊息：資料庫RLS已經先把「看得到的範圍」限制好了
+// （業務只查得到自己業務姓名的、總監/助理只查得到自己地區的），
+// 所以只要這筆資料出現在custData裡，代表這個人本來就有權限動它，
+// 這裡不用再重複判斷一次區域/業務姓名，真正的防線在資料庫端。
 function canDelete(r){
   if(!currentUserProfile) return false;
-  var role=currentUserProfile.role;
-  if(role==='admin') return true;
-  if(role==='assistant') return false;
-  if(role==='sales') return r.created_by===currentUser.id;
-  return false;
+  return true;
+}
+function canEdit(r){
+  if(!currentUserProfile) return false;
+  return true;
 }
 
 async function deleteCustRecord(id){
@@ -1313,6 +1345,43 @@ async function deleteCustRecord(id){
   await sb.from('wechat_messages').delete().eq('id',id);
   custData=custData.filter(function(r){return r.id!==id;});
   renderUnified();
+}
+// 編輯商務訊息(客戶名稱/業務姓名/內容)
+var editWechatMsgTargetId=null;
+function openEditWechatMsg(id){
+  var r=custData.find(function(x){return x.id===id;});
+  if(!r){alert('找不到這筆資料，麻煩重新整理頁面再試一次');return;}
+  editWechatMsgTargetId=id;
+  document.getElementById('ewm-company').value=r.company||'';
+  document.getElementById('ewm-sales').value=r.sales||'';
+  document.getElementById('ewm-note').value=r.note||r.raw||'';
+  document.getElementById('ewm-msg').style.display='none';
+  document.getElementById('edit-wechat-msg-modal').style.display='flex';
+}
+function closeEditWechatMsg(){document.getElementById('edit-wechat-msg-modal').style.display='none';editWechatMsgTargetId=null;}
+async function submitEditWechatMsg(){
+  var company=document.getElementById('ewm-company').value.trim();
+  var sales=document.getElementById('ewm-sales').value.trim();
+  var note=document.getElementById('ewm-note').value.trim();
+  var msgEl=document.getElementById('ewm-msg');
+  var btn=document.getElementById('ewm-submit-btn');
+  msgEl.style.display='none';
+  if(!company||!sales||!note){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='客戶名稱、業務姓名、商務訊息都要填';return;
+  }
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
+  var {data:updated,error}=await sb.from('wechat_messages').update({company:company,sales:sales,note:note}).eq('id',editWechatMsgTargetId).select().single();
+  if(error){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='儲存失敗：'+error.message;
+    btn.disabled=false;btn.innerHTML='儲存';return;
+  }
+  custData=custData.map(function(r){return r.id===editWechatMsgTargetId?updated:r;});
+  renderUnified();
+  refreshCategoryDropdown();
+  closeEditWechatMsg();
+  btn.disabled=false;btn.innerHTML='儲存';
 }
 async function deleteCRMRecord(id){
   if(!confirm('確定刪除這筆CRM紀錄？')) return;
@@ -1331,14 +1400,16 @@ async function deleteVisitRecord(id){
 function renderStats(){
   var company=(document.getElementById('f-stat-company')||{}).value||'';
   var model=(document.getElementById('f-stat-model')||{}).value||'';
-  var month=(document.getElementById('f-stat-month')||{}).value||'';
+  var monthFrom=(document.getElementById('f-stat-month-from')||{}).value||'';
+  var monthTo=(document.getElementById('f-stat-month-to')||{}).value||'';
   var sales=(document.getElementById('f-stat-sales')||{}).value||'';
   var category=(document.getElementById('f-stat-category')||{}).value||'';
+  var hasMonthFilter=!!(monthFrom||monthTo);
   var el=document.getElementById('stats-records');
   if(!el) return;
 
-  if(!company&&!model&&!month&&!sales&&!category){
-    el.innerHTML='<div class="empty-state"><i class="fa-solid fa-chart-bar" style="font-size:36px;display:block;margin-bottom:12px;"></i>請輸入客戶、機型、業務、分類或月份進行統計</div>';
+  if(!company&&!model&&!hasMonthFilter&&!sales&&!category){
+    el.innerHTML='<div class="empty-state"><i class="fa-solid fa-chart-bar" style="font-size:36px;display:block;margin-bottom:12px;"></i>請輸入客戶、機型、業務、分類或月份區間進行統計</div>';
     return;
   }
 
@@ -1355,12 +1426,12 @@ function renderStats(){
     var totalNum=parseQtyText(r.qty);
     var hasParsedData=Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length>0;
     var matchedQty=0,isUnclassified=false;
-    if(month){
+    if(hasMonthFilter){
       if(hasParsedData){
         r.delivery_parsed.forEach(function(d){
-          if(matchMonthQuery(d.month||'',month)) matchedQty+=parseInt(d.qty)||0;
+          if(monthInRange(d.month||'',monthFrom,monthTo)) matchedQty+=parseInt(d.qty)||0;
         });
-        if(matchedQty===0) return; // 有解析資料、但確定不在這個月份，跳過（不是無法辨識，是真的不是這個月）
+        if(matchedQty===0) return; // 有解析資料、但確定不在這個區間，跳過（不是無法辨識，是真的不在範圍內）
       } else {
         // delivery_parsed是null(還沒嘗試解析)或[](AI判定無法辨識)，一律歸入「無備註需求月份」，不猜測月份
         matchedQty=totalNum;
@@ -1440,7 +1511,7 @@ function renderStats(){
 
   el.innerHTML=
     '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">'
-      +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+(company?'客戶 <b>'+escH(company)+'</b> ':'')+(model?'機型 <b>'+escH(model)+'</b> ':'')+(category?'分類 <b>'+escH(category)+'</b> ':'')+(sales?'業務 <b>'+escH(sales)+'</b> ':'')+(month?'月份 <b>'+escH(month)+'</b>':'')+'</div>'
+      +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+(company?'客戶 <b>'+escH(company)+'</b> ':'')+(model?'機型 <b>'+escH(model)+'</b> ':'')+(category?'分類 <b>'+escH(category)+'</b> ':'')+(sales?'業務 <b>'+escH(sales)+'</b> ':'')+(hasMonthFilter?'月份 <b>'+escH(monthRangeLabel(monthFrom,monthTo))+'</b>':'')+'</div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--green);">'+totalConfirmed+'</div><div style="font-size:11px;color:var(--text-s);">已確認 (台)</div></div>'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--amber);">'+totalOngoing+'</div><div style="font-size:11px;color:var(--text-s);">進行中 (台)</div></div>'
@@ -1459,7 +1530,7 @@ function renderStats(){
           +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">AI解析中...</button>':'')
         +'</div>'
       +'</div>'
-      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，系統正自動嘗試解析，解析完會自動歸類到對應月份'+(month?'。<b>此清單不受目前所選月份「'+escH(month)+'」篩選影響</b>——只要符合客戶／機型條件、交期又無法判斷月份，不管選哪個月份查詢都會顯示同一批，並不代表這些紀錄屬於「'+escH(month)+'」':'')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，系統正自動嘗試解析，解析完會自動歸類到對應月份'+(hasMonthFilter?'。<b>此清單不受目前所選月份區間「'+escH(monthRangeLabel(monthFrom,monthTo))+'」篩選影響</b>——只要符合客戶／機型條件、交期又無法判斷月份，不管選哪個月份區間查詢都會顯示同一批，並不代表這些紀錄屬於這個區間':'')+'</div>'
       +unclassified.map(recordCard).join('')
     +'</div>':'')
     +(unknown.length?'<div class="stat-summary-card" style="border-left:3px solid #cbd0d8;">'
@@ -1651,7 +1722,7 @@ async function renderUsersList(){
     return '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
       +'<div>'
         +'<div style="font-weight:700;color:var(--text-h);">'+escH(u.name||'')+' <span style="font-weight:400;font-size:12px;color:var(--text-s);">('+roleLabel(u.role)+')</span></div>'
-        +'<div style="font-size:12px;color:var(--text-s);">'+escH(u.email||'')+(u.sales_name?' · 業務姓名：'+escH(u.sales_name):'')+'</div>'
+        +'<div style="font-size:12px;color:var(--text-s);">'+escH(u.email||'')+(u.sales_name?' · 業務姓名：'+escH(u.sales_name):'')+(u.region?' · 地區：'+escH(u.region):'')+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:8px;">'
         +'<button class="btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="openEditUser(\''+u.id+'\')"><i class="fa-solid fa-user-pen" style="margin-right:4px;"></i>編輯</button>'
@@ -1663,9 +1734,15 @@ async function renderUsersList(){
 }
 
 // 新增帳號
+function toggleCuRegionField(){
+  var role=document.getElementById('cu-role').value;
+  document.getElementById('cu-region-section').style.display=(role==='admin')?'none':'';
+}
 function openCreateUser(){
   ['cu-email','cu-name','cu-sales-name','cu-password'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('cu-role').value='sales';
+  document.getElementById('cu-region').value='';
+  toggleCuRegionField();
   document.getElementById('cu-msg').style.display='none';
   document.getElementById('create-user-modal').style.display='flex';
 }
@@ -1682,6 +1759,7 @@ async function submitCreateUser(){
   var name=document.getElementById('cu-name').value.trim();
   var sales_name=document.getElementById('cu-sales-name').value.trim();
   var role=document.getElementById('cu-role').value;
+  var region=document.getElementById('cu-region').value;
   var password=document.getElementById('cu-password').value;
   var msgEl=document.getElementById('cu-msg');
   var btn=document.getElementById('cu-submit-btn');
@@ -1690,9 +1768,13 @@ async function submitCreateUser(){
     msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
     msgEl.textContent='Email、姓名、密碼都是必填';return;
   }
+  if(role!=='admin'&&!sales_name){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='業務/總監/助理都要填業務姓名';return;
+  }
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 建立中...';
   try{
-    await callAdminFn({action:'create_user',email:email,password:password,name:name,role:role,sales_name:sales_name});
+    await callAdminFn({action:'create_user',email:email,password:password,name:name,role:role,sales_name:sales_name,region:region});
     msgEl.style.display='block';msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
     msgEl.textContent='帳號建立成功！';
     await renderUsersList();
@@ -1705,29 +1787,13 @@ async function submitCreateUser(){
   btn.disabled=false;btn.innerHTML='建立帳號';
 }
 
-// 編輯帳號資料（姓名／業務姓名／角色／助理管的業務清單）
+// 編輯帳號資料（姓名／業務姓名／角色／地區）
 var editUserTargetId=null;
-function toggleEuAssistantSection(){
+function toggleEuRegionField(){
   var role=document.getElementById('eu-role').value;
-  var sec=document.getElementById('eu-assistant-section');
-  sec.style.display=(role==='assistant')?'':'none';
+  document.getElementById('eu-region-section').style.display=(role==='admin')?'none':'';
 }
-function renderEuAssistantSalesCheckboxes(selectedNames){
-  var wrap=document.getElementById('eu-assistant-sales-list');
-  var names=window._salesNameList||[];
-  if(!names.length){
-    wrap.innerHTML='<div style="color:var(--text-s);">目前還沒有任何業務姓名資料，先去「新增帳號」建立業務帳號後才有得選</div>';
-    return;
-  }
-  wrap.innerHTML=names.map(function(n){
-    var checked=selectedNames.indexOf(n)>-1?'checked':'';
-    return '<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;">'
-      +'<input type="checkbox" class="eu-assistant-sales-cb" value="'+escH(n)+'" '+checked+' />'
-      +escH(n)
-    +'</label>';
-  }).join('');
-}
-async function openEditUser(userId){
+function openEditUser(userId){
   var u=(window._usersListData||[]).find(function(x){return x.id===userId;});
   if(!u){alert('找不到這筆帳號資料，麻煩重新整理頁面再試一次');return;}
   editUserTargetId=userId;
@@ -1735,14 +1801,9 @@ async function openEditUser(userId){
   document.getElementById('eu-name').value=u.name||'';
   document.getElementById('eu-sales-name').value=u.sales_name||'';
   document.getElementById('eu-role').value=u.role||'sales';
+  document.getElementById('eu-region').value=u.region||'';
   document.getElementById('eu-msg').style.display='none';
-  toggleEuAssistantSection();
-  if(u.role==='assistant'){
-    var {data:mapped}=await sb.from('assistant_managed_sales').select('sales_name').eq('assistant_user_id',userId);
-    renderEuAssistantSalesCheckboxes((mapped||[]).map(function(r){return r.sales_name;}));
-  } else {
-    renderEuAssistantSalesCheckboxes([]);
-  }
+  toggleEuRegionField();
   document.getElementById('edit-user-modal').style.display='flex';
 }
 function closeEditUser(){document.getElementById('edit-user-modal').style.display='none';editUserTargetId=null;}
@@ -1750,6 +1811,7 @@ async function submitEditUser(){
   var name=document.getElementById('eu-name').value.trim();
   var sales_name=document.getElementById('eu-sales-name').value.trim();
   var role=document.getElementById('eu-role').value;
+  var region=document.getElementById('eu-region').value;
   var msgEl=document.getElementById('eu-msg');
   var btn=document.getElementById('eu-submit-btn');
   msgEl.style.display='none';
@@ -1757,13 +1819,13 @@ async function submitEditUser(){
     msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
     msgEl.textContent='姓名不能空白';return;
   }
+  if(role!=='admin'&&!sales_name){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='業務/總監/助理都要填業務姓名';return;
+  }
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
   try{
-    await callAdminFn({action:'update_profile',target_user_id:editUserTargetId,name:name,role:role,sales_name:sales_name});
-    if(role==='assistant'){
-      var checkedNames=Array.prototype.slice.call(document.querySelectorAll('.eu-assistant-sales-cb:checked')).map(function(cb){return cb.value;});
-      await callAdminFn({action:'set_assistant_sales',target_user_id:editUserTargetId,sales_names:checkedNames});
-    }
+    await callAdminFn({action:'update_profile',target_user_id:editUserTargetId,name:name,role:role,sales_name:sales_name,region:region});
     msgEl.style.display='block';msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
     msgEl.textContent='儲存成功！';
     await renderUsersList();
@@ -2008,25 +2070,18 @@ async function parseMessage(){
 
 async function manualSaveCustomer(){
   var company=document.getElementById('m-company').value.trim();
-  var contact=document.getElementById('m-contact').value.trim();
   var sales=document.getElementById('m-sales').value.trim();
-  if(!company||!contact){alert('請填入客戶名稱與聯絡人');return;}
-  if(!sales){alert('請填入業務姓名，這筆才能儲存');return;}
+  var note=document.getElementById('m-note').value.trim();
+  if(!company||!sales||!note){alert('客戶名稱、業務姓名、商務訊息都要填，這筆才能儲存');return;}
   var {data:inserted,error}=await sb.from('wechat_messages').insert({
-    company,contact,sales,
-    date:document.getElementById('m-date').value,
-    model:document.getElementById('m-model').value.trim(),
-    qty:parseInt(document.getElementById('m-qty').value)||null,
-    price:document.getElementById('m-price').value.trim(),
-    delivery:document.getElementById('m-delivery').value.trim(),
-    status:document.getElementById('m-status').value,
-    note:document.getElementById('m-note').value.trim(),
+    company,sales,note,
+    date:new Date().toISOString().split('T')[0],
     raw:'',tags:[],created_by:currentUser.id
   }).select().single();
   if(error){alert('儲存失敗：'+error.message);return;}
   custData.unshift(inserted);
   refreshCategoryDropdown();
-  ['m-company','m-contact','m-sales','m-model','m-qty','m-price','m-delivery','m-note'].forEach(function(id){document.getElementById(id).value='';});
+  ['m-company','m-sales','m-note'].forEach(function(id){document.getElementById(id).value='';});
   closeImport();
   if(currentTab==='customer') renderUnified();
 }
@@ -2328,7 +2383,6 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-
 
 
 

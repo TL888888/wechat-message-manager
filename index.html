@@ -2220,8 +2220,14 @@ function handleExcelFile(e){
         var sheetCount=0,rowCount=0,visitRowCount=0;
 
         workbook.SheetNames.forEach(function(sheetName){
-          if(skipSheets.indexOf(sheetName)>-1) return;
           var ws=workbook.Sheets[sheetName];
+          var rows0=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+          var headerRow0Check=(rows0[0]||[]).map(function(c){return String(c||'').trim();});
+          var isVisitFormatCheck=headerRow0Check.indexOf('客戶資訊')>-1&&headerRow0Check.indexOf('競爭對手')>-1;
+          // skipSheets黑名單只用來過濾「CRM Excel裡真的沒用的空白/預設分頁」，
+          // 拜訪紀錄格式已經靠表頭的「客戶資訊」+「競爭對手」兩個特徵欄位精準判斷過了，
+          // 不該再被分頁名稱（例如剛好也叫Sheet1）誤殺跳過
+          if(!isVisitFormatCheck&&skipSheets.indexOf(sheetName)>-1) return;
           sheetCount++;
 
           // 合併儲存格處理
@@ -2464,5 +2470,6 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
 
 

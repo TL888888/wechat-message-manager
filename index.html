@@ -119,9 +119,9 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 /* ══ 客戶商務：ERP風格表格（凍結表頭＋凍結左側欄＋左右捲動＋撐滿剩餘畫面高度） ══════════ */
 /* 外層flex容器：JS會依視窗高度動態算出height，讓表格區塊撐到畫面底部，
    筆電用觸控板往下捲動時，游標停在表格區域內就能自然捲動，不用另外找卷軸拖曳 */
-#unified-flex-area{display:flex;flex-direction:column;min-height:0;}
-#unified-records{flex:1;min-height:0;display:flex;flex-direction:column;}
-#unified-pager{flex-shrink:0;}
+#unified-flex-area,#stats-flex-area{display:flex;flex-direction:column;min-height:0;}
+#unified-records,#stats-records{flex:1;min-height:0;display:flex;flex-direction:column;}
+#unified-pager,#stats-pager{flex-shrink:0;}
 .erp-table-wrap{border:1px solid var(--border2);border-radius:10px;overflow:auto;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,0.05);position:relative;flex:1;min-height:0;}
 .erp-table{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;}
 .erp-table thead th.erp-th{position:sticky;top:0;z-index:3;background:#3d5a80;color:#fff;font-weight:700;font-size:12.5px;padding:10px 12px;text-align:left;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.18);border-bottom:1px solid #2f4562;}
@@ -137,6 +137,10 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 /* 客戶欄：約6個中文字寬度 */
 .erp-col-customer{width:118px;min-width:118px;max-width:118px;white-space:normal;word-break:break-word;}
 .erp-col-model{width:90px;min-width:90px;max-width:90px;white-space:normal;word-break:break-word;}
+/* CRM需求統計專用欄位 */
+.erp-col-status{width:112px;min-width:112px;max-width:112px;white-space:nowrap;}
+.erp-col-qty{width:76px;min-width:76px;max-width:76px;white-space:nowrap;text-align:right;}
+.erp-col-delivery{width:180px;min-width:180px;max-width:180px;white-space:pre-wrap;word-break:break-word;}
 .erp-sticky-col{position:sticky;background:#fff;z-index:2;}
 tr.erp-row-alt td.erp-td{background:#f8fafc;}
 tr.erp-tr:hover td.erp-td{background:#eef4fb;}
@@ -154,8 +158,8 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
 .erp-pager-btn:disabled{opacity:0.4;cursor:not-allowed;}
 .erp-pager-info{font-size:12px;color:var(--text-s);margin:0 8px;white-space:nowrap;}
 @media (max-width:640px){
-  #unified-flex-area{display:block;height:auto !important;} /* 手機不用JS撐滿視窗高度，改回原本靠內容捲動 */
-  #unified-records{display:block;flex:none;}
+  #unified-flex-area,#stats-flex-area{display:block;height:auto !important;} /* 手機不用JS撐滿視窗高度，改回原本靠內容捲動 */
+  #unified-records,#stats-records{display:block;flex:none;}
   .erp-table-wrap{flex:none;max-height:60vh;}
   .erp-table{min-width:640px;display:table !important;table-layout:auto;}
   .erp-table .erp-td,.erp-table .erp-th{padding:7px 9px;font-size:12px;}
@@ -164,6 +168,9 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .erp-col-model{width:80px;min-width:80px;max-width:80px;}
   .erp-col-other{width:180px;min-width:180px;max-width:180px;}
   .erp-col-info{min-width:200px;}
+  .erp-col-status{width:96px;min-width:96px;max-width:96px;}
+  .erp-col-qty{width:60px;min-width:60px;max-width:60px;}
+  .erp-col-delivery{width:140px;min-width:140px;max-width:140px;}
   .erp-pager-btn{min-width:28px;height:28px;font-size:12px;}
 }
 
@@ -393,37 +400,46 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
   <!-- ══ 需求統計 ══ -->
   <div id="tab-stats" style="display:none;">
-    <div class="filter-panel">
-      <div style="margin-bottom:10px;">
-        <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶名稱</div>
-        <input id="f-stat-company" class="filter-input" placeholder="例：龍南、無錫深南..." oninput="debounceStats()" />
-      </div>
-      <div style="margin-bottom:10px;">
-        <div class="filter-label"><i class="fa-solid fa-microchip" style="margin-right:3px;"></i>機型</div>
-        <input id="f-stat-model" class="filter-input" placeholder="例：RU6HM、DG6ZM..." oninput="debounceStats()" />
-      </div>
-      <div style="margin-top:10px;">
-        <div class="filter-label"><i class="fa-regular fa-calendar" style="margin-right:3px;"></i>需求月份區間（只填其中一個代表「這個月份以後」或「這個月份以前」，都不填代表不限月份）</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <input id="f-stat-month-from" class="filter-input" type="month" oninput="debounceStats()" />
-          <input id="f-stat-month-to" class="filter-input" type="month" oninput="debounceStats()" />
+    <div class="uni-toolbar">
+      <div class="uni-filter-inline" style="flex:1;">
+        <div class="filter-icon-input">
+          <i class="fa-regular fa-building"></i>
+          <input id="f-stat-company" class="filter-input" placeholder="客戶名稱" oninput="debounceStats()" />
         </div>
-      </div>
-      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <div class="filter-label"><i class="fa-solid fa-user-tie" style="margin-right:3px;"></i>業務姓名</div>
-          <input id="f-stat-sales" class="filter-input" list="sales-name-datalist" placeholder="例：黃榮傑、魏得志..." oninput="debounceStats()" />
+        <div class="filter-icon-input">
+          <i class="fa-solid fa-microchip"></i>
+          <input id="f-stat-model" class="filter-input" placeholder="機型" oninput="debounceStats()" />
         </div>
-        <div>
-          <div class="filter-label"><i class="fa-solid fa-layer-group" style="margin-right:3px;"></i>機型分類</div>
+        <div class="filter-icon-input">
+          <i class="fa-solid fa-user-tie"></i>
+          <input id="f-stat-sales" class="filter-input" list="sales-name-datalist" placeholder="業務姓名" oninput="debounceStats()" />
+        </div>
+        <div class="filter-icon-input" style="flex:1 1 150px;">
+          <i class="fa-solid fa-layer-group"></i>
           <select id="f-stat-category" class="filter-input" onchange="debounceStats()">
             <option value="">全部分類</option>
           </select>
         </div>
+        <div class="filter-icon-input" style="flex:0 0 140px;min-width:120px;">
+          <i class="fa-regular fa-calendar"></i>
+          <input id="f-stat-month-from" class="filter-input" type="month" oninput="debounceStats()" title="需求月份起" />
+        </div>
+        <div class="filter-icon-input" style="flex:0 0 140px;min-width:120px;">
+          <i class="fa-regular fa-calendar"></i>
+          <input id="f-stat-month-to" class="filter-input" type="month" oninput="debounceStats()" title="需求月份訖" />
+        </div>
+        <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearStatsFilter()">
+          <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i>清除篩選
+        </button>
       </div>
     </div>
-    <div id="stats-records"></div>
+    <div style="font-size:11px;color:var(--text-s);margin:-4px 0 10px 2px;">需求月份區間只填其中一個代表「這個月份以後」或「這個月份以前」，都不填代表不限月份</div>
+    <div id="stats-flex-area">
+      <div id="stats-records"></div>
+      <div id="stats-pager"></div>
+    </div>
   </div>
+
 
   <!-- ══ 設備/技術 ══ -->
   <div id="tab-engineer" style="display:none;">
@@ -747,6 +763,8 @@ var visitData = [];
 var engData = [];
 var uniPage = 1;
 var uniPageSize = 15;
+var statsPage = 1;
+var statsPageSize = 15;
 
 // ══ 繁簡轉換 ════════════════════════════════════════════════
 var T2S={
@@ -1424,21 +1442,26 @@ function renderUnified(){
 
   el.innerHTML=buildUnifiedTableHtml(pageRows,q);
   renderUniPager(rows.length,totalPages);
-  resizeUnifiedFlexArea();
+  resizeFlexArea('unified-flex-area');
 }
 // 讓表格區塊撐滿視窗剩餘高度（筆電用觸控板往下捲動時不用特地對準小卷軸），
 // 手機螢幕維持原本CSS的固定max-height，不用這套動態計算（避免iOS網址列伸縮造成高度亂跳）
-function resizeUnifiedFlexArea(){
+// areaId: 'unified-flex-area'(客戶商務) 或 'stats-flex-area'(CRM需求統計)，共用同一套邏輯
+function resizeFlexArea(areaId){
   if(window.innerWidth<=640) return;
-  var area=document.getElementById('unified-flex-area');
-  var panel=document.getElementById('tab-customer');
+  var area=document.getElementById(areaId);
+  var panelId=areaId==='stats-flex-area'?'tab-stats':'tab-customer';
+  var panel=document.getElementById(panelId);
   if(!area||!panel||panel.style.display==='none') return;
   var rect=area.getBoundingClientRect();
   var h=window.innerHeight-rect.top-16;
   if(h<320) h=320;
   area.style.height=h+'px';
 }
-window.addEventListener('resize',function(){if(currentTab==='customer')resizeUnifiedFlexArea();});
+window.addEventListener('resize',function(){
+  if(currentTab==='customer') resizeFlexArea('unified-flex-area');
+  else if(currentTab==='stats') resizeFlexArea('stats-flex-area');
+});
 
 // 能不能編輯/刪除某一筆商務訊息：資料庫RLS已經先把「看得到的範圍」限制好了
 // （業務只查得到自己業務姓名的、總監/助理只查得到自己地區的），
@@ -1523,6 +1546,7 @@ function renderStats(){
 
   if(!company&&!model&&!hasMonthFilter&&!sales&&!category){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-chart-bar" style="font-size:36px;display:block;margin-bottom:12px;"></i>請輸入客戶、機型、業務、分類或月份區間進行統計</div>';
+    renderStatsPager(0,0);
     return;
   }
 
@@ -1569,6 +1593,7 @@ function renderStats(){
 
   if(!allRecords.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合資料</div>';
+    renderStatsPager(0,0);
     return;
   }
 
@@ -1583,47 +1608,13 @@ function renderStats(){
     else if(sc==='lost'){lost.push(r);totalLost+=r.qty;}
     else unknown.push(r);
   });
+  // 各分類內部依「週次」新到舊排序，分類間的順序固定：已確認→進行中→流失→無備註月份→狀態不明
+  function byWeekDesc(a,b){return dateSortKey(b.week).localeCompare(dateSortKey(a.week));}
+  [confirmed,ongoing,lost,unclassified,unknown].forEach(function(arr){arr.sort(byWeekDesc);});
+  var rows=confirmed.concat(ongoing,lost,unclassified,unknown);
 
-  function recordCard(r){
-    return '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12px;">'
-      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">'
-        +(r._type==='wechat'?'<span class="badge-wechat"><i class="fa-brands fa-weixin" style="margin-right:3px;"></i>微信</span>':'<span class="badge-crm"><i class="fa-solid fa-table" style="margin-right:3px;"></i>CRM</span>')
-        +'<b style="color:var(--text-h);">'+escH(r.company||'')+'</b>'
-        +(r.contact?'<span style="color:var(--text-m);">/ '+escH(r.contact)+'</span>':'')
-        +(r.sales?'<span style="color:var(--text-m);">業務：'+escH(r.sales)+'</span>':'')
-        +(r.week?'<span style="color:var(--text-s);">'+escH(r.week)+'</span>':'')
-        +(r.date?'<span style="color:var(--text-s);">'+escH(r.date)+'</span>':'')
-      +'</div>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;color:var(--text-m);">'
-        +'<span><i class="fa-solid fa-microchip" style="font-size:10px;margin-right:3px;"></i>'+escH(r.model||'—')+'</span>'
-        +(r.qty?'<span><i class="fa-solid fa-desktop" style="font-size:10px;margin-right:3px;"></i>'+String(r.qty).replace(/[台台]/g,'').trim()+' 台</span>':'')
-        +(r.delivery_parsed&&Array.isArray(r.delivery_parsed)
-          ?r.delivery_parsed.map(function(d){return '<span><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;"></i>'+escH(d.month)+' '+d.qty+'台</span>';}).join('')
-          :(r.delivery?'<span><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;"></i>'+escH(r.delivery)+'</span>':''))
-      +'</div>'
-      +(r.raw||r.statusText?'<div style="margin-top:6px;">'
-        +'<button onclick="toggleExpand(this)" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;"><i class="fa-solid fa-chevron-down" style="margin-right:3px;font-size:10px;"></i> 展開完整訊息</button>'
-        +'<div class="expand-content" style="display:none;margin-top:6px;">'
-          +(r.statusText?'<div style="font-size:12px;color:var(--text-s);margin-bottom:4px;">進度：'+escH(r.statusText)+'</div>':'')
-          +(r.raw?'<div style="font-size:12px;color:var(--text-s);line-height:1.6;white-space:pre-wrap;background:var(--bg);border-radius:6px;padding:8px;">'+escH(r.raw)+'</div>':'')
-        +'</div>'
-      +'</div>':'')
-    +'</div>';
-  }
-
-  function section(title,color,records,total,icon){
-    if(!records.length) return '';
-    return '<div class="stat-summary-card" style="border-left:4px solid '+color+';">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-        +'<div style="font-size:14px;font-weight:700;color:var(--text-h);">'+icon+' '+title+'</div>'
-        +'<div style="font-size:18px;font-weight:700;color:'+color+';">'+total+' 台 <span style="font-size:12px;color:var(--text-s);">('+records.length+' 筆)</span></div>'
-      +'</div>'
-      +records.map(recordCard).join('')
-    +'</div>';
-  }
-
-  el.innerHTML=
-    '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">'
+  var summaryHtml=
+    '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;">'
       +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+(company?'客戶 <b>'+escH(company)+'</b> ':'')+(model?'機型 <b>'+escH(model)+'</b> ':'')+(category?'分類 <b>'+escH(category)+'</b> ':'')+(sales?'業務 <b>'+escH(sales)+'</b> ':'')+(hasMonthFilter?'月份 <b>'+escH(monthRangeLabel(monthFrom,monthTo))+'</b>':'')+'</div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--green);">'+totalConfirmed+'</div><div style="font-size:11px;color:var(--text-s);">已確認 (台)</div></div>'
@@ -1631,31 +1622,94 @@ function renderStats(){
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--red);">'+totalLost+'</div><div style="font-size:11px;color:var(--text-s);">流失 (台)</div></div>'
         +(unknown.length?'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--text-s);">'+unknown.length+'</div><div style="font-size:11px;color:var(--text-s);">狀態不明 (筆)</div></div>':'')
       +'</div>'
-    +'</div>'
-    +section('已確認','#1a7a4a',confirmed,totalConfirmed,'✅')
-    +section('進行中','#8a5a00',ongoing,totalOngoing,'🔄')
-    +section('流失/結案','#b03030',lost,totalLost,'❌')
-    +(unclassified.length?'<div class="stat-summary-card" style="border-left:3px solid #6b7280;">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">'
-        +'<div style="font-size:14px;font-weight:700;color:var(--text-h);">📋 無備註需求月份</div>'
-        +'<div style="display:flex;align-items:center;gap:10px;">'
-          +'<div style="font-size:16px;font-weight:700;color:#4b5563;">'+totalUnclassified+' 台 <span style="font-size:12px;color:var(--text-s);">('+unclassified.length+' 筆)</span></div>'
-          +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">AI解析中...</button>':'')
-        +'</div>'
-      +'</div>'
-      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:8px;">交期文字沒辦法直接判斷屬於哪個月份，系統正自動嘗試解析，解析完會自動歸類到對應月份'+(hasMonthFilter?'。<b>此清單不受目前所選月份區間「'+escH(monthRangeLabel(monthFrom,monthTo))+'」篩選影響</b>——只要符合客戶／機型條件、交期又無法判斷月份，不管選哪個月份區間查詢都會顯示同一批，並不代表這些紀錄屬於這個區間':'')+'</div>'
-      +unclassified.map(recordCard).join('')
-    +'</div>':'')
-    +(unknown.length?'<div class="stat-summary-card" style="border-left:3px solid #cbd0d8;">'
-      +'<div style="font-size:14px;font-weight:700;color:var(--text-h);margin-bottom:10px;">⚠️ 狀態不明（'+unknown.length+' 筆）</div>'
-      +unknown.map(recordCard).join('')
-    +'</div>':'');
+    +'</div>';
+  var noteHtml=unclassified.length?('<div style="font-size:12px;color:var(--text-s);margin:0 0 10px 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+      +'<span>📋 表格中「無備註月份」共 '+unclassified.length+' 筆（'+totalUnclassified+' 台）交期文字無法直接判斷月份，系統正自動解析，解析完會自動歸類到對應月份'+(hasMonthFilter?'，且此清單不受目前所選月份區間「'+escH(monthRangeLabel(monthFrom,monthTo))+'」篩選影響':'')+'</span>'
+      +(unresolvedIds.length?'<button onclick="resolveUnclassified()" id="resolve-unclassified-btn" style="font-size:11px;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:3px 9px;cursor:pointer;">解析中...</button>':'')
+    +'</div>'):'';
+
+  var totalPages=Math.max(1,Math.ceil(rows.length/statsPageSize));
+  if(statsPage>totalPages) statsPage=totalPages;
+  if(statsPage<1) statsPage=1;
+  var startIdx=(statsPage-1)*statsPageSize;
+  var pageRows=rows.slice(startIdx,startIdx+statsPageSize);
+
+  el.innerHTML=summaryHtml+noteHtml+buildStatsTableHtml(pageRows);
+  renderStatsPager(rows.length,totalPages);
+  resizeFlexArea('stats-flex-area');
 
   // 查詢當下自動觸發解析（不用等使用者按按鈕），同一時間只跑一批，避免重複觸發
   if(unresolvedIds.length&&!window._resolvingUnclassified){
     window._resolvingUnclassified=true;
     resolveUnclassified().finally(function(){window._resolvingUnclassified=false;});
   }
+}
+function getStatusBadgeHtml(r){
+  if(r.isUnclassified) return '<span class="badge" style="background:#eef1f5;color:#4b5563;border-color:#d8dee6;">📋 無備註月份</span>';
+  var sc=classifyStatus(r.statusText);
+  return '<span class="badge '+statusBadgeCls[sc]+'">'+statusLabel[sc]+'</span>';
+}
+function buildStatsTableHtml(pageRows){
+  var thead='<thead><tr>'
+    +'<th class="erp-th erp-sticky-col erp-col-status" style="left:0;">狀態</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:112px;">客戶</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-model" style="left:230px;">機型</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:320px;">業務</th>'
+    +'<th class="erp-th erp-col-qty">數量</th>'
+    +'<th class="erp-th erp-col-delivery">需求時間</th>'
+    +'<th class="erp-th erp-col-info">進度說明</th>'
+    +'<th class="erp-th erp-td-op">操作</th>'
+  +'</tr></thead>';
+  var tbody='<tbody>'+pageRows.map(function(r,i){
+    var deliveryHtml=(r.delivery_parsed&&Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length)
+      ?r.delivery_parsed.map(function(d){return escH(d.month)+' '+d.qty+'台';}).join('\n')
+      :escH(r.delivery||'—');
+    var progressHtml=r.week?('『'+escH(r.week)+'』 '+(r.statusText?escH(r.statusText):'<span class="erp-empty">（無進度記錄）</span>')):(r.statusText?escH(r.statusText):'<span class="erp-empty">—</span>');
+    var delBtn=canDelete({})?'<button class="erp-op-btn erp-op-del" onclick="deleteCRMRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
+    var alt=(i%2===1)?' erp-row-alt':'';
+    return '<tr class="erp-tr'+alt+'">'
+      +'<td class="erp-td erp-sticky-col erp-col-status" style="left:0;">'+getStatusBadgeHtml(r)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:112px;">'+escH(r.company)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-model" style="left:230px;">'+escH(r.model||'—')+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:320px;">'+escH(r.sales)+'</td>'
+      +'<td class="erp-td erp-col-qty">'+(r.qty?escH(String(r.qty).replace(/[台台]/g,'').trim())+' 台':'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-col-delivery">'+deliveryHtml+'</td>'
+      +'<td class="erp-td erp-col-info">'+progressHtml+'</td>'
+      +'<td class="erp-td erp-td-op">'+delBtn+'</td>'
+    +'</tr>';
+  }).join('')+'</tbody>';
+  return '<div class="erp-table-wrap"><table class="erp-table">'+thead+tbody+'</table></div>';
+}
+function renderStatsPager(total,totalPages){
+  var el=document.getElementById('stats-pager');
+  if(!el) return;
+  if(!total){el.innerHTML='';return;}
+  var startN=(statsPage-1)*statsPageSize+1;
+  var endN=Math.min(statsPage*statsPageSize,total);
+  var btns='';
+  btns+='<button class="erp-pager-btn" '+(statsPage<=1?'disabled':'')+' onclick="goStatsPage(1)" title="第一頁"><i class="fa-solid fa-angles-left"></i></button>';
+  btns+='<button class="erp-pager-btn" '+(statsPage<=1?'disabled':'')+' onclick="goStatsPage(statsPage-1)" title="上一頁"><i class="fa-solid fa-angle-left"></i></button>';
+  var from=Math.max(1,statsPage-2), to=Math.min(totalPages,statsPage+2);
+  for(var p=from;p<=to;p++){
+    btns+='<button class="erp-pager-btn'+(p===statsPage?' active':'')+'" onclick="goStatsPage('+p+')">'+p+'</button>';
+  }
+  btns+='<button class="erp-pager-btn" '+(statsPage>=totalPages?'disabled':'')+' onclick="goStatsPage(statsPage+1)" title="下一頁"><i class="fa-solid fa-angle-right"></i></button>';
+  btns+='<button class="erp-pager-btn" '+(statsPage>=totalPages?'disabled':'')+' onclick="goStatsPage(totalPages)" title="最後一頁"><i class="fa-solid fa-angles-right"></i></button>';
+  el.innerHTML='<div class="erp-pager"><span class="erp-pager-info">共 '+total+' 筆，第 '+startN+'–'+endN+' 筆</span>'+btns+'</div>';
+}
+function goStatsPage(p){
+  statsPage=p;
+  renderStats();
+  var wrap=document.querySelector('#tab-stats .erp-table-wrap');
+  if(wrap) wrap.scrollTop=0;
+}
+function clearStatsFilter(){
+  ['f-stat-company','f-stat-model','f-stat-sales','f-stat-month-from','f-stat-month-to'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value='';
+  });
+  var cat=document.getElementById('f-stat-category');if(cat)cat.value='';
+  statsPage=1;
+  renderStats();
 }
 
 // 查詢結果裡如果有未分類的資料，畫面一渲染完就自動呼叫AI解析，只解析當下畫面上這幾筆，解出來就存回資料庫，之後同一筆不會再問第二次
@@ -2461,7 +2515,7 @@ function debounceEngineer(){
 }
 function debounceStats(){
   clearTimeout(_timerStats);
-  _timerStats=setTimeout(function(){renderStats();},300);
+  _timerStats=setTimeout(function(){statsPage=1;renderStats();},300);
 }
 
 function toggleExpandEng(btn){

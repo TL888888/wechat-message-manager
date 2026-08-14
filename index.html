@@ -130,13 +130,13 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 /* 客戶資訊欄不設寬度，table-layout:fixed下會自動吃掉其他欄位分完剩下的所有寬度 */
 .erp-col-info{min-width:260px;white-space:pre-wrap;word-break:break-word;}
 /* 其他欄：約20個中文字寬度 */
-.erp-col-other{width:280px;min-width:280px;max-width:280px;white-space:pre-wrap;word-break:break-word;}
+.erp-col-other{width:118px;min-width:118px;max-width:118px;white-space:pre-wrap;word-break:break-word;}
 /* 日期欄：剛好容納日期文字的寬度 */
 .erp-col-date{width:84px;min-width:84px;max-width:84px;white-space:nowrap;}
 .erp-col-sales{width:64px;min-width:64px;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* 客戶欄：約6個中文字寬度 */
 .erp-col-customer{width:118px;min-width:118px;max-width:118px;white-space:normal;word-break:break-word;}
-.erp-col-model{width:90px;min-width:90px;max-width:90px;white-space:normal;word-break:break-word;}
+.erp-col-model{width:118px;min-width:118px;max-width:118px;white-space:normal;word-break:break-word;}
 /* CRM需求統計專用欄位 */
 .erp-col-status{width:112px;min-width:112px;max-width:112px;white-space:nowrap;}
 .erp-col-qty{width:76px;min-width:76px;max-width:76px;white-space:nowrap;text-align:right;}
@@ -165,8 +165,8 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .erp-table .erp-td,.erp-table .erp-th{padding:7px 9px;font-size:12px;}
   .erp-sticky-col{position:static !important;} /* 手機省寬度，只凍結表頭列，不凍結欄位 */
   .erp-col-customer{width:100px;min-width:100px;max-width:100px;}
-  .erp-col-model{width:80px;min-width:80px;max-width:80px;}
-  .erp-col-other{width:96px;min-width:96px;max-width:96px;}
+  .erp-col-model{width:100px;min-width:100px;max-width:100px;}
+  .erp-col-other{width:100px;min-width:100px;max-width:100px;}
   .erp-col-info{min-width:200px;}
   .erp-col-status{width:96px;min-width:96px;max-width:96px;}
   .erp-col-qty{width:60px;min-width:60px;max-width:60px;}
@@ -1214,6 +1214,7 @@ async function onLogin(user){
   btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> 登入';
   await loadAllData();
   renderUnified();
+  loadVisitRemainingInBackground(); // 不等它，背景繼續把剩下的拜訪紀錄陸續補進來
 }
 function roleLabel(r){return r==='admin'?'大總管':r==='director'?'總監':r==='sales'?'業務':r==='assistant'?'助理':r;}
 async function doLogout(){
@@ -1244,6 +1245,44 @@ window.onload=async function(){
 // ══ 載入資料 ════════════════════════════════════════════════
 var usersMap={}; // id -> {name, role}
 
+// Supabase REST API 預設一次最多回傳1000筆，資料量一大（例如拜訪紀錄破萬筆）就會被截斷，
+// 參考 shipping 系統的做法：不要一次全撈，改成先抓第一批讓畫面快點有東西可看，
+// 剩下的分頁在背景陸續補進來，每補一批就重畫一次表格，使用者不用整批等完才看得到資料
+var VISIT_PAGE_SIZE=500;
+async function loadVisitFirstPage(){
+  var {data,error}=await sb.from('visit_records').select('*').order('created_at',{ascending:false}).range(0,VISIT_PAGE_SIZE-1);
+  if(error) throw error;
+  visitData=data||[];
+  return (data||[]).length===VISIT_PAGE_SIZE; // true代表可能還有更多，要繼續背景補
+}
+async function loadVisitRemainingInBackground(){
+  var from=VISIT_PAGE_SIZE;
+  while(true){
+    var {data,error}=await sb.from('visit_records').select('*').order('created_at',{ascending:false}).range(from,from+VISIT_PAGE_SIZE-1);
+    if(error){console.error('拜訪紀錄背景補齊失敗',error);return;}
+    if(!data||!data.length) break;
+    visitData=visitData.concat(data);
+    if(currentTab==='customer') renderUnified(); // 每補一批就更新畫面，不用等全部載完
+    if(data.length<VISIT_PAGE_SIZE) break;
+    from+=VISIT_PAGE_SIZE;
+  }
+}
+// 保留給「匯入完成後想確保資料完全載齊」的場合使用（例如重新整理統計數字時）
+async function fetchAllRows(table,orderCol,ascending){
+  var pageSize=1000;
+  var all=[];
+  var from=0;
+  while(true){
+    var {data,error}=await sb.from(table).select('*').order(orderCol,{ascending:ascending}).range(from,from+pageSize-1);
+    if(error) throw error;
+    if(!data||!data.length) break;
+    all=all.concat(data);
+    if(data.length<pageSize) break; // 這頁不滿代表已經是最後一頁
+    from+=pageSize;
+  }
+  return all;
+}
+
 async function loadAllData(){
   // 先找最新的 import_date
   var latestImport=await sb.from('crm_records')
@@ -1254,19 +1293,18 @@ async function loadAllData(){
     .single();
   var latestDate=latestImport.data?latestImport.data.import_date:null;
 
-  var [wRes,cRes,eRes,uRes,vRes]=await Promise.all([
+  var [wRes,cRes,eRes,uRes]=await Promise.all([
     sb.from('wechat_messages').select('*').order('created_at',{ascending:false}),
     latestDate
       ? sb.from('crm_records').select('*').eq('import_date',latestDate).order('created_at',{ascending:false})
       : sb.from('crm_records').select('*').order('created_at',{ascending:false}),
     sb.from('engineer_messages').select('*').order('created_at',{ascending:false}),
     sb.from('users').select('id,name,role,sales_name,region'),
-    sb.from('visit_records').select('*').order('created_at',{ascending:false})
+    loadVisitFirstPage() // 拜訪紀錄只先抓第一批，跟其他小表一起等，讓畫面能盡快顯示
   ]);
   custData=wRes.data||[];
   crmData=cRes.data||[];
   engData=eRes.data||[];
-  visitData=vRes.data||[];
   // 建立 users 對照表
   (uRes.data||[]).forEach(function(u){usersMap[u.id]=u;});
   // 建立「業務姓名」選單資料（給匯入表單的業務欄位做下拉選擇用），去重、去空白
@@ -1657,7 +1695,7 @@ function buildStatsTableHtml(pageRows){
     +'<th class="erp-th erp-sticky-col erp-col-status" style="left:0;">狀態</th>'
     +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:112px;">客戶</th>'
     +'<th class="erp-th erp-sticky-col erp-col-model" style="left:230px;">機型</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:320px;">業務</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:348px;">業務</th>'
     +'<th class="erp-th erp-col-qty">數量</th>'
     +'<th class="erp-th erp-col-delivery">需求時間</th>'
     +'<th class="erp-th erp-col-info">進度說明</th>'
@@ -1674,7 +1712,7 @@ function buildStatsTableHtml(pageRows){
       +'<td class="erp-td erp-sticky-col erp-col-status" style="left:0;">'+getStatusBadgeHtml(r)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:112px;">'+escH(r.company)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-model" style="left:230px;">'+escH(r.model||'—')+'</td>'
-      +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:320px;">'+escH(r.sales)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:348px;">'+escH(r.sales)+'</td>'
       +'<td class="erp-td erp-col-qty">'+(r.qty?escH(String(r.qty).replace(/[台台]/g,'').trim())+' 台':'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-col-delivery">'+deliveryHtml+'</td>'
       +'<td class="erp-td erp-col-info">'+progressHtml+'</td>'
@@ -2490,8 +2528,8 @@ function handleExcelFile(e){
       if(filesDone===files.length){
         var {data:newCRM}=await sb.from('crm_records').select('*').eq('import_date',importDate).order('created_at',{ascending:false});
         crmData=newCRM||[];
-        var {data:newVisit}=await sb.from('visit_records').select('*').order('created_at',{ascending:false});
-        visitData=newVisit||[];
+        await loadVisitFirstPage();
+        loadVisitRemainingInBackground(); // 匯入完成後一樣先顯示第一批，其餘背景陸續補齊
         resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
           +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+'</div>'
@@ -2569,5 +2607,6 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
 
 

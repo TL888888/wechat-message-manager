@@ -2357,7 +2357,7 @@ function handleExcelFile(e){
                 try{var vd=XLSX.SSF.parse_date_code(Number(vDateRaw));if(vd)vDateStr=vd.y+'/'+(vd.m<10?'0':'')+vd.m+'/'+(vd.d<10?'0':'')+vd.d;}catch(ex){}
               }
               parsedVisit.push({
-                doc_no:String(vrow[0]||'').trim(),
+                doc_no:String(vrow[0]||'').trim()||null,
                 sales:String(vrow[1]||'').trim()||sheetName,
                 report_date:vDateStr,
                 customer:vCustomer,

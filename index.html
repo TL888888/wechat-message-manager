@@ -712,14 +712,15 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   <div class="modal-box slide-in" style="max-width:500px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <div style="font-size:16px;font-weight:700;color:var(--text-h);">
-        <i class="fa-solid fa-file-excel" style="color:#1a7a4a;margin-right:8px;"></i>匯入 CRM Excel
+        <i class="fa-solid fa-file-excel" style="color:#1a7a4a;margin-right:8px;"></i>匯入 Excel
       </div>
       <button onclick="closeExcelImport()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--green);margin-bottom:16px;line-height:1.7;">
       <i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>
-      支援格式：<b>CRM客戶需求統計</b> Excel（.xlsx）<br>
-      自動讀取所有業務分頁，解析最新兩週進度。
+      自動判斷檔案格式，支援兩種：<br>
+      ・<b>CRM客戶需求統計</b> Excel —— 讀取所有業務分頁，解析最新兩週進度<br>
+      ・<b>拜訪紀錄</b> Excel（單號/業務/申報日期/客戶名稱...欄位）—— 匯入客戶商務的拜訪紀錄
     </div>
     <div id="excel-drop-zone" style="border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:14px;"
       onclick="document.getElementById('excel-file-input').click()"
@@ -2473,7 +2474,9 @@ function handleExcelFile(e){
         }
         for(var vbi=0;vbi<parsedVisit.length;vbi+=batchSize){
           var vbatch=parsedVisit.slice(vbi,vbi+batchSize);
-          var {error:vbErr}=await sb.from('visit_records').insert(vbatch);
+          // 用單號(doc_no)當作唯一識別碼：同一張單號重複匯入時，直接覆蓋更新那一筆，不會長出重複的兩筆
+          // (資料庫端要先建立doc_no的唯一索引，upsert才會生效，否則行為等同insert)
+          var {error:vbErr}=await sb.from('visit_records').upsert(vbatch,{onConflict:'doc_no'});
           if(vbErr) throw new Error('拜訪紀錄寫入失敗：'+vbErr.message);
         }
         totalSheets+=sheetCount;
@@ -2492,7 +2495,7 @@ function handleExcelFile(e){
         resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
           +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+'</div>'
-          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是每次累加不覆蓋。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
+          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是以「單號」判斷，同一張單號重複匯入會直接覆蓋更新，不會重複累加。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
           +'<div style="display:flex;gap:8px;margin-top:10px;">'
           +(totalRows>0?'<button class="btn-primary" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'stats\')"><i class="fa-solid fa-chart-line"></i> 前往CRM需求統計查看</button>':'')
           +(totalVisitRows>0?'<button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')"><i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看拜訪紀錄</button>':'')

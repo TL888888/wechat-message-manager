@@ -163,7 +163,7 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .erp-table-wrap{flex:none;max-height:60vh;}
   .erp-table{min-width:640px;display:table !important;table-layout:auto;}
   .erp-table .erp-td,.erp-table .erp-th{padding:7px 9px;font-size:12px;}
-  .erp-sticky-col{position:static !important;} /* 手機省寬度，只凍結表頭列，不凍結欄位 */
+  .erp-sticky-col{left:auto !important;} /* 手機省寬度，只保留表頭上下凍結，關掉左右凍結（不能用position:static，會連上下凍結一起關掉） */
   .erp-col-customer{width:100px;min-width:100px;max-width:100px;}
   .erp-col-model{width:100px;min-width:100px;max-width:100px;}
   .erp-col-other{width:100px;min-width:100px;max-width:100px;}
@@ -645,6 +645,45 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
     </div>
     <button class="btn-primary" style="width:100%;justify-content:center;" id="ewm-submit-btn" onclick="submitEditWechatMsg()">儲存</button>
     <div id="ewm-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
+
+<div id="edit-crm-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeEditCRM()">
+  <div class="modal-box slide-in" style="max-width:420px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-pen" style="color:var(--accent);margin-right:8px;"></i>編輯CRM需求紀錄</div>
+      <button onclick="closeEditCRM()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <div class="filter-label" style="margin-bottom:6px;">客戶名稱 *</div>
+        <input id="ecrm-company" class="input-field" />
+      </div>
+      <div>
+        <div class="filter-label" style="margin-bottom:6px;">業務姓名 *</div>
+        <input id="ecrm-sales" class="input-field" list="sales-name-datalist" />
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <div class="filter-label" style="margin-bottom:6px;">機型</div>
+        <input id="ecrm-model" class="input-field" />
+      </div>
+      <div>
+        <div class="filter-label" style="margin-bottom:6px;">數量</div>
+        <input id="ecrm-qty" class="input-field" />
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="filter-label" style="margin-bottom:6px;">需求時間／交期</div>
+      <input id="ecrm-delivery" class="input-field" />
+    </div>
+    <div style="margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">進度說明（最新一週）</div>
+      <textarea id="ecrm-status" class="input-field" style="height:90px;"></textarea>
+    </div>
+    <button class="btn-primary" style="width:100%;justify-content:center;" id="ecrm-submit-btn" onclick="submitEditCRM()">儲存</button>
+    <div id="ecrm-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
   </div>
 </div>
 
@@ -1508,10 +1547,11 @@ window.addEventListener('resize',function(){
   else if(currentTab==='stats') resizeFlexArea('stats-flex-area');
 });
 
-// 能不能編輯/刪除某一筆商務訊息：資料庫RLS已經先把「看得到的範圍」限制好了
-// （業務只查得到自己業務姓名的、總監/助理只查得到自己地區的），
-// 所以只要這筆資料出現在custData裡，代表這個人本來就有權限動它，
-// 這裡不用再重複判斷一次區域/業務姓名，真正的防線在資料庫端。
+// 能不能編輯/刪除某一筆資料：資料庫RLS已經先把「看得到的範圍」限制好了——
+// 大總管看得到所有人；總監/助理看得到自己所屬地區(華東/華南)的所有人；業務只看得到自己的。
+// 權限規則統一是「看得到就能編輯/刪除」，四種角色都一樣，只是「看得到的範圍」不同，
+// 所以這裡不用再重複判斷角色，只要這筆資料出現在custData/crmData/visitData裡，
+// 就代表這個人本來就有權限動它，真正的防線在資料庫RLS端。
 function canDelete(r){
   if(!currentUserProfile) return false;
   return true;
@@ -1568,7 +1608,53 @@ async function deleteCRMRecord(id){
   if(!confirm('確定刪除這筆CRM紀錄？')) return;
   await sb.from('crm_records').delete().eq('id',id);
   crmData=crmData.filter(function(r){return r.id!==id;});
-  renderUnified();
+  renderStats();
+}
+// 編輯CRM需求紀錄(客戶/機型/業務/數量/交期/最新一週的進度說明)
+var editCRMTargetId=null;
+var editCRMStatusField=null; // 進度說明實際要更新status_w1還是status_w2，取決於哪一週是最新
+function openEditCRM(id){
+  var r=crmData.find(function(x){return x.id===id;});
+  if(!r){alert('找不到這筆資料，麻煩重新整理頁面再試一次');return;}
+  editCRMTargetId=id;
+  editCRMStatusField=r.status_w2?'status_w2':'status_w1';
+  document.getElementById('ecrm-company').value=r.customer||'';
+  document.getElementById('ecrm-sales').value=r.sales||'';
+  document.getElementById('ecrm-model').value=r.model||'';
+  document.getElementById('ecrm-qty').value=r.qty||'';
+  document.getElementById('ecrm-delivery').value=r.delivery||'';
+  document.getElementById('ecrm-status').value=r.status_w2||r.status_w1||'';
+  document.getElementById('ecrm-msg').style.display='none';
+  document.getElementById('edit-crm-modal').style.display='flex';
+}
+function closeEditCRM(){document.getElementById('edit-crm-modal').style.display='none';editCRMTargetId=null;editCRMStatusField=null;}
+async function submitEditCRM(){
+  var company=document.getElementById('ecrm-company').value.trim();
+  var sales=document.getElementById('ecrm-sales').value.trim();
+  var model=document.getElementById('ecrm-model').value.trim();
+  var qty=document.getElementById('ecrm-qty').value.trim();
+  var delivery=document.getElementById('ecrm-delivery').value.trim();
+  var status=document.getElementById('ecrm-status').value.trim();
+  var msgEl=document.getElementById('ecrm-msg');
+  var btn=document.getElementById('ecrm-submit-btn');
+  msgEl.style.display='none';
+  if(!company||!sales){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='客戶名稱、業務姓名不能空白';return;
+  }
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
+  var patch={customer:company,sales:sales,model:model,qty:qty,delivery:delivery};
+  patch[editCRMStatusField]=status;
+  var {data:updated,error}=await sb.from('crm_records').update(patch).eq('id',editCRMTargetId).select().single();
+  if(error){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='儲存失敗：'+error.message;
+    btn.disabled=false;btn.innerHTML='儲存';return;
+  }
+  crmData=crmData.map(function(r){return r.id===editCRMTargetId?updated:r;});
+  renderStats();
+  closeEditCRM();
+  btn.disabled=false;btn.innerHTML='儲存';
 }
 async function deleteVisitRecord(id){
   if(!confirm('確定刪除這筆拜訪紀錄？')) return;
@@ -1706,6 +1792,7 @@ function buildStatsTableHtml(pageRows){
       ?r.delivery_parsed.map(function(d){return escH(d.month)+' '+d.qty+'台';}).join('\n')
       :escH(r.delivery||'—');
     var progressHtml=r.week?('『'+escH(r.week)+'』 '+(r.statusText?escH(r.statusText):'<span class="erp-empty">（無進度記錄）</span>')):(r.statusText?escH(r.statusText):'<span class="erp-empty">—</span>');
+    var editBtn=canEdit({})?'<button class="erp-op-btn" onclick="openEditCRM(\''+r.id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
     var delBtn=canDelete({})?'<button class="erp-op-btn erp-op-del" onclick="deleteCRMRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
     var alt=(i%2===1)?' erp-row-alt':'';
     return '<tr class="erp-tr'+alt+'">'
@@ -1716,7 +1803,7 @@ function buildStatsTableHtml(pageRows){
       +'<td class="erp-td erp-col-qty">'+(r.qty?escH(String(r.qty).replace(/[台台]/g,'').trim())+' 台':'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-col-delivery">'+deliveryHtml+'</td>'
       +'<td class="erp-td erp-col-info">'+progressHtml+'</td>'
-      +'<td class="erp-td erp-td-op">'+delBtn+'</td>'
+      +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
     +'</tr>';
   }).join('')+'</tbody>';
   return '<div class="erp-table-wrap"><table class="erp-table">'+thead+tbody+'</table></div>';

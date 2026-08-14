@@ -166,7 +166,7 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .erp-sticky-col{position:static !important;} /* 手機省寬度，只凍結表頭列，不凍結欄位 */
   .erp-col-customer{width:100px;min-width:100px;max-width:100px;}
   .erp-col-model{width:80px;min-width:80px;max-width:80px;}
-  .erp-col-other{width:180px;min-width:180px;max-width:180px;}
+  .erp-col-other{width:96px;min-width:96px;max-width:96px;}
   .erp-col-info{min-width:200px;}
   .erp-col-status{width:96px;min-width:96px;max-width:96px;}
   .erp-col-qty{width:60px;min-width:60px;max-width:60px;}
@@ -192,12 +192,18 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .stat-pill{font-size:11px;padding:4px 8px;}
   #nav-user-info{display:none;} /* 手機上省空間，隱藏使用者資訊文字 */
   table{display:block;overflow-x:auto;white-space:nowrap;}
+  /* 客戶商務：手機上訊息類別統計(微信訊息/拜訪紀錄筆數)不需要，表格每列的小圖示已經標示類別了 */
+  #unified-stats-row{display:none !important;}
+  /* 搜尋欄位改成2欄一排；清除篩選縮成只留圖示，跟最後一個欄位(全文關鍵字)同一排、貼右側 */
+  .filter-icon-input{flex:1 1 calc(50% - 4px) !important;min-width:0 !important;}
+  .uni-filter-keyword{flex:1 1 calc(50% - 46px) !important;}
+  .uni-toolbar .btn-ghost{flex:0 0 36px !important;padding:8px !important;}
+  .uni-toolbar .btn-ghost span{display:none;} /* 清除篩選只留圖示 */
 }
 @media (max-width: 480px){
-  .filter-icon-input,.uni-filter-keyword{flex:1 1 100% !important;}
-  .uni-toolbar{padding:10px 12px;}
   .tab-btn{padding:7px 9px;font-size:12px;}
 }
+
 /* 隱藏瀏覽器內建密碼眼睛，避免跟小猴子重疊 */
 input[type=password]::-ms-reveal,
 input[type=password]::-ms-clear,
@@ -388,7 +394,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
           <input id="f-uni-keyword" class="filter-input" placeholder="全文關鍵字搜尋（同時搜微信訊息＋CRM資料）" oninput="debounceUnified()" />
         </div>
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearUnifiedFilter()">
-          <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i>清除篩選
+          <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i><span>清除篩選</span>
         </button>
       </div>
     </div>
@@ -429,7 +435,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
           <input id="f-stat-month-to" class="filter-input" type="month" oninput="debounceStats()" title="需求月份訖" />
         </div>
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearStatsFilter()">
-          <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i>清除篩選
+          <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i><span>清除篩選</span>
         </button>
       </div>
     </div>
@@ -1544,11 +1550,7 @@ function renderStats(){
   var el=document.getElementById('stats-records');
   if(!el) return;
 
-  if(!company&&!model&&!hasMonthFilter&&!sales&&!category){
-    el.innerHTML='<div class="empty-state"><i class="fa-solid fa-chart-bar" style="font-size:36px;display:block;margin-bottom:12px;"></i>請輸入客戶、機型、業務、分類或月份區間進行統計</div>';
-    renderStatsPager(0,0);
-    return;
-  }
+  // 沒有輸入任何篩選條件時，直接顯示全部CRM資料，不用再特地要求先輸入條件
 
   // 只統計CRM Excel匯入的資料(crmData)，商務訊息(custData，來自「匯入訊息」貼上/手動或客戶商務Excel)
   // 不算進這裡，避免同一筆商機在商務訊息跟CRM需求統計兩邊都被加總、數字膨脹混亂
@@ -1615,7 +1617,7 @@ function renderStats(){
 
   var summaryHtml=
     '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;">'
-      +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+(company?'客戶 <b>'+escH(company)+'</b> ':'')+(model?'機型 <b>'+escH(model)+'</b> ':'')+(category?'分類 <b>'+escH(category)+'</b> ':'')+(sales?'業務 <b>'+escH(sales)+'</b> ':'')+(hasMonthFilter?'月份 <b>'+escH(monthRangeLabel(monthFrom,monthTo))+'</b>':'')+'</div>'
+      +'<div style="font-size:13px;color:var(--text-m);margin-bottom:8px;">統計範圍：'+((company||model||category||sales||hasMonthFilter)?((company?'客戶 <b>'+escH(company)+'</b> ':'')+(model?'機型 <b>'+escH(model)+'</b> ':'')+(category?'分類 <b>'+escH(category)+'</b> ':'')+(sales?'業務 <b>'+escH(sales)+'</b> ':'')+(hasMonthFilter?'月份 <b>'+escH(monthRangeLabel(monthFrom,monthTo))+'</b>':'')):'<b>全部資料</b>（未套用篩選）')+'</div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--green);">'+totalConfirmed+'</div><div style="font-size:11px;color:var(--text-s);">已確認 (台)</div></div>'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--amber);">'+totalOngoing+'</div><div style="font-size:11px;color:var(--text-s);">進行中 (台)</div></div>'

@@ -28,9 +28,12 @@ body{background:var(--bg);color:var(--text-b);min-height:100vh;}
 
 /* ── Layout ── */
 .top-nav{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;}
-.tab-bar{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:57px;z-index:40;}
-.tab-btn{padding:12px 20px;font-size:14px;font-weight:500;border:none;border-bottom:2px solid transparent;background:transparent;cursor:pointer;color:var(--text-m);transition:color 0.15s;}
-.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.nav-row{max-width:1600px;margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.nav-brand{flex:1;display:flex;align-items:center;gap:10px;min-width:0;}
+.nav-tabs{flex-shrink:0;display:flex;gap:4px;order:2;}
+.nav-actions{flex:1;display:flex;gap:8px;align-items:center;justify-content:flex-end;min-width:0;order:3;}
+.tab-btn{padding:8px 16px;font-size:14px;font-weight:500;border:none;border-radius:7px;background:transparent;cursor:pointer;color:var(--text-m);transition:background 0.15s,color 0.15s;white-space:nowrap;}
+.tab-btn.active{color:var(--accent);background:var(--accent-bg);}
 
 /* ── Cards ── */
 .msg-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;transition:border-color 0.15s;}
@@ -83,6 +86,13 @@ textarea.input-field{resize:none;line-height:1.7;}
 
 /* ── Misc ── */
 .filter-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+/* 客戶商務：統計pill＋4個篩選欄位＋清除按鈕全部合併在同一排，省掉獨立label那一行的高度 */
+.uni-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.uni-filter-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0;}
+.filter-icon-input{position:relative;flex:1 1 150px;min-width:130px;}
+.filter-icon-input i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-s);font-size:12px;pointer-events:none;}
+.filter-icon-input input{padding-left:28px;}
+.uni-filter-keyword{flex:2 1 220px;min-width:180px;}
 .stats-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
 .stat-pill{background:var(--card);border:1px solid var(--border2);border-radius:6px;padding:4px 12px;font-size:12px;color:var(--text-m);white-space:nowrap;}
 .stat-pill b{font-weight:700;color:var(--text-h);}
@@ -160,20 +170,26 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
 /* ══ 手機版優化 ══════════════════════════════════════════════ */
 @media (max-width: 640px){
   main{padding:10px !important;}
-  .tab-bar,#tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;flex-wrap:nowrap !important;}
-  .tab-btn{padding:10px 12px;font-size:13px;flex-shrink:0;}
+  .nav-row{padding:8px 12px;gap:8px;}
+  .nav-brand{order:1;flex:1 1 auto;}
+  .nav-actions{order:2;flex:0 0 auto;}
+  .nav-tabs{order:3;flex:0 0 100%;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;margin-top:2px;}
+  .tab-btn{padding:8px 12px;font-size:13px;flex-shrink:0;}
   .filter-grid,[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important;}
   .login-box,.modal-box{max-width:94vw !important;width:94vw !important;padding:18px !important;}
   .modal-overlay{padding:8px;}
   .input-field{font-size:16px;} /* 避免iOS Safari輸入框自動放大畫面 */
   .btn-primary,.btn-ghost{font-size:13px;padding:8px 12px;}
+  .btn-ghost span.btn-label-full{display:none;} /* 手機上匯入按鈕只留圖示，省空間 */
   .record-row{padding:10px 12px !important;}
   .stat-pill{font-size:11px;padding:4px 8px;}
   #nav-user-info{display:none;} /* 手機上省空間，隱藏使用者資訊文字 */
   table{display:block;overflow-x:auto;white-space:nowrap;}
 }
-@media (max-width: 400px){
-  .tab-btn{padding:9px 10px;font-size:12px;}
+@media (max-width: 480px){
+  .filter-icon-input,.uni-filter-keyword{flex:1 1 100% !important;}
+  .uni-toolbar{padding:10px 12px;}
+  .tab-btn{padding:7px 9px;font-size:12px;}
 }
 /* 隱藏瀏覽器內建密碼眼睛，避免跟小猴子重疊 */
 input[type=password]::-ms-reveal,
@@ -301,24 +317,35 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 <!-- ══ MAIN APP ══ -->
 <div id="app" style="display:none;">
 
-<!-- NAV -->
+<!-- NAV（含分頁籤，合併成單一排，分頁籤置中） -->
 <header class="top-nav">
-  <div style="max-width:1600px;margin:0 auto;padding:0 16px;height:57px;display:flex;align-items:center;justify-content:space-between;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="background:var(--accent-bg);border-radius:8px;padding:7px 10px;">
+  <div class="nav-row">
+    <div class="nav-brand">
+      <div style="background:var(--accent-bg);border-radius:8px;padding:7px 10px;flex-shrink:0;">
         <i class="fa-brands fa-weixin" style="color:var(--accent);font-size:17px;"></i>
       </div>
-      <div>
-        <div style="font-size:15px;font-weight:700;color:var(--text-h);">訊息管理系統</div>
-        <div style="font-size:11px;color:var(--text-s);" id="nav-user-info">載入中...</div>
+      <div style="min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:var(--text-h);white-space:nowrap;">訊息管理系統</div>
+        <div style="font-size:11px;color:var(--text-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="nav-user-info">載入中...</div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;">
+    <div class="nav-tabs" id="tab-bar">
+      <button id="tab-cust-btn" class="tab-btn active" onclick="switchTab('customer')">
+        <i class="fa-solid fa-handshake" style="margin-right:5px;font-size:13px;"></i>客戶商務
+      </button>
+      <button id="tab-stat-btn" class="tab-btn" onclick="switchTab('stats')">
+        <i class="fa-solid fa-chart-bar" style="margin-right:5px;font-size:13px;"></i>CRM需求統計
+      </button>
+      <button id="tab-users-btn" class="tab-btn" onclick="switchTab('users')" style="display:none;">
+        <i class="fa-solid fa-users-gear" style="margin-right:5px;font-size:13px;"></i>帳號管理
+      </button>
+    </div>
+    <div class="nav-actions">
       <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openExcelImport()" id="btn-excel-import">
-        <i class="fa-solid fa-file-excel" style="font-size:11px;color:#1a7a4a;"></i> 匯入 Excel
+        <i class="fa-solid fa-file-excel" style="font-size:11px;color:#1a7a4a;"></i> <span class="btn-label-full">匯入 Excel</span>
       </button>
       <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openImport()">
-        <i class="fa-solid fa-plus" style="font-size:11px;"></i> 匯入訊息
+        <i class="fa-solid fa-plus" style="font-size:11px;"></i> <span class="btn-label-full">匯入訊息</span>
       </button>
       <button class="btn-ghost" style="font-size:13px;padding:6px 10px;" onclick="openChangeOwnPw()" title="修改密碼">
         <i class="fa-solid fa-key"></i>
@@ -330,47 +357,30 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   </div>
 </header>
 
-<!-- TABS -->
-<div class="tab-bar">
-  <div style="max-width:1600px;margin:0 auto;padding:0 16px;display:flex;">
-    <button id="tab-cust-btn" class="tab-btn active" onclick="switchTab('customer')">
-      <i class="fa-solid fa-handshake" style="margin-right:5px;font-size:13px;"></i>客戶商務
-    </button>
-    <button id="tab-stat-btn" class="tab-btn" onclick="switchTab('stats')">
-      <i class="fa-solid fa-chart-bar" style="margin-right:5px;font-size:13px;"></i>CRM需求統計
-    </button>
-    <button id="tab-users-btn" class="tab-btn" onclick="switchTab('users')" style="display:none;">
-      <i class="fa-solid fa-users-gear" style="margin-right:5px;font-size:13px;"></i>帳號管理
-    </button>
-  </div>
-</div>
-
 <main style="max-width:1600px;margin:0 auto;padding:16px;">
 
   <!-- ══ 客戶商務 ══ -->
   <div id="tab-customer">
-    <div class="stats-row" id="unified-stats-row" style="margin-bottom:12px;"></div>
-    <div class="filter-panel">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-        <div>
-          <div class="filter-label"><i class="fa-regular fa-building" style="margin-right:3px;"></i>客戶名稱（模糊搜尋）</div>
-          <input id="f-uni-company" class="filter-input" placeholder="例：龍南、無錫..." oninput="debounceUnified()" />
+    <div class="uni-toolbar">
+      <div class="stats-row" id="unified-stats-row" style="margin:0;"></div>
+      <div class="uni-filter-inline">
+        <div class="filter-icon-input">
+          <i class="fa-regular fa-building"></i>
+          <input id="f-uni-company" class="filter-input" placeholder="客戶名稱（模糊搜尋）" oninput="debounceUnified()" />
         </div>
-        <div>
-          <div class="filter-label"><i class="fa-solid fa-microchip" style="margin-right:3px;"></i>機型</div>
-          <input id="f-uni-model" class="filter-input" placeholder="例：RU6HM、TM4..." oninput="debounceUnified()" />
+        <div class="filter-icon-input">
+          <i class="fa-solid fa-microchip"></i>
+          <input id="f-uni-model" class="filter-input" placeholder="機型" oninput="debounceUnified()" />
         </div>
-        <div>
-          <div class="filter-label"><i class="fa-solid fa-user-tie" style="margin-right:3px;"></i>業務／聯絡人</div>
-          <input id="f-uni-person" class="filter-input" placeholder="例：陳曉、王大明..." oninput="debounceUnified()" />
+        <div class="filter-icon-input">
+          <i class="fa-solid fa-user-tie"></i>
+          <input id="f-uni-person" class="filter-input" placeholder="業務／聯絡人" oninput="debounceUnified()" />
         </div>
-      </div>
-      <div style="margin-top:10px;position:relative;">
-        <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-s);font-size:13px;pointer-events:none;"></i>
-        <input id="f-uni-keyword" class="filter-input" style="padding-left:32px;" placeholder="全文關鍵字搜尋（同時搜微信訊息＋CRM資料）..." oninput="debounceUnified()" />
-      </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:8px;">
-        <button class="btn-ghost" style="font-size:12px;padding:5px 12px;" onclick="clearUnifiedFilter()">
+        <div class="filter-icon-input uni-filter-keyword">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="f-uni-keyword" class="filter-input" placeholder="全文關鍵字搜尋（同時搜微信訊息＋CRM資料）" oninput="debounceUnified()" />
+        </div>
+        <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearUnifiedFilter()">
           <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i>清除篩選
         </button>
       </div>

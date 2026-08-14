@@ -106,17 +106,27 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 /* 統計區 */
 .stat-summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
 
-/* ══ 客戶商務：ERP風格表格（凍結表頭＋凍結左側欄＋左右捲動） ══════════ */
-.erp-table-wrap{border:1px solid var(--border2);border-radius:10px;overflow:auto;max-height:68vh;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,0.05);position:relative;}
-.erp-table{border-collapse:separate;border-spacing:0;width:100%;min-width:900px;}
+/* ══ 客戶商務：ERP風格表格（凍結表頭＋凍結左側欄＋左右捲動＋撐滿剩餘畫面高度） ══════════ */
+/* 外層flex容器：JS會依視窗高度動態算出height，讓表格區塊撐到畫面底部，
+   筆電用觸控板往下捲動時，游標停在表格區域內就能自然捲動，不用另外找卷軸拖曳 */
+#unified-flex-area{display:flex;flex-direction:column;min-height:0;}
+#unified-records{flex:1;min-height:0;display:flex;flex-direction:column;}
+#unified-pager{flex-shrink:0;}
+.erp-table-wrap{border:1px solid var(--border2);border-radius:10px;overflow:auto;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,0.05);position:relative;flex:1;min-height:0;}
+.erp-table{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;}
 .erp-table thead th.erp-th{position:sticky;top:0;z-index:3;background:#3d5a80;color:#fff;font-weight:700;font-size:12.5px;padding:10px 12px;text-align:left;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.18);border-bottom:1px solid #2f4562;}
 .erp-table thead th.erp-sticky-col{z-index:4;}
 .erp-table td.erp-td{padding:9px 12px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--text-b);vertical-align:top;font-size:13px;line-height:1.6;}
-.erp-td-wide{min-width:260px;max-width:440px;white-space:pre-wrap;word-break:break-word;}
-.erp-col-date{width:92px;min-width:92px;max-width:92px;white-space:nowrap;}
-.erp-col-sales{width:84px;min-width:84px;max-width:84px;white-space:nowrap;}
-.erp-col-customer{width:160px;min-width:160px;max-width:160px;white-space:normal;word-break:break-word;}
-.erp-col-model{width:110px;min-width:110px;max-width:110px;white-space:normal;word-break:break-word;}
+/* 客戶資訊欄不設寬度，table-layout:fixed下會自動吃掉其他欄位分完剩下的所有寬度 */
+.erp-col-info{min-width:260px;white-space:pre-wrap;word-break:break-word;}
+/* 其他欄：約20個中文字寬度 */
+.erp-col-other{width:280px;min-width:280px;max-width:280px;white-space:pre-wrap;word-break:break-word;}
+/* 日期欄：剛好容納日期文字的寬度 */
+.erp-col-date{width:84px;min-width:84px;max-width:84px;white-space:nowrap;}
+.erp-col-sales{width:64px;min-width:64px;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 客戶欄：約6個中文字寬度 */
+.erp-col-customer{width:118px;min-width:118px;max-width:118px;white-space:normal;word-break:break-word;}
+.erp-col-model{width:90px;min-width:90px;max-width:90px;white-space:normal;word-break:break-word;}
 .erp-sticky-col{position:sticky;background:#fff;z-index:2;}
 tr.erp-row-alt td.erp-td{background:#f8fafc;}
 tr.erp-tr:hover td.erp-td{background:#eef4fb;}
@@ -124,7 +134,7 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
 .erp-tag-wechat{background:#e6f4ea;color:#15803d;}
 .erp-tag-visit{background:#eef1f5;color:#4b5563;}
 .erp-empty{color:var(--text-s);}
-.erp-td-op{white-space:nowrap;text-align:center;width:64px;min-width:64px;}
+.erp-td-op{white-space:nowrap;text-align:center;width:64px;min-width:64px;max-width:64px;}
 .erp-op-btn{background:none;border:none;cursor:pointer;color:var(--text-s);padding:4px 6px;border-radius:4px;font-size:12px;}
 .erp-op-btn:hover{color:var(--accent);background:var(--accent-bg);}
 .erp-op-del:hover{color:var(--red);background:var(--red-bg);}
@@ -134,13 +144,16 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
 .erp-pager-btn:disabled{opacity:0.4;cursor:not-allowed;}
 .erp-pager-info{font-size:12px;color:var(--text-s);margin:0 8px;white-space:nowrap;}
 @media (max-width:640px){
-  .erp-table-wrap{max-height:60vh;}
-  .erp-table{min-width:640px;display:table !important;}
+  #unified-flex-area{display:block;height:auto !important;} /* 手機不用JS撐滿視窗高度，改回原本靠內容捲動 */
+  #unified-records{display:block;flex:none;}
+  .erp-table-wrap{flex:none;max-height:60vh;}
+  .erp-table{min-width:640px;display:table !important;table-layout:auto;}
   .erp-table .erp-td,.erp-table .erp-th{padding:7px 9px;font-size:12px;}
   .erp-sticky-col{position:static !important;} /* 手機省寬度，只凍結表頭列，不凍結欄位 */
-  .erp-col-customer{width:110px;min-width:110px;max-width:110px;}
-  .erp-col-model{width:90px;min-width:90px;max-width:90px;}
-  .erp-td-wide{min-width:200px;}
+  .erp-col-customer{width:100px;min-width:100px;max-width:100px;}
+  .erp-col-model{width:80px;min-width:80px;max-width:80px;}
+  .erp-col-other{width:180px;min-width:180px;max-width:180px;}
+  .erp-col-info{min-width:200px;}
   .erp-pager-btn{min-width:28px;height:28px;font-size:12px;}
 }
 
@@ -290,7 +303,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
 <!-- NAV -->
 <header class="top-nav">
-  <div style="max-width:900px;margin:0 auto;padding:0 16px;height:57px;display:flex;align-items:center;justify-content:space-between;">
+  <div style="max-width:1600px;margin:0 auto;padding:0 16px;height:57px;display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:10px;">
       <div style="background:var(--accent-bg);border-radius:8px;padding:7px 10px;">
         <i class="fa-brands fa-weixin" style="color:var(--accent);font-size:17px;"></i>
@@ -319,7 +332,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
 <!-- TABS -->
 <div class="tab-bar">
-  <div style="max-width:900px;margin:0 auto;padding:0 16px;display:flex;">
+  <div style="max-width:1600px;margin:0 auto;padding:0 16px;display:flex;">
     <button id="tab-cust-btn" class="tab-btn active" onclick="switchTab('customer')">
       <i class="fa-solid fa-handshake" style="margin-right:5px;font-size:13px;"></i>客戶商務
     </button>
@@ -332,7 +345,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   </div>
 </div>
 
-<main style="max-width:900px;margin:0 auto;padding:16px;">
+<main style="max-width:1600px;margin:0 auto;padding:16px;">
 
   <!-- ══ 客戶商務 ══ -->
   <div id="tab-customer">
@@ -362,8 +375,10 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         </button>
       </div>
     </div>
-    <div id="unified-records"></div>
-    <div id="unified-pager"></div>
+    <div id="unified-flex-area">
+      <div id="unified-records"></div>
+      <div id="unified-pager"></div>
+    </div>
   </div>
 
   <!-- ══ 需求統計 ══ -->
@@ -1295,11 +1310,11 @@ function buildUnifiedRows(fCust,fVisit){
 function buildUnifiedTableHtml(pageRows,q){
   var thead='<thead><tr>'
     +'<th class="erp-th erp-sticky-col erp-col-date" style="left:0;">日期</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:92px;">業務</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:176px;">客戶</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-model" style="left:336px;">機型</th>'
-    +'<th class="erp-th">客戶資訊</th>'
-    +'<th class="erp-th">其他</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:84px;">業務</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:148px;">客戶</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-model" style="left:266px;">機型</th>'
+    +'<th class="erp-th erp-col-info">客戶資訊</th>'
+    +'<th class="erp-th erp-col-other">其他</th>'
     +'<th class="erp-th erp-td-op">操作</th>'
   +'</tr></thead>';
   var tbody='<tbody>'+pageRows.map(function(r,i){
@@ -1311,15 +1326,17 @@ function buildUnifiedTableHtml(pageRows,q){
     var alt=(i%2===1)?' erp-row-alt':'';
     return '<tr class="erp-tr'+alt+'">'
       +'<td class="erp-td erp-sticky-col erp-col-date" style="left:0;">'+escH(r.date)+'</td>'
-      +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:92px;">'+escH(r.sales)+'</td>'
-      +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:176px;">'+tag+hl(r.customer,q)+'</td>'
-      +'<td class="erp-td erp-sticky-col erp-col-model" style="left:336px;">'+escH(r.model)+'</td>'
-      +'<td class="erp-td erp-td-wide">'+(r.info?hl(r.info,q):'<span class="erp-empty">—</span>')+'</td>'
-      +'<td class="erp-td erp-td-wide">'+(r.other?hl(r.other,q):'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:84px;">'+escH(r.sales)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:148px;">'+tag+hl(r.customer,q)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-model" style="left:266px;">'+escH(r.model)+'</td>'
+      +'<td class="erp-td erp-col-info">'+(r.info?hl(r.info,q):'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-col-other">'+(r.other?hl(r.other,q):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
     +'</tr>';
   }).join('')+'</tbody>';
-  return '<div class="erp-table-wrap"><table class="erp-table">'+thead+tbody+'</table></div>';
+  return '<div class="erp-table-wrap">'
+    +'<table class="erp-table">'+thead+tbody+'</table>'
+  +'</div>';
 }
 function renderUniPager(total,totalPages){
   var el=document.getElementById('unified-pager');
@@ -1397,7 +1414,21 @@ function renderUnified(){
 
   el.innerHTML=buildUnifiedTableHtml(pageRows,q);
   renderUniPager(rows.length,totalPages);
+  resizeUnifiedFlexArea();
 }
+// 讓表格區塊撐滿視窗剩餘高度（筆電用觸控板往下捲動時不用特地對準小卷軸），
+// 手機螢幕維持原本CSS的固定max-height，不用這套動態計算（避免iOS網址列伸縮造成高度亂跳）
+function resizeUnifiedFlexArea(){
+  if(window.innerWidth<=640) return;
+  var area=document.getElementById('unified-flex-area');
+  var panel=document.getElementById('tab-customer');
+  if(!area||!panel||panel.style.display==='none') return;
+  var rect=area.getBoundingClientRect();
+  var h=window.innerHeight-rect.top-16;
+  if(h<320) h=320;
+  area.style.height=h+'px';
+}
+window.addEventListener('resize',function(){if(currentTab==='customer')resizeUnifiedFlexArea();});
 
 // 能不能編輯/刪除某一筆商務訊息：資料庫RLS已經先把「看得到的範圍」限制好了
 // （業務只查得到自己業務姓名的、總監/助理只查得到自己地區的），
@@ -2250,10 +2281,18 @@ function handleExcelFile(e){
               var vCustomerInfo=String(vrow[8]||'').trim();
               if(!vCustomer&&!vCustomerInfo) continue; // 跳過空白列
               visitRowCount++;
+              // 申報日期：真正的Excel二進位檔（非HTML偽裝的.xls）裡日期儲存格，
+              // sheet_to_json讀出來是Excel序列數字（例如41186.333333），不是文字日期，
+              // 用跟交期解析一樣的SSF轉換方式還原成「YYYY/MM/DD」，數字之外(本來就是文字日期)則原樣保留
+              var vDateRaw=vrow[2];
+              var vDateStr=String(vDateRaw||'').trim();
+              if(vDateStr!==''&&!isNaN(vDateRaw)){
+                try{var vd=XLSX.SSF.parse_date_code(Number(vDateRaw));if(vd)vDateStr=vd.y+'/'+(vd.m<10?'0':'')+vd.m+'/'+(vd.d<10?'0':'')+vd.d;}catch(ex){}
+              }
               parsedVisit.push({
                 doc_no:String(vrow[0]||'').trim(),
                 sales:String(vrow[1]||'').trim()||sheetName,
-                report_date:String(vrow[2]||'').trim(),
+                report_date:vDateStr,
                 customer:vCustomer,
                 industry:String(vrow[4]||'').trim(),
                 work:String(vrow[5]||'').trim(),

@@ -106,6 +106,44 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 /* 統計區 */
 .stat-summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
 
+/* ══ 客戶商務：ERP風格表格（凍結表頭＋凍結左側欄＋左右捲動） ══════════ */
+.erp-table-wrap{border:1px solid var(--border2);border-radius:10px;overflow:auto;max-height:68vh;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,0.05);position:relative;}
+.erp-table{border-collapse:separate;border-spacing:0;width:100%;min-width:900px;}
+.erp-table thead th.erp-th{position:sticky;top:0;z-index:3;background:#3d5a80;color:#fff;font-weight:700;font-size:12.5px;padding:10px 12px;text-align:left;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.18);border-bottom:1px solid #2f4562;}
+.erp-table thead th.erp-sticky-col{z-index:4;}
+.erp-table td.erp-td{padding:9px 12px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--text-b);vertical-align:top;font-size:13px;line-height:1.6;}
+.erp-td-wide{min-width:260px;max-width:440px;white-space:pre-wrap;word-break:break-word;}
+.erp-col-date{width:92px;min-width:92px;max-width:92px;white-space:nowrap;}
+.erp-col-sales{width:84px;min-width:84px;max-width:84px;white-space:nowrap;}
+.erp-col-customer{width:160px;min-width:160px;max-width:160px;white-space:normal;word-break:break-word;}
+.erp-col-model{width:110px;min-width:110px;max-width:110px;white-space:normal;word-break:break-word;}
+.erp-sticky-col{position:sticky;background:#fff;z-index:2;}
+tr.erp-row-alt td.erp-td{background:#f8fafc;}
+tr.erp-tr:hover td.erp-td{background:#eef4fb;}
+.erp-tag{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:4px;font-size:9.5px;margin-right:4px;vertical-align:middle;}
+.erp-tag-wechat{background:#e6f4ea;color:#15803d;}
+.erp-tag-visit{background:#eef1f5;color:#4b5563;}
+.erp-empty{color:var(--text-s);}
+.erp-td-op{white-space:nowrap;text-align:center;width:64px;min-width:64px;}
+.erp-op-btn{background:none;border:none;cursor:pointer;color:var(--text-s);padding:4px 6px;border-radius:4px;font-size:12px;}
+.erp-op-btn:hover{color:var(--accent);background:var(--accent-bg);}
+.erp-op-del:hover{color:var(--red);background:var(--red-bg);}
+.erp-pager{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap;}
+.erp-pager-btn{min-width:32px;height:32px;border:1px solid var(--border2);background:var(--card);color:var(--text-m);border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px;}
+.erp-pager-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+.erp-pager-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.erp-pager-info{font-size:12px;color:var(--text-s);margin:0 8px;white-space:nowrap;}
+@media (max-width:640px){
+  .erp-table-wrap{max-height:60vh;}
+  .erp-table{min-width:640px;display:table !important;}
+  .erp-table .erp-td,.erp-table .erp-th{padding:7px 9px;font-size:12px;}
+  .erp-sticky-col{position:static !important;} /* 手機省寬度，只凍結表頭列，不凍結欄位 */
+  .erp-col-customer{width:110px;min-width:110px;max-width:110px;}
+  .erp-col-model{width:90px;min-width:90px;max-width:90px;}
+  .erp-td-wide{min-width:200px;}
+  .erp-pager-btn{min-width:28px;height:28px;font-size:12px;}
+}
+
 /* ══ 手機版優化 ══════════════════════════════════════════════ */
 @media (max-width: 640px){
   main{padding:10px !important;}
@@ -325,6 +363,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       </div>
     </div>
     <div id="unified-records"></div>
+    <div id="unified-pager"></div>
   </div>
 
   <!-- ══ 需求統計 ══ -->
@@ -681,6 +720,8 @@ var custData = [];
 var crmData = [];
 var visitData = [];
 var engData = [];
+var uniPage = 1;
+var uniPageSize = 15;
 
 // ══ 繁簡轉換 ════════════════════════════════════════════════
 var T2S={
@@ -1221,7 +1262,87 @@ function clearUnifiedFilter(){
   ['f-uni-company','f-uni-model','f-uni-person','f-uni-keyword'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.value='';
   });
+  uniPage=1;
   renderUnified();
+}
+// 日期字串轉可比較大小的排序鍵（YYYYMMDD），支援「2026/9/23」「2026-09-23」等常見寫法，
+// 抓不到年份時視為最舊、排到最後面，不會讓格式怪異的資料誤跑到最上面
+function dateSortKey(s){
+  if(!s) return '00000000';
+  var m=String(s).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if(m) return m[1]+('0'+m[2]).slice(-2)+('0'+m[3]).slice(-2);
+  return '00000000';
+}
+// 合併微信訊息＋拜訪紀錄成統一的表格列資料（依畫面要求的欄位順序：日期/業務/客戶/機型/客戶資訊/其他）
+function buildUnifiedRows(fCust,fVisit){
+  var rows=[];
+  fCust.forEach(function(r){
+    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',model:r.model||'',info:r.raw||r.note||'',other:''});
+  });
+  fVisit.forEach(function(r){
+    var infoParts=[];
+    if(r.customer_info) infoParts.push(r.customer_info);
+    if(r.competitor) infoParts.push('【競爭對手】'+r.competitor);
+    if(r.market_info) infoParts.push('【市場訊息】'+r.market_info);
+    var otherParts=[];
+    if(r.other) otherParts.push(r.other);
+    if(r.companion) otherParts.push('【陪同人員】'+r.companion);
+    rows.push({_type:'visit',_id:r.id,_raw:r,date:r.report_date||'',sales:r.sales||'',customer:r.customer||'',model:r.model||'',info:infoParts.join('\n\n'),other:otherParts.join('\n\n')});
+  });
+  rows.sort(function(a,b){return dateSortKey(b.date).localeCompare(dateSortKey(a.date));});
+  return rows;
+}
+function buildUnifiedTableHtml(pageRows,q){
+  var thead='<thead><tr>'
+    +'<th class="erp-th erp-sticky-col erp-col-date" style="left:0;">日期</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:92px;">業務</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:176px;">客戶</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-model" style="left:336px;">機型</th>'
+    +'<th class="erp-th">客戶資訊</th>'
+    +'<th class="erp-th">其他</th>'
+    +'<th class="erp-th erp-td-op">操作</th>'
+  +'</tr></thead>';
+  var tbody='<tbody>'+pageRows.map(function(r,i){
+    var tag=r._type==='wechat'
+      ?'<span class="erp-tag erp-tag-wechat" title="微信訊息"><i class="fa-brands fa-weixin"></i></span>'
+      :'<span class="erp-tag erp-tag-visit" title="拜訪紀錄"><i class="fa-solid fa-clipboard-list"></i></span>';
+    var editBtn=(r._type==='wechat'&&canEdit(r._raw))?'<button class="erp-op-btn" onclick="openEditWechatMsg(\''+r._id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
+    var delBtn=canDelete(r._raw)?'<button class="erp-op-btn erp-op-del" onclick="'+(r._type==='wechat'?'deleteCustRecord':'deleteVisitRecord')+'(\''+r._id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
+    var alt=(i%2===1)?' erp-row-alt':'';
+    return '<tr class="erp-tr'+alt+'">'
+      +'<td class="erp-td erp-sticky-col erp-col-date" style="left:0;">'+escH(r.date)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:92px;">'+escH(r.sales)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:176px;">'+tag+hl(r.customer,q)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-model" style="left:336px;">'+escH(r.model)+'</td>'
+      +'<td class="erp-td erp-td-wide">'+(r.info?hl(r.info,q):'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-td-wide">'+(r.other?hl(r.other,q):'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
+    +'</tr>';
+  }).join('')+'</tbody>';
+  return '<div class="erp-table-wrap"><table class="erp-table">'+thead+tbody+'</table></div>';
+}
+function renderUniPager(total,totalPages){
+  var el=document.getElementById('unified-pager');
+  if(!el) return;
+  if(!total){el.innerHTML='';return;}
+  var startN=(uniPage-1)*uniPageSize+1;
+  var endN=Math.min(uniPage*uniPageSize,total);
+  var btns='';
+  btns+='<button class="erp-pager-btn" '+(uniPage<=1?'disabled':'')+' onclick="goUniPage(1)" title="第一頁"><i class="fa-solid fa-angles-left"></i></button>';
+  btns+='<button class="erp-pager-btn" '+(uniPage<=1?'disabled':'')+' onclick="goUniPage(uniPage-1)" title="上一頁"><i class="fa-solid fa-angle-left"></i></button>';
+  var from=Math.max(1,uniPage-2), to=Math.min(totalPages,uniPage+2);
+  for(var p=from;p<=to;p++){
+    btns+='<button class="erp-pager-btn'+(p===uniPage?' active':'')+'" onclick="goUniPage('+p+')">'+p+'</button>';
+  }
+  btns+='<button class="erp-pager-btn" '+(uniPage>=totalPages?'disabled':'')+' onclick="goUniPage(uniPage+1)" title="下一頁"><i class="fa-solid fa-angle-right"></i></button>';
+  btns+='<button class="erp-pager-btn" '+(uniPage>=totalPages?'disabled':'')+' onclick="goUniPage(totalPages)" title="最後一頁"><i class="fa-solid fa-angles-right"></i></button>';
+  el.innerHTML='<div class="erp-pager"><span class="erp-pager-info">共 '+total+' 筆，第 '+startN+'–'+endN+' 筆</span>'+btns+'</div>';
+}
+function goUniPage(p){
+  uniPage=p;
+  renderUnified();
+  var wrap=document.querySelector('#tab-customer .erp-table-wrap');
+  if(wrap) wrap.scrollTop=0;
 }
 
 function renderUnified(){
@@ -1261,151 +1382,21 @@ function renderUnified(){
 
   var el=document.getElementById('unified-records');
   if(!el) return;
-  if(!fCust.length&&!fVisit.length){
+  var rows=buildUnifiedRows(fCust,fVisit);
+  if(!rows.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合紀錄</div>';
+    renderUniPager(0,0);
     return;
   }
 
-  // 群組化：以客戶名稱為 key
-  var groups={};
-  fCust.forEach(function(r){
-    var key=r.company||'（未知客戶）';
-    if(!groups[key]) groups[key]={name:key,models:{}};
-    var mk=r.model||'（未知機型）';
-    if(!groups[key].models[mk]) groups[key].models[mk]={model:mk,records:[]};
-    groups[key].models[mk].records.push(Object.assign({},r,{_type:'wechat'}));
-  });
-  fVisit.forEach(function(r){
-    var key=r.customer||'（未知客戶）';
-    if(!groups[key]) groups[key]={name:key,models:{}};
-    var mk=r.model||'（未指定機型）';
-    if(!groups[key].models[mk]) groups[key].models[mk]={model:mk,records:[]};
-    groups[key].models[mk].records.push(Object.assign({},r,{_type:'visit'}));
-  });
+  var totalPages=Math.max(1,Math.ceil(rows.length/uniPageSize));
+  if(uniPage>totalPages) uniPage=totalPages;
+  if(uniPage<1) uniPage=1;
+  var startIdx=(uniPage-1)*uniPageSize;
+  var pageRows=rows.slice(startIdx,startIdx+uniPageSize);
 
-  // 排序：客戶名稱字母順序
-  var sortedCompanies=Object.keys(groups).sort();
-
-  el.innerHTML=sortedCompanies.map(function(companyName){
-    var group=groups[companyName];
-    var modelKeys=Object.keys(group.models).sort();
-
-    var modelsHtml=modelKeys.map(function(mk){
-      var mGroup=group.models[mk];
-      var records=mGroup.records;
-      // 依時間排序（最新在前）
-      records.sort(function(a,b){
-        var da=a._type==='wechat'?a.date:(a._type==='visit'?a.report_date:a.week_w2||a.week_w1)||'';
-        var db=b._type==='wechat'?b.date:(b._type==='visit'?b.report_date:b.week_w2||b.week_w1)||'';
-        return (db||'').localeCompare(da||'');
-      });
-
-      var recordsHtml=records.map(function(r){
-        if(r._type==='wechat'){
-          var sc=classifyStatus(r.status);
-          return '<div class="record-row">'
-            +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
-              +'<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text-b);">'
-                +'<span class="badge-wechat"><i class="fa-brands fa-weixin" style="margin-right:3px;"></i>微信</span>'
-                +(r.sales?'<span style="color:var(--accent);font-weight:600;"><i class="fa-solid fa-user-tie" style="font-size:11px;margin-right:4px;"></i>'+escH(r.sales)+'</span>':'<span style="color:var(--red);"><i class="fa-solid fa-triangle-exclamation" style="font-size:11px;margin-right:4px;"></i>未填業務</span>')
-                +(r.contact?'<span><i class="fa-regular fa-user" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(r.contact)+'</span>':'')
-                +(r.date?'<span style="color:var(--text-m);"><i class="fa-regular fa-calendar-days" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(r.date)+'</span>':'')
-                +(r.qty?'<span><i class="fa-solid fa-desktop" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>'+escH(String(r.qty).replace(/[台台]/g,'').trim())+' 台</span>':'')
-                +(r.delivery?'<span><i class="fa-regular fa-calendar" style="font-size:11px;margin-right:4px;color:var(--text-s);"></i>交期 '+escH(r.delivery)+'</span>':'')
-                +(r.price&&r.price!=='—'?'<span style="color:var(--green);"><i class="fa-solid fa-tag" style="font-size:11px;margin-right:4px;"></i>'+escH(r.price)+'</span>':'')
-              +'</div>'
-              +'<div style="display:flex;align-items:center;gap:8px;">'
-                +'<span class="badge '+statusBadgeCls[sc]+'">'+statusLabel[sc]+'</span>'
-                +(canEdit(r)?'<button class="del-btn" onclick="openEditWechatMsg(\''+r.id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'')
-                +(canDelete(r)?'<button class="del-btn" onclick="deleteCustRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'')
-              +'</div>'
-            +'</div>'
-            +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text-s);margin-top:6px;">'
-              +(getUserName(r.created_by)?'<span><i class="fa-solid fa-circle-user" style="font-size:10px;margin-right:3px;"></i>'+escH(getUserName(r.created_by))+' 貼入</span>':'')
-              +(r.created_at?'<span><i class="fa-regular fa-clock" style="font-size:10px;margin-right:3px;"></i>'+formatCreatedAt(r.created_at)+'</span>':'')
-            +'</div>'
-            +(r.raw||r.note?'<div style="margin-top:8px;">'
-              +'<button onclick="toggleExpand(this)" style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-chevron-down" style="font-size:10px;"></i><span>展開完整訊息</span></button>'
-              +'<div class="expand-content" style="display:none;margin-top:8px;background:#fafbfc;border:1px solid var(--border);border-radius:6px;padding:10px 12px;">'
-                +(r.raw?'<div style="font-size:13px;color:var(--text-b);line-height:1.7;white-space:pre-wrap;">'+hl(r.raw,q)+'</div>':'')
-                +(r.note?'<div style="font-size:12px;color:var(--text-m);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><i class="fa-solid fa-note-sticky" style="font-size:10px;margin-right:4px;"></i>'+escH(r.note)+'</div>':'')
-              +'</div>'
-            +'</div>':'')
-          +'</div>';
-        } else if(r._type==='visit'){
-          return '<div class="record-row" style="padding:12px 14px;">'
-            +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">'
-              +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
-                +'<span style="font-size:11px;background:#eef1f5;color:#4b5563;border-radius:6px;padding:2px 8px;font-weight:600;"><i class="fa-solid fa-clipboard-list" style="margin-right:3px;"></i>拜訪紀錄</span>'
-                +(r.sales?'<span style="font-size:12px;color:var(--text-m);font-weight:500;"><i class="fa-solid fa-user-tie" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i>'+escH(r.sales)+'</span>':'')
-                +(r.report_date?'<span style="font-size:11px;color:var(--text-s);">'+escH(r.report_date)+'</span>':'')
-                +(r.industry?'<span style="font-size:11px;color:var(--text-s);">'+escH(r.industry)+'</span>':'')
-              +'</div>'
-              +(canDelete(r)?'<button class="del-btn" onclick="deleteVisitRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'')
-            +'</div>'
-            +((r.work||r.work_purpose)?'<div style="font-size:12px;color:var(--text-m);margin-bottom:6px;">'+escH(r.work||'')+(r.work_purpose?' · '+escH(r.work_purpose):'')+'</div>':'')
-            +(r.customer_info?'<div style="font-size:13px;color:var(--text-b);line-height:1.7;white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:10px 12px;">'+hl(r.customer_info,q)+'</div>':'')
-            +((r.competitor||r.market_info||r.other||r.companion||r.next_action)?'<div style="margin-top:8px;">'
-              +'<button onclick="toggleExpand(this)" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-chevron-down" style="font-size:10px;"></i><span>展開更多欄位</span></button>'
-              +'<div class="expand-content" style="display:none;margin-top:8px;background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-m);line-height:1.8;">'
-                +(r.competitor?'<div><b>競爭對手：</b>'+escH(r.competitor)+'</div>':'')
-                +(r.market_info?'<div><b>市場訊息：</b>'+escH(r.market_info)+'</div>':'')
-                +(r.other?'<div><b>其他：</b>'+escH(r.other)+'</div>':'')
-                +(r.companion?'<div><b>陪同人員：</b>'+escH(r.companion)+'</div>':'')
-                +(r.next_action?'<div><b>後續行動：</b>'+escH(r.next_action)+'</div>':'')
-              +'</div>'
-            +'</div>':'')
-          +'</div>';
-        } else {
-          // CRM
-          var latestWeek=r.week_w2||r.week_w1||'';
-          var prevWeek=(r.week_w2&&r.week_w1)?r.week_w1:'';
-          var latestStatus=r.status_w2||r.status_w1||'';
-          var prevStatus=(r.status_w2&&r.status_w1)?r.status_w1:'';
-          var sc=classifyStatus(latestStatus);
-          return '<div class="record-row" style="padding:12px 14px;">'
-            +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">'
-              +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
-                +'<span class="badge-crm" style="font-size:11px;"><i class="fa-solid fa-table" style="margin-right:3px;"></i>CRM</span>'
-                +(r.sales?'<span style="font-size:12px;color:var(--text-m);font-weight:500;"><i class="fa-solid fa-user-tie" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i>'+escH(r.sales)+'</span>':'')
-                +(r.delivery?'<span style="font-size:12px;color:var(--text-m);"><i class="fa-regular fa-calendar" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i>需求：<b>'+escH(r.delivery)+'</b></span>':'')
-                +(r.qty?'<span style="font-size:12px;color:var(--text-m);"><i class="fa-solid fa-desktop" style="font-size:10px;margin-right:3px;color:var(--text-s);"></i><b>'+escH(String(r.qty).replace(/[台台]/g,'').trim())+'</b> 台</span>':'')
-              +'</div>'
-              +'<div style="display:flex;align-items:center;gap:6px;">'
-                +'<span class="badge '+statusBadgeCls[sc]+'" style="font-size:11px;padding:3px 10px;">'+statusLabel[sc]+'</span>'
-                +(canDelete(r)?'<button class="del-btn" onclick="deleteCRMRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'')
-              +'</div>'
-            +'</div>'
-            +'<div style="background:var(--bg);border-radius:8px;padding:10px 12px;">'
-              +(latestWeek?'<div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:5px;letter-spacing:0.5px;">'+escH(latestWeek)+'</div>':'')
-              +'<div style="font-size:14px;color:var(--text-h);font-weight:600;line-height:1.6;">'
-                +(latestStatus?hl(latestStatus,q):'<span style="color:var(--text-s);font-weight:400;">（無進度記錄）</span>')
-              +'</div>'
-              +(prevStatus&&prevWeek?'<div style="font-size:11px;color:var(--text-s);margin-top:7px;padding-top:7px;border-top:1px dashed var(--border);line-height:1.5;"><span style="font-weight:500;">'+escH(prevWeek)+'</span>：'+hl(prevStatus,q)+'</div>':'')
-            +'</div>'
-          +'</div>';
-        }
-      }).join('');
-
-      return '<div class="model-block">'
-        +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding:7px 10px;background:#fafbfc;border-radius:6px;border-left:2px solid var(--accent);">'
-          +'<i class="fa-solid fa-microchip" style="color:var(--text-s);font-size:12px;"></i>'
-          +'<span style="font-size:13px;font-weight:600;color:var(--text-h);letter-spacing:0.3px;">'+hl(mk,q)+'</span>'
-          +'<span style="font-size:11px;color:var(--text-s);margin-left:2px;">'+records.length+' 筆</span>'
-        +'</div>'
-        +recordsHtml
-      +'</div>';
-    }).join('');
-
-    return '<div class="company-card">'
-      +'<div class="company-header">'
-        +'<i class="fa-regular fa-building" style="color:var(--text-s);font-size:13px;"></i>'
-        +'<span style="font-size:14px;font-weight:600;color:var(--text-h);">'+hl(companyName,q)+'</span>'
-        +'<span style="font-size:11px;color:var(--text-s);background:var(--bg);border-radius:4px;padding:2px 7px;">'+modelKeys.length+' 個機型</span>'
-      +'</div>'
-      +modelsHtml
-    +'</div>';
-  }).join('');
+  el.innerHTML=buildUnifiedTableHtml(pageRows,q);
+  renderUniPager(rows.length,totalPages);
 }
 
 // 能不能編輯/刪除某一筆商務訊息：資料庫RLS已經先把「看得到的範圍」限制好了
@@ -2413,7 +2404,7 @@ function handleExcelFile(e){
 var _timerUnified=null, _timerEngineer=null, _timerStats=null;
 function debounceUnified(){
   clearTimeout(_timerUnified);
-  _timerUnified=setTimeout(function(){renderUnified();},300);
+  _timerUnified=setTimeout(function(){uniPage=1;renderUnified();},300);
 }
 function debounceEngineer(){
   clearTimeout(_timerEngineer);
@@ -2470,6 +2461,5 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-
 
 

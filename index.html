@@ -396,6 +396,9 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearUnifiedFilter()">
           <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i><span>清除篩選</span>
         </button>
+        <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="exportUnifiedExcel()" title="把目前篩選條件下的資料匯出成Excel">
+          <i class="fa-solid fa-file-export" style="font-size:11px;margin-right:3px;color:#1a7a4a;"></i><span>匯出Excel</span>
+        </button>
       </div>
     </div>
     <div id="unified-flex-area">
@@ -436,6 +439,9 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         </div>
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearStatsFilter()">
           <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i><span>清除篩選</span>
+        </button>
+        <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="exportStatsExcel()" title="把目前篩選條件下的資料匯出成Excel">
+          <i class="fa-solid fa-file-export" style="font-size:11px;margin-right:3px;color:#1a7a4a;"></i><span>匯出Excel</span>
         </button>
         <button class="btn-primary" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="openNewCRM()">
           <i class="fa-solid fa-plus" style="font-size:11px;margin-right:3px;"></i><span>新增</span>
@@ -825,6 +831,17 @@ var statsPage = 1;
 var statsPageSize = 15;
 
 // ══ 繁簡轉換 ════════════════════════════════════════════════
+// 機型主檔清單（張總提供的機型分類清單：高階/一般/其他，整理過去重＋拆解括號別名），
+// 給工作日報格式匯入時比對用，找已知機型代號，不再用正則猜測，避免把"W18"這種廠別代號誤判成機型
+var MODEL_MASTER_LIST=['SLR700TGIIIS','NTL-RU4BII-F','DG2ZM-M280','DG6ZM-M280','玻璃鐳射高速切割設備','NTL-RU6EL','DG6ZL2-TM','NTL-LGP1A','NTL-RU6H2','RU6HM-125','DG1DX2630','DG6M3-MES','NTL-RU2HL','NTL-RU6E2','TL-RU4BII','NTL-GPR1B','NTL-GPR1A','RU1A-CBD','DG1AF3-2','RU6G-CCD','NTL-RU4B','DG6M3-HA','NTL-DG2L','NTL-RU6L','NTL-DR2A','GPR1A-DG','NTL-RU2B','NTL-DG6H','GPR1A-VM','DG6ZM-HA','NTL-RP1A','玻璃鐳射裂片設備','GPR1A-PA','NTL-RU5E','NTL-RU6G','NTL-RU6E','NTL-DG2S','NTL-RU2L','RU6HM-HA','NTL-DG6S','NTL-DG6L','NTL-DG6Z','NTL-SVF2','RU6GM-HA','DG6ZM-TM','NTL-DG2H','NTL-RU4G','NTL-DG1H','DG6ZM-C','GEP3-SA','DG1S-BC','FVI-360','DG6S-BQ','R455LWS','DG6M3-H','DG1H-GC','AF1GEP1','TL-DG6S','TL-2404','RU1A-BC','SLR700T','TL-RU6E','AF1M-S','TL-MAG','RU6ML2','BST1-3','GPR1A5','HI01-A','GEP3-Q','RU4BII','RU6GML','DG5ZXL','DG1AF3','BST1-1','DG6ZXL','RU6GL2','BST1-2','DG1AF4','GPR1BL','TL-DPR','GPR1A3','RU6AFL','DG1AF2','DG6ZL2','DG1XL','DPR1G','RU6N3','DPR1D','RU2HL','DG6N2','AXI1A','GPR1A','GPR6B','RU6GL','GPRT1','DG5ZL','DG6M2','GEP1M','RU6E3','DPR1E','RU1HM','LM-GO','DG6AF','LGP1A','RU6H2','TM3-A','RU6XL','DG2ZL','DG6ML','GPR2B','RU6ML','SVF3C','DPR1F','DG6ZL','DPR1S','RU6GM','DG6L2','RU6N2','SGC1U','RU2XL','GPR1D','DG1AF','SVF3B','RU2GL','RU2HM','GPRT2','RU5ML','RU6HM','RU2ML','RU6EL','RU2GM','TM2-A','DG2ZM','LGP2A','GPR2A','RU6M2','GPR1B','GEP4A','GEP1F','TSM1B','DGGZM','GPR1C','DPR1L','DG6M3','DG1D2','GEP1L','GEP1A','DPR1B','GEP1G','RU6AF','DG1H2','GPR1E','DG6A2','DPR1Z','DG6ZM','RU6HL','DPR1C','KAT1A','DG6ZN','DG6BQ','DG1S2','AF1M','SVP2','DG6L','HI01','DG2S','DG6S','DG2H','DG6M','DG7H','RU2B','RU1A','DG2L','DR2A','RU2D','RU6E','RU6M','SVF2','SV4B','DG5Z','RU4D','RU6N','DG1P','RU2L','RU6L','RU5G','RU6G','DG6Z','DG2M','DPRX','DG6H','RU6H','RU4B','DG1H','BST1','RU4G','RU5E','3SVF','DR2L','RU4M','DG1S','RU6B','DG1D','SV1A','RU5H','RU2M','DG5S','DG6N','SVF3','RU6D','DG5H','GEP','DPR','DR6','TM3','DR1','TM2','TM4'];
+function findKnownModel(text){
+  var t=String(text||'');
+  for(var i=0;i<MODEL_MASTER_LIST.length;i++){
+    if(t.indexOf(MODEL_MASTER_LIST[i])>-1) return MODEL_MASTER_LIST[i];
+  }
+  return '';
+}
+
 var T2S={
 '㑮':'𫝈','㑯':'㑔','㑳':'㑇','㑶':'㐹','㒓':'𠉂','㓄':'𪠟','㓨':'刾','㔋':'𪟎','㖮':'𪠵','㗲':'𠵾','㗿':'𪡛','㘉':'𠰱',
 '㘓':'𪢌','㘔':'𫬐','㘚':'㘎','㛝':'𫝦','㜄':'㚯','㜏':'㛣','㜐':'𫝧','㜗':'𡞋','㜢':'𡞱','㜷':'𡝠','㞞':'𪨊','㟺':'𪩇',
@@ -1719,6 +1736,23 @@ function clearUnifiedFilter(){
   uniPage=1;
   renderUnified();
 }
+// 匯出「客戶商務」目前篩選條件下的完整清單成Excel（不受目前頁面只顯示15筆的限制，符合條件的全部匯出）
+function exportUnifiedExcel(){
+  var f=getFilteredUnifiedRows();
+  var rows=buildUnifiedRows(f.fCust,f.fVisit);
+  if(!rows.length){alert('目前篩選條件下沒有資料可以匯出，請先確認篩選條件');return;}
+  var data=rows.map(function(r){
+    return {'日期':r.date,'業務':r.sales,'客戶':r.customer,'機型':r.model,'客戶資訊':r.info,'其他':r.other};
+  });
+  var ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=[{wch:11},{wch:10},{wch:16},{wch:12},{wch:60},{wch:30}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'客戶商務');
+  var todayStr=new Date().toISOString().split('T')[0];
+  var fs=f.filterSummary;
+  var filterTag=(fs.company||fs.model||fs.person||fs.keyword)?'_已篩選':'_全部';
+  XLSX.writeFile(wb,'客戶商務'+filterTag+'_'+todayStr+'.xlsx');
+}
 // 日期字串轉可比較大小的排序鍵（YYYYMMDD），支援「2026/9/23」「2026-09-23」等常見寫法，
 // 抓不到年份時視為最舊、排到最後面，不會讓格式怪異的資料誤跑到最上面
 function dateSortKey(s){
@@ -1807,14 +1841,13 @@ function goUniPage(p){
   if(wrap) wrap.scrollTop=0;
 }
 
-function renderUnified(){
+// 依照目前畫面上的篩選條件，算出客戶商務(微信訊息+拜訪紀錄)符合條件的完整清單，
+// renderUnified()跟匯出Excel都共用這段，確保「畫面上看到的」跟「匯出的」永遠是同一批資料
+function getFilteredUnifiedRows(){
   var company=(document.getElementById('f-uni-company')||{}).value||'';
   var model=(document.getElementById('f-uni-model')||{}).value||'';
   var person=(document.getElementById('f-uni-person')||{}).value||'';
   var keyword=(document.getElementById('f-uni-keyword')||{}).value||'';
-  var q=company||model||person||keyword;
-
-  // 篩選微信（同事手動貼上/AI解析的個別訊息）
   var fCust=custData.filter(function(r){
     if(company&&!matchQ(r.company,company)) return false;
     if(model&&!matchQ([r.model,r.raw].join(' '),model)) return false;
@@ -1822,7 +1855,6 @@ function renderUnified(){
     if(keyword&&!matchQ([r.company,r.contact,r.model,r.price,r.delivery,r.status,r.note,r.raw].join(' '),keyword)) return false;
     return true;
   });
-  // 篩選拜訪紀錄
   var fVisit=visitData.filter(function(r){
     if(company&&!matchQ(r.customer,company)) return false;
     if(model&&!matchQ(r.model||'',model)) return false;
@@ -1830,6 +1862,13 @@ function renderUnified(){
     if(keyword&&!matchQ([r.customer,r.sales,r.model,r.customer_info,r.competitor,r.market_info,r.other,r.work,r.work_purpose,r.next_action].join(' '),keyword)) return false;
     return true;
   });
+  return {fCust:fCust,fVisit:fVisit,filterSummary:{company:company,model:model,person:person,keyword:keyword}};
+}
+function renderUnified(){
+  var f=getFilteredUnifiedRows();
+  var company=f.filterSummary.company,model=f.filterSummary.model,person=f.filterSummary.person,keyword=f.filterSummary.keyword;
+  var q=company||model||person||keyword;
+  var fCust=f.fCust,fVisit=f.fVisit;
   // 注意：客戶商務頁籤故意不放CRM資料（crm_records），CRM只在「CRM需求統計」頁籤顯示，
   // 避免同一筆訂單在兩個頁籤都出現、造成重複計算或混淆
 
@@ -2197,6 +2236,8 @@ function renderStats(){
   function byWeekDesc(a,b){return dateSortKey(b.week).localeCompare(dateSortKey(a.week));}
   [confirmed,ongoing,lost,unclassified,unknown].forEach(function(arr){arr.sort(byWeekDesc);});
   var rows=confirmed.concat(ongoing,lost,unclassified,unknown);
+  window._lastStatsRows=rows; // 給匯出Excel用，確保匯出的內容跟畫面上篩選後看到的完全一致
+  window._lastStatsFiltered=!!(company||model||sales||category||hasMonthFilter);
 
   var summaryHtml=
     '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;">'
@@ -2296,6 +2337,30 @@ function clearStatsFilter(){
   var cat=document.getElementById('f-stat-category');if(cat)cat.value='';
   statsPage=1;
   renderStats();
+}
+// 匯出「CRM需求統計」目前篩選條件下的完整清單成Excel（沿用renderStats()算好的那份完整清單，
+// 保證匯出的內容跟畫面上篩選後看到的一致，不受目前頁面只顯示15筆的限制）
+function exportStatsExcel(){
+  var rows=window._lastStatsRows||[];
+  if(!rows.length){alert('目前篩選條件下沒有資料可以匯出，請先確認篩選條件');return;}
+  var data=rows.map(function(r){
+    var statusLabel2=r.isUnclassified?'無備註月份':statusLabel[classifyStatus(r.statusText)];
+    var deliveryStr=(r.delivery_parsed&&Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length)
+      ?r.delivery_parsed.map(function(d){return d.month+' '+d.qty+'台';}).join('\n')
+      :(r.delivery||'');
+    return {
+      '狀態':statusLabel2,'客戶':r.company,'機型':r.model||'',
+      '業務':r.sales,'數量':r.qty?(r.qty+'台'):'','需求時間':deliveryStr,
+      '進度說明':r.statusText||'','最後更新':r.updatedAt?formatShortDate(r.updatedAt):''
+    };
+  });
+  var ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=[{wch:9},{wch:16},{wch:12},{wch:10},{wch:7},{wch:22},{wch:40},{wch:9}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'CRM需求統計');
+  var todayStr=new Date().toISOString().split('T')[0];
+  var filterTag=window._lastStatsFiltered?'_已篩選':'_全部';
+  XLSX.writeFile(wb,'CRM需求統計'+filterTag+'_'+todayStr+'.xlsx');
 }
 
 // 查詢結果裡如果有未分類的資料，畫面一渲染完就自動呼叫AI解析，只解析當下畫面上這幾筆，解出來就存回資料庫，之後同一筆不會再問第二次
@@ -2969,9 +3034,8 @@ function handleExcelFile(e){
             var colName=headerRow0.indexOf('姓名');
             var colDate=headerRow0.indexOf('汇报时间');
             var colSummary=headerRow0.indexOf('今日工作总结');
-            // 機型：在「今日工作总结」文字裡找看起來像機型代號的片段（英文字母開頭接數字，例如DG6ZM、RU6M2、TM4、C4P3），
-            // 抓不到就留空，不影響——完整原文一定會整段放進客戶訊息欄，不會漏資訊
-            var reModelCode=/[A-Z]{1,4}\d[A-Z0-9]{0,4}/;
+            // 機型：改成拿貴公司真正的機型主檔清單去比對「今日工作总结」文字裡有沒有出現過，
+            // 不再用正則猜測——之前猜測法會把"W18"(廠別代號，不是機型)誤判成機型，改用清單比對後不會再有這種誤判
             for(var wi=1;wi<rows.length;wi++){
               var wrow=rows[wi];
               var wName=String(wrow[colName]||'').trim();
@@ -2986,14 +3050,16 @@ function handleExcelFile(e){
                 var wDateMatch=String(wDateRaw||'').match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
                 if(wDateMatch) wDateStr=wDateMatch[1]+'-'+('0'+wDateMatch[2]).slice(-2)+'-'+('0'+wDateMatch[3]).slice(-2);
               }
-              // 客戶欄位留空：這個格式的客戶名稱藏在段落文字裡，沒有固定位置規則可以穩定抓對，
-              // 用第一行文字硬猜容易猜錯（例如猜出"8/07"這種明顯不是客戶名稱的結果），
-              // 索性不猜，完整原文一定會整段放進客戶訊息欄，使用者自己一眼就看得到客戶是誰
-              var modelMatch=wSummary.match(reModelCode);
+              // 客戶名稱：這個格式通常會把客戶名稱寫在開頭，緊接著機型代號、冒號或換行，
+              // 先去掉開頭可能出現的純日期字樣（例如"8/07:"這種只有日期沒有客戶名稱的行），
+              // 再抓開頭那一段連續中文字，遇到冒號/換行/英文字母接數字(機型代號)就停下來
+              var customerGuess=wSummary.replace(/^\d{1,2}[\/\-]\d{1,2}\s*[:：]?\s*\n?/,'').trim();
+              var custMatch=customerGuess.match(/^[\u4e00-\u9fa5]{2,12}/);
+              var modelFound=findKnownModel(wSummary);
               visitReportRowCount++;
               parsedReport.push({
-                company:'',sales:wName,date:wDateStr,
-                model:modelMatch?modelMatch[0]:'',
+                company:custMatch?custMatch[0]:'',sales:wName,date:wDateStr,
+                model:modelFound,
                 raw:wSummary,note:'',tags:[],created_by:currentUser.id
               });
             }
@@ -3219,6 +3285,5 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-
 
 

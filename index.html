@@ -667,7 +667,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         <input id="ecrm-sales" class="input-field" list="sales-name-datalist" />
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div id="ecrm-single-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div>
         <div class="filter-label" style="margin-bottom:6px;">機型</div>
         <input id="ecrm-model" class="input-field" />
@@ -677,10 +677,17 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         <input id="ecrm-qty" class="input-field" />
       </div>
     </div>
-    <div style="margin-bottom:12px;">
+    <div id="ecrm-single-delivery" style="margin-bottom:12px;">
       <div class="filter-label" style="margin-bottom:6px;">需求時間／交期</div>
       <textarea id="ecrm-delivery" class="input-field" style="height:70px;"></textarea>
       <div style="font-size:11px;color:var(--text-s);margin-top:4px;">已拆解成月份的交期會顯示成「月份*數量」一行一筆（例如 2026/07*12），照這個格式編輯就能維持表格上的多行顯示；改成其他文字則會視為未分類，之後系統會再自動嘗試解析</div>
+    </div>
+    <div id="ecrm-multi-fields" style="display:none;margin-bottom:12px;">
+      <div class="filter-label" style="margin-bottom:6px;">機型／數量／需求時間（同一個客戶可以一次填好幾個機型）</div>
+      <div id="ecrm-multi-rows"></div>
+      <button type="button" class="btn-ghost" style="font-size:12px;padding:6px 12px;margin-top:6px;" onclick="addCRMModelRow()">
+        <i class="fa-solid fa-plus" style="font-size:10px;margin-right:4px;"></i>再加一個機型
+      </button>
     </div>
     <div style="margin-bottom:16px;">
       <div class="filter-label" style="margin-bottom:6px;">進度說明（最新一週）</div>
@@ -1719,6 +1726,12 @@ function dateSortKey(s){
   if(m) return m[1]+('0'+m[2]).slice(-2)+('0'+m[3]).slice(-2);
   return '00000000';
 }
+// 把ISO時間字串轉成「8/12」這種簡短的月/日顯示，給「最後更新於」小字用
+function formatShortDate(iso){
+  var d=new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
 // 合併微信訊息＋拜訪紀錄成統一的表格列資料（依畫面要求的欄位順序：日期/業務/客戶/機型/客戶資訊/其他）
 function buildUnifiedRows(fCust,fVisit){
   var rows=[];
@@ -1945,12 +1958,16 @@ function computeWeekLabel(d){
 }
 // 編輯CRM需求紀錄(客戶/機型/業務/數量/交期/最新一週的進度說明)；editCRMTargetId===null代表現在是「新增」模式
 var editCRMTargetId=null;
+var crmModelRowSeq=0; // 給新增模式的多機型列產生唯一id用
 function openEditCRM(id){
   var r=crmData.find(function(x){return x.id===id;});
   if(!r){alert('找不到這筆資料，麻煩重新整理頁面再試一次');return;}
   editCRMTargetId=id;
   document.getElementById('ecrm-modal-title').textContent='編輯CRM需求紀錄';
   document.getElementById('ecrm-submit-btn').textContent='儲存';
+  document.getElementById('ecrm-single-fields').style.display='grid';
+  document.getElementById('ecrm-single-delivery').style.display='block';
+  document.getElementById('ecrm-multi-fields').style.display='none';
   document.getElementById('ecrm-company').value=r.customer||'';
   document.getElementById('ecrm-sales').value=r.sales||'';
   document.getElementById('ecrm-model').value=r.model||'';
@@ -1966,20 +1983,44 @@ function openEditCRM(id){
   document.getElementById('ecrm-msg').style.display='none';
   document.getElementById('edit-crm-modal').style.display='flex';
 }
-// 新增一筆全新的CRM需求紀錄（客戶商務那邊本來就能直接新增訊息，CRM需求統計這邊補齊同樣的能力，
-// 不用等Excel匯入才能建資料）
+// 新增一筆(或多筆)全新的CRM需求紀錄（客戶商務那邊本來就能直接新增訊息，CRM需求統計這邊補齊同樣的能力，
+// 不用等Excel匯入才能建資料）；同一個客戶如果有好幾個機型，機型/數量/需求時間可以一次填好幾組
 function openNewCRM(){
   editCRMTargetId=null;
   document.getElementById('ecrm-modal-title').textContent='新增CRM需求紀錄';
   document.getElementById('ecrm-submit-btn').textContent='新增';
+  document.getElementById('ecrm-single-fields').style.display='none';
+  document.getElementById('ecrm-single-delivery').style.display='none';
+  document.getElementById('ecrm-multi-fields').style.display='block';
   document.getElementById('ecrm-company').value='';
   document.getElementById('ecrm-sales').value='';
-  document.getElementById('ecrm-model').value='';
-  document.getElementById('ecrm-qty').value='';
-  document.getElementById('ecrm-delivery').value='';
   document.getElementById('ecrm-status').value='';
+  document.getElementById('ecrm-multi-rows').innerHTML='';
+  addCRMModelRow();
+  addCRMModelRow();
   document.getElementById('ecrm-msg').style.display='none';
   document.getElementById('edit-crm-modal').style.display='flex';
+}
+// 新增模式專用：加一行「機型/數量/需求時間」
+function addCRMModelRow(){
+  crmModelRowSeq++;
+  var rowId='crm-mrow-'+crmModelRowSeq;
+  var wrap=document.getElementById('ecrm-multi-rows');
+  var div=document.createElement('div');
+  div.id=rowId;
+  div.style.cssText='display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;';
+  div.innerHTML=
+    '<input class="input-field crm-mrow-model" placeholder="機型" style="flex:1.2;" />'
+    +'<input class="input-field crm-mrow-qty" placeholder="數量" style="flex:0.8;" />'
+    +'<input class="input-field crm-mrow-delivery" placeholder="需求時間，例如 2026/10*2" style="flex:1.4;" />'
+    +'<button type="button" class="btn-ghost" style="padding:8px 10px;flex-shrink:0;" onclick="removeCRMModelRow(\''+rowId+'\')" title="移除這一行"><i class="fa-solid fa-xmark"></i></button>';
+  wrap.appendChild(div);
+}
+function removeCRMModelRow(rowId){
+  var wrap=document.getElementById('ecrm-multi-rows');
+  if(wrap.children.length<=1) return; // 至少留一行
+  var el=document.getElementById(rowId);
+  if(el) el.remove();
 }
 function closeEditCRM(){document.getElementById('edit-crm-modal').style.display='none';editCRMTargetId=null;}
 // 需求時間欄位存的是「月份*數量」每行一筆（跟編輯視窗顯示的格式一致），
@@ -2000,9 +2041,6 @@ async function submitEditCRM(){
   var isNew=(editCRMTargetId===null);
   var company=document.getElementById('ecrm-company').value.trim();
   var sales=document.getElementById('ecrm-sales').value.trim();
-  var model=document.getElementById('ecrm-model').value.trim();
-  var qty=document.getElementById('ecrm-qty').value.trim();
-  var delivery=document.getElementById('ecrm-delivery').value.trim();
   var status=document.getElementById('ecrm-status').value.trim();
   var msgEl=document.getElementById('ecrm-msg');
   var btn=document.getElementById('ecrm-submit-btn');
@@ -2011,30 +2049,48 @@ async function submitEditCRM(){
     msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
     msgEl.textContent='客戶名稱、業務姓名不能空白';return;
   }
-  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> '+(isNew?'新增中...':'儲存中...');
   var newWeekLabel=computeWeekLabel(new Date());
-  var patch={customer:company,sales:sales,model:model,qty:qty,delivery:delivery,delivery_parsed:parseDeliveryFieldEdits(delivery)};
 
   if(isNew){
-    // 新增：本週的進度直接寫進week_w2/status_w2，還沒有「上週」可言；
-    // import_date要跟目前畫面上顯示的這批資料同一天，不然會被「只顯示最新一批匯入」的篩選條件擋掉、新增了卻看不到
-    patch.week_w2=newWeekLabel;
-    patch.status_w2=status;
-    patch.import_date=window._latestCrmImportDate||new Date().toISOString().split('T')[0];
-    patch.created_by=currentUser.id;
-    var {data:inserted,error:insErr}=await sb.from('crm_records').insert(patch).select().single();
+    // 把每一行機型/數量/需求時間都收集起來，全部空白的行直接跳過不新增
+    var rows=Array.prototype.slice.call(document.querySelectorAll('#ecrm-multi-rows>div'));
+    var toInsert=[];
+    for(var i=0;i<rows.length;i++){
+      var model=rows[i].querySelector('.crm-mrow-model').value.trim();
+      var qty=rows[i].querySelector('.crm-mrow-qty').value.trim();
+      var delivery=rows[i].querySelector('.crm-mrow-delivery').value.trim();
+      if(!model&&!qty&&!delivery) continue; // 整行空白就跳過
+      toInsert.push({
+        customer:company,sales:sales,model:model,qty:qty,delivery:delivery,
+        delivery_parsed:parseDeliveryFieldEdits(delivery),
+        week_w2:newWeekLabel,status_w2:status,
+        import_date:window._latestCrmImportDate||new Date().toISOString().split('T')[0],
+        created_by:currentUser.id,updated_at:new Date().toISOString()
+      });
+    }
+    if(!toInsert.length){
+      msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+      msgEl.textContent='至少要填一組機型／數量／需求時間';return;
+    }
+    btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 新增中...';
+    var {data:inserted,error:insErr}=await sb.from('crm_records').insert(toInsert).select();
     if(insErr){
       msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
       msgEl.textContent='新增失敗：'+insErr.message;
       btn.disabled=false;btn.innerHTML='新增';return;
     }
-    crmData=[inserted].concat(crmData);
+    crmData=(inserted||[]).concat(crmData);
     renderStats();
     closeEditCRM();
     btn.disabled=false;btn.innerHTML='新增';
     return;
   }
 
+  var model=document.getElementById('ecrm-model').value.trim();
+  var qty=document.getElementById('ecrm-qty').value.trim();
+  var delivery=document.getElementById('ecrm-delivery').value.trim();
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
+  var patch={customer:company,sales:sales,model:model,qty:qty,delivery:delivery,delivery_parsed:parseDeliveryFieldEdits(delivery),updated_at:new Date().toISOString()};
   var r=crmData.find(function(x){return x.id===editCRMTargetId;});
   if(r&&r.week_w2&&r.week_w2!==newWeekLabel){
     // 這次編輯跨到新的一週了：先把原本「本週」的內容搬去「上週」保留起來，不會遺失，再開新的一週
@@ -2109,7 +2165,10 @@ function renderStats(){
       delivery:r.delivery,
       delivery_parsed:r.delivery_parsed,
       statusText:latestStatus,sales:r.sales,
-      week:r.week_w2||r.week_w1||'',id:r.id,
+      week:r.week_w2||r.week_w1||'', // 只用來排序，畫面上不顯示這個原始標籤
+      weekIsCurrent:!!r.status_w2, // true=顯示的是本週剛填的；false=本週還沒填、顯示的其實是上週留下的舊進度
+      updatedAt:r.updated_at||r.created_at||null, // 給「最後更新於 M/D」小字用
+      id:r.id,
       hasParsed:hasParsedData,
       isUnclassified:isUnclassified
     });
@@ -2189,7 +2248,7 @@ function buildStatsTableHtml(pageRows){
     var deliveryHtml=(r.delivery_parsed&&Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length)
       ?r.delivery_parsed.map(function(d){return escH(d.month)+' '+d.qty+'台';}).join('\n')
       :escH(r.delivery||'—');
-    var progressHtml=r.week?('『'+escH(r.week)+'』 '+(r.statusText?escH(r.statusText):'<span class="erp-empty">（無進度記錄）</span>')):(r.statusText?escH(r.statusText):'<span class="erp-empty">—</span>');
+    var progressHtml=(r.statusText?escH(r.statusText):'<span class="erp-empty">—</span>')+(r.updatedAt?'<div style="font-size:11px;color:var(--text-s);margin-top:3px;">最後更新於 '+formatShortDate(r.updatedAt)+'</div>':'');
     var editBtn=canEdit({})?'<button class="erp-op-btn" onclick="openEditCRM(\''+r.id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
     var delBtn=canDelete({})?'<button class="erp-op-btn erp-op-del" onclick="deleteCRMRecord(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
     var alt=(i%2===1)?' erp-row-alt':'';

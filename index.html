@@ -770,7 +770,8 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>
       自動判斷檔案格式，支援兩種：<br>
       ・<b>CRM客戶需求統計</b> Excel —— 讀取所有業務分頁，解析最新兩週進度<br>
-      ・<b>拜訪紀錄</b> Excel（單號/業務/申報日期/客戶名稱...欄位）—— 匯入客戶商務的拜訪紀錄
+      ・<b>拜訪紀錄</b> Excel（單號/業務/申報日期/客戶名稱...欄位）—— 匯入客戶商務的拜訪紀錄<br>
+      ・<b>工作日報</b> Excel（姓名/汇报时间/今日工作总结...欄位）—— 逐筆拆進客戶商務，日期取汇报时间、業務取姓名，今日工作总结整段放進客戶資訊，文字裡抓得到機型代號的話會一併填入機型欄
     </div>
     <div id="excel-drop-zone" style="border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:14px;"
       onclick="document.getElementById('excel-file-input').click()"
@@ -2872,7 +2873,7 @@ function handleExcelFile(e){
   resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在匯入 '+files.length+' 個 Excel 檔案（僅用規則解析交期，不呼叫AI，速度很快）...</div>';
 
   var importDate=new Date().toISOString().split('T')[0];
-  var totalSheets=0,totalRows=0,totalVisitRows=0,filesDone=0;
+  var totalSheets=0,totalRows=0,totalVisitRows=0,totalReportRows=0,filesDone=0;
   // 這次匯入（可能包含多個檔案）視為一份完整的「CRM需求統計」最新快照，
   // 舊的crm_records資料若不清掉，重複匯入/測試會不斷疊加，
   // 造成「無備註需求月份」等統計數字暴增、同樣客戶重複出現。
@@ -2888,7 +2889,8 @@ function handleExcelFile(e){
         var skipSheets=['已接訂單','已無需求_結案','Sheet1','Sheet2'];
         var parsed=[];
         var parsedVisit=[];
-        var sheetCount=0,rowCount=0,visitRowCount=0;
+        var parsedReport=[];
+        var sheetCount=0,rowCount=0,visitRowCount=0,visitReportRowCount=0;
 
         workbook.SheetNames.forEach(function(sheetName){
           var ws=workbook.Sheets[sheetName];
@@ -2957,6 +2959,43 @@ function handleExcelFile(e){
               });
             }
             return; // 這個sheet是拜訪紀錄格式，不走下面CRM那套解析
+          }
+
+          // 自動偵測是不是「工作日報」格式（表頭含 姓名＋汇报时间＋今日工作总结 這三個特徵欄位）
+          var isReportFormat=headerRow0.indexOf('姓名')>-1&&headerRow0.indexOf('汇报时间')>-1&&headerRow0.indexOf('今日工作总结')>-1;
+          if(isReportFormat){
+            var colName=headerRow0.indexOf('姓名');
+            var colDate=headerRow0.indexOf('汇报时间');
+            var colSummary=headerRow0.indexOf('今日工作总结');
+            // 機型：在「今日工作总结」文字裡找看起來像機型代號的片段（英文字母開頭接數字，例如DG6ZM、RU6M2、TM4、C4P3），
+            // 抓不到就留空，不影響——完整原文一定會整段放進客戶訊息欄，不會漏資訊
+            var reModelCode=/[A-Z]{1,4}\d[A-Z0-9]{0,4}/;
+            for(var wi=1;wi<rows.length;wi++){
+              var wrow=rows[wi];
+              var wName=String(wrow[colName]||'').trim();
+              var wSummary=String(wrow[colSummary]||'').trim();
+              if(!wName&&!wSummary) continue; // 跳過空白列
+              // 汇报时间：可能是Excel日期序列數字，也可能是「2026-08-16 23:59:59 星期日」這種文字，兩種都處理
+              var wDateRaw=wrow[colDate];
+              var wDateStr='';
+              if(typeof wDateRaw==='number'){
+                try{var wd=XLSX.SSF.parse_date_code(wDateRaw);if(wd)wDateStr=wd.y+'-'+(wd.m<10?'0':'')+wd.m+'-'+(wd.d<10?'0':'')+wd.d;}catch(ex){}
+              } else {
+                var wDateMatch=String(wDateRaw||'').match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+                if(wDateMatch) wDateStr=wDateMatch[1]+'-'+('0'+wDateMatch[2]).slice(-2)+'-'+('0'+wDateMatch[3]).slice(-2);
+              }
+              // 客戶欄位留空：這個格式的客戶名稱藏在段落文字裡，沒有固定位置規則可以穩定抓對，
+              // 用第一行文字硬猜容易猜錯（例如猜出"8/07"這種明顯不是客戶名稱的結果），
+              // 索性不猜，完整原文一定會整段放進客戶訊息欄，使用者自己一眼就看得到客戶是誰
+              var modelMatch=wSummary.match(reModelCode);
+              visitReportRowCount++;
+              parsedReport.push({
+                company:'',sales:wName,date:wDateStr,
+                model:modelMatch?modelMatch[0]:'',
+                raw:wSummary,note:'',tags:[],created_by:currentUser.id
+              });
+            }
+            return; // 這個sheet是工作日報格式，不走CRM那套解析
           }
 
           // 自動偵測週次標題列
@@ -3061,9 +3100,15 @@ function handleExcelFile(e){
           var {error:vbErr}=await sb.from('visit_records').upsert(vbatch,{onConflict:'doc_no'});
           if(vbErr) throw new Error('拜訪紀錄寫入失敗：'+vbErr.message);
         }
+        for(var rbi=0;rbi<parsedReport.length;rbi+=batchSize){
+          var rbatch=parsedReport.slice(rbi,rbi+batchSize);
+          var {error:rbErr}=await sb.from('wechat_messages').insert(rbatch);
+          if(rbErr) throw new Error('工作日報寫入失敗：'+rbErr.message);
+        }
         totalSheets+=sheetCount;
         totalRows+=rowCount;
         totalVisitRows+=visitRowCount;
+        totalReportRows+=visitReportRowCount;
       }catch(err){
         resultEl.innerHTML='<div style="background:var(--red-bg);border:1px solid #f0b8b8;border-radius:10px;padding:12px;font-size:13px;color:var(--red);"><i class="fa-solid fa-circle-exclamation" style="margin-right:5px;"></i>'+escH(file.name)+' 解析失敗：'+escH(err.message)+'</div>';
         return;
@@ -3074,13 +3119,17 @@ function handleExcelFile(e){
         crmData=newCRM||[];
         await loadVisitFirstPage();
         loadVisitRemainingInBackground(); // 匯入完成後一樣先顯示第一批，其餘背景陸續補齊
+        if(totalReportRows>0){
+          var {data:newWechat}=await sb.from('wechat_messages').select('*').order('created_at',{ascending:false});
+          custData=newWechat||[];
+        }
         resultEl.innerHTML='<div style="background:var(--green-bg);border:1px solid #a0d8b8;border-radius:10px;padding:12px 14px;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
-          +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+'</div>'
-          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是以「單號」判斷，同一張單號重複匯入會直接覆蓋更新，不會重複累加。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
+          +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+(totalReportRows>0?'｜工作日報 <b>'+totalReportRows+'</b> 筆':'')+'</div>'
+          +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是以「單號」判斷，同一張單號重複匯入會直接覆蓋更新，不會重複累加；工作日報會逐筆新增進客戶商務。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
           +'<div style="display:flex;gap:8px;margin-top:10px;">'
           +(totalRows>0?'<button class="btn-primary" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'stats\')"><i class="fa-solid fa-chart-line"></i> 前往CRM需求統計查看</button>':'')
-          +(totalVisitRows>0?'<button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')"><i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看拜訪紀錄</button>':'')
+          +((totalVisitRows>0||totalReportRows>0)?'<button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')"><i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看</button>':'')
           +'</div></div>';
         if(currentTab==='customer') renderUnified();
         if(currentTab==='stats') renderStats();
@@ -3151,5 +3200,6 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
+
 
 

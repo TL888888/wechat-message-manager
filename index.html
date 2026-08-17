@@ -2874,6 +2874,7 @@ function handleExcelFile(e){
 
   var importDate=new Date().toISOString().split('T')[0];
   var totalSheets=0,totalRows=0,totalVisitRows=0,totalReportRows=0,filesDone=0;
+  var allUnrecognizedSheets=[];
   // 這次匯入（可能包含多個檔案）視為一份完整的「CRM需求統計」最新快照，
   // 舊的crm_records資料若不清掉，重複匯入/測試會不斷疊加，
   // 造成「無備註需求月份」等統計數字暴增、同樣客戶重複出現。
@@ -2890,6 +2891,7 @@ function handleExcelFile(e){
         var parsed=[];
         var parsedVisit=[];
         var parsedReport=[];
+        var unrecognizedSheets=[];
         var sheetCount=0,rowCount=0,visitRowCount=0,visitReportRowCount=0;
 
         workbook.SheetNames.forEach(function(sheetName){
@@ -3024,6 +3026,21 @@ function handleExcelFile(e){
           var w2=weekCols.length>=1?weekCols[weekCols.length-1]:null;
           var dataStartRow=weekHeaderRowIdx>=0?weekHeaderRowIdx+1:3;
 
+          // 安全防護（這次CRM資料被誤清空的破口就在這裡）：
+          // 完全找不到週次欄位時，舊邏輯會硬套「第3欄當機型」繼續猜下去，
+          // 遇到跟CRM完全無關的檔案（例如這次的工作日報格式）也會猜出一堆垃圾資料，
+          // 而「有猜到資料」又會觸發「清空舊CRM、整批取代」——等於用垃圾洗掉了真正的資料。
+          // 這裡先擋一道：找不到週次欄位時，表頭至少要出現「業務」「客戶」「機型」其中一個，
+          // 才當作是CRM舊格式繼續解析；一個都沒有的話，直接跳過這個分頁，不猜、不清空，
+          // 並且記錄下來讓匯入完成後的訊息告訴使用者「這個分頁看不懂、已略過」
+          if(weekHeaderRowIdx<0){
+            var looksLikeCRM=headerRow0.indexOf('業務')>-1||headerRow0.indexOf('客戶')>-1||headerRow0.indexOf('機型')>-1;
+            if(!looksLikeCRM){
+              unrecognizedSheets.push(sheetName);
+              return;
+            }
+          }
+
           // 判斷是「上週/本週並排區塊」的新格式，還是只有單一欄位的舊格式
           // 新格式：機型/數量/需求時間 緊接在該週次欄位左邊3欄（型/量/期/狀態）
           // 舊格式：機型/數量/需求時間 固定在最前面幾欄，週次欄位只用來記錄狀態文字
@@ -3109,6 +3126,7 @@ function handleExcelFile(e){
         totalRows+=rowCount;
         totalVisitRows+=visitRowCount;
         totalReportRows+=visitReportRowCount;
+        allUnrecognizedSheets=allUnrecognizedSheets.concat(unrecognizedSheets);
       }catch(err){
         resultEl.innerHTML='<div style="background:var(--red-bg);border:1px solid #f0b8b8;border-radius:10px;padding:12px;font-size:13px;color:var(--red);"><i class="fa-solid fa-circle-exclamation" style="margin-right:5px;"></i>'+escH(file.name)+' 解析失敗：'+escH(err.message)+'</div>';
         return;
@@ -3127,6 +3145,7 @@ function handleExcelFile(e){
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
           +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+(totalReportRows>0?'｜工作日報 <b>'+totalReportRows+'</b> 筆':'')+'</div>'
           +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是以「單號」判斷，同一張單號重複匯入會直接覆蓋更新，不會重複累加；工作日報會逐筆新增進客戶商務。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
+          +(allUnrecognizedSheets.length?'<div style="font-size:12px;color:var(--amber);margin-top:6px;background:var(--amber-bg);border-radius:6px;padding:6px 10px;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>以下分頁看不懂格式，已自動略過、沒有動到任何既有資料：'+allUnrecognizedSheets.map(escH).join('、')+'</div>':'')
           +'<div style="display:flex;gap:8px;margin-top:10px;">'
           +(totalRows>0?'<button class="btn-primary" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'stats\')"><i class="fa-solid fa-chart-line"></i> 前往CRM需求統計查看</button>':'')
           +((totalVisitRows>0||totalReportRows>0)?'<button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'customer\')"><i class="fa-solid fa-magnifying-glass"></i> 前往客戶商務查看</button>':'')

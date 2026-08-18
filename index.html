@@ -1502,13 +1502,16 @@ async function parseDeliveryWithAI(deliveryStr, totalQty){
 function classifyStatus(text){
   if(!text) return 'unknown';
   var t=norm(text);
-  var confirmed=['合约','合約','用印','已出货','已出貨','已下单','已下單','订单','訂單','出货','出貨'];
-  var lost=['结案','結案','取消','竞争对手','競爭對手','对手','對手','流失'];
+  // 已確認：內容出現訂單/訂金/合約/待出貨/已出貨等相關字
+  var confirmed=['订单','訂單','订金','訂金','合约','合約','用印','待出货','待出貨','已出货','已出貨','已下单','已下單','出货','出貨'];
+  // 流失/暫無需求結案：內容明確寫「下單給XXX」或「結案」這種確定不是進行中的敘述
+  // 注意：不可用「競爭對手」「對手」判斷，商談中提到對手仍算進行中
+  var lost=['结案','結案','下单给','下單給'];
   for(var i=0;i<confirmed.length;i++){if(t.indexOf(confirmed[i])>-1||t.indexOf(toS(confirmed[i]))>-1) return 'confirmed';}
   for(var j=0;j<lost.length;j++){if(t.indexOf(lost[j])>-1||t.indexOf(toS(lost[j]))>-1) return 'lost';}
   return 'ongoing';
 }
-var statusLabel={'confirmed':'✅ 已確認','ongoing':'🔄 進行中','lost':'❌ 流失/結案','unknown':'⚠️ 不明'};
+var statusLabel={'confirmed':'✅ 已確認','ongoing':'🔄 進行中','lost':'❌ 流失/暫無需求結案','unknown':'⚠️ 不明'};
 var statusBadgeCls={'confirmed':'badge-confirmed','ongoing':'badge-ongoing','lost':'badge-lost','unknown':'badge-unknown'};
 
 // ══ AUTH ════════════════════════════════════════════════════
@@ -2287,7 +2290,7 @@ function renderStats(){
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;">'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--green);">'+totalConfirmed+'</div><div style="font-size:11px;color:var(--text-s);">已確認 (台)</div></div>'
         +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--amber);">'+totalOngoing+'</div><div style="font-size:11px;color:var(--text-s);">進行中 (台)</div></div>'
-        +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--red);">'+totalLost+'</div><div style="font-size:11px;color:var(--text-s);">流失 (台)</div></div>'
+        +'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--red);">'+totalLost+'</div><div style="font-size:11px;color:var(--text-s);">流失/暫無需求結案 (台)</div></div>'
         +(unknown.length?'<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--text-s);">'+unknown.length+'</div><div style="font-size:11px;color:var(--text-s);">狀態不明 (筆)</div></div>':'')
       +'</div>'
     +'</div>';

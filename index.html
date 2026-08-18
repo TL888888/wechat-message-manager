@@ -393,6 +393,14 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
           <i class="fa-solid fa-magnifying-glass"></i>
           <input id="f-uni-keyword" class="filter-input" placeholder="全文關鍵字搜尋（同時搜微信訊息＋CRM資料）" oninput="debounceUnified()" />
         </div>
+        <div class="filter-icon-input" style="flex:0 0 150px;min-width:130px;">
+          <i class="fa-regular fa-calendar"></i>
+          <input id="f-uni-date-from" class="filter-input" type="date" oninput="debounceUnified()" title="日期區間起" />
+        </div>
+        <div class="filter-icon-input" style="flex:0 0 150px;min-width:130px;">
+          <i class="fa-regular fa-calendar"></i>
+          <input id="f-uni-date-to" class="filter-input" type="date" oninput="debounceUnified()" title="日期區間訖" />
+        </div>
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearUnifiedFilter()">
           <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i><span>清除篩選</span>
         </button>
@@ -640,17 +648,27 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-pen" style="color:var(--accent);margin-right:8px;"></i>編輯商務訊息</div>
       <button onclick="closeEditWechatMsg()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div style="margin-bottom:12px;">
-      <div class="filter-label" style="margin-bottom:6px;">客戶名稱 *</div>
-      <input id="ewm-company" class="input-field" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <div class="filter-label" style="margin-bottom:6px;">客戶名稱 *</div>
+        <input id="ewm-company" class="input-field" />
+      </div>
+      <div>
+        <div class="filter-label" style="margin-bottom:6px;">業務姓名 *</div>
+        <input id="ewm-sales" class="input-field" list="sales-name-datalist" />
+      </div>
     </div>
     <div style="margin-bottom:12px;">
-      <div class="filter-label" style="margin-bottom:6px;">業務姓名 *</div>
-      <input id="ewm-sales" class="input-field" list="sales-name-datalist" />
+      <div class="filter-label" style="margin-bottom:6px;">機型</div>
+      <input id="ewm-model" class="input-field" />
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="filter-label" style="margin-bottom:6px;">客戶資訊 *</div>
+      <textarea id="ewm-note" class="input-field" style="height:100px;"></textarea>
     </div>
     <div style="margin-bottom:16px;">
-      <div class="filter-label" style="margin-bottom:6px;">商務訊息 *</div>
-      <textarea id="ewm-note" class="input-field" style="height:100px;"></textarea>
+      <div class="filter-label" style="margin-bottom:6px;">其他</div>
+      <textarea id="ewm-other" class="input-field" style="height:60px;"></textarea>
     </div>
     <button class="btn-primary" style="width:100%;justify-content:center;" id="ewm-submit-btn" onclick="submitEditWechatMsg()">儲存</button>
     <div id="ewm-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
@@ -709,38 +727,39 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   <div class="modal-box slide-in">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <div style="font-size:16px;font-weight:700;color:var(--text-h);">
-        <i class="fa-solid fa-file-import" style="color:var(--accent);margin-right:8px;"></i>匯入訊息
+        <i class="fa-solid fa-file-import" style="color:var(--accent);margin-right:8px;"></i>新增商務訊息
       </div>
       <button onclick="closeImport()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div style="font-size:12px;color:var(--text-m);margin-bottom:7px;">訊息類型</div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <button class="type-btn active" id="type-customer-btn" onclick="setMsgType('customer')"><i class="fa-solid fa-handshake" style="margin-right:4px;"></i>客戶商務</button>
-    </div>
-    <div class="divider"><span>方式一：貼入聊天記錄，AI 自動解析</span></div>
-    <textarea id="paste-input" class="input-field" style="height:140px;margin-bottom:10px;font-size:13px;"
-      placeholder="直接貼入整段微信聊天記錄&#10;例：&#10;王大明  10:32&#10;重庆方正2台TM4，交期9月"></textarea>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px;">
-      <button class="btn-ghost" onclick="document.getElementById('paste-input').value=''">清空</button>
-      <button class="btn-primary" id="parse-btn" onclick="parseMessage()">
-        <i class="fa-solid fa-wand-magic-sparkles"></i> AI 解析並儲存
-      </button>
-    </div>
-    <div id="parse-result" style="display:none;margin-bottom:14px;"></div>
-    <div class="divider"><span>方式二：手動輸入</span></div>
-    <!-- 客戶商務表單：業務普遍懶得逐欄填，簡化成3個必填欄位，內容整段貼進「商務訊息」即可 -->
+    <!-- 客戶商務表單：欄位比照客戶商務表格(日期/業務/客戶/機型/客戶資訊/其他) -->
     <div id="manual-customer-form">
-      <div style="margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶名稱 *</div>
-        <input id="m-company" class="input-field" placeholder="例：華通" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">日期</div>
+          <input id="m-date" type="date" class="input-field" />
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">業務姓名 *</div>
+          <input id="m-sales" class="input-field" list="sales-name-datalist" placeholder="例：王韻萍（可直接點選已建立過的業務）" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶名稱 *</div>
+          <input id="m-company" class="input-field" placeholder="例：華通" />
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">機型</div>
+          <input id="m-model" class="input-field" placeholder="例：RU6M2" />
+        </div>
       </div>
       <div style="margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">業務姓名 *</div>
-        <input id="m-sales" class="input-field" list="sales-name-datalist" placeholder="例：王韻萍（可直接點選已建立過的業務）" />
-      </div>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">商務訊息 *</div>
+        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">客戶資訊 *</div>
         <textarea id="m-note" class="input-field" style="height:90px;" placeholder="把跟客戶談的內容整段貼進來就好"></textarea>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-m);margin-bottom:5px;">其他</div>
+        <textarea id="m-other" class="input-field" style="height:60px;" placeholder="陪同人員、備註等其他補充資訊"></textarea>
       </div>
       <div style="display:flex;justify-content:flex-end;"><button class="btn-primary" onclick="manualSaveCustomer()"><i class="fa-solid fa-floppy-disk"></i> 儲存</button></div>
     </div>
@@ -1730,7 +1749,7 @@ function switchTab(tab){
 
 // ══ 客戶商務：統一渲染（客戶→機型 群組展開）══════════════
 function clearUnifiedFilter(){
-  ['f-uni-company','f-uni-model','f-uni-person','f-uni-keyword'].forEach(function(id){
+  ['f-uni-company','f-uni-model','f-uni-person','f-uni-keyword','f-uni-date-from','f-uni-date-to'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.value='';
   });
   uniPage=1;
@@ -1750,7 +1769,7 @@ function exportUnifiedExcel(){
   XLSX.utils.book_append_sheet(wb,ws,'客戶商務');
   var todayStr=new Date().toISOString().split('T')[0];
   var fs=f.filterSummary;
-  var filterTag=(fs.company||fs.model||fs.person||fs.keyword)?'_已篩選':'_全部';
+  var filterTag=(fs.company||fs.model||fs.person||fs.keyword||fs.dateFrom||fs.dateTo)?'_已篩選':'_全部';
   XLSX.writeFile(wb,'客戶商務'+filterTag+'_'+todayStr+'.xlsx');
 }
 // 日期字串轉可比較大小的排序鍵（YYYYMMDD），支援「2026/9/23」「2026-09-23」等常見寫法，
@@ -1771,7 +1790,7 @@ function formatShortDate(iso){
 function buildUnifiedRows(fCust,fVisit){
   var rows=[];
   fCust.forEach(function(r){
-    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',model:r.model||'',info:r.raw||r.note||'',other:''});
+    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',model:r.model||'',info:r.raw||r.note||'',other:r.other||''});
   });
   fVisit.forEach(function(r){
     var infoParts=[];
@@ -1797,16 +1816,13 @@ function buildUnifiedTableHtml(pageRows,q){
     +'<th class="erp-th erp-td-op">操作</th>'
   +'</tr></thead>';
   var tbody='<tbody>'+pageRows.map(function(r,i){
-    var tag=r._type==='wechat'
-      ?'<span class="erp-tag erp-tag-wechat" title="微信訊息"><i class="fa-brands fa-weixin"></i></span>'
-      :'<span class="erp-tag erp-tag-visit" title="拜訪紀錄"><i class="fa-solid fa-clipboard-list"></i></span>';
     var editBtn=(r._type==='wechat'&&canEdit(r._raw))?'<button class="erp-op-btn" onclick="openEditWechatMsg(\''+r._id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
     var delBtn=canDelete(r._raw)?'<button class="erp-op-btn erp-op-del" onclick="'+(r._type==='wechat'?'deleteCustRecord':'deleteVisitRecord')+'(\''+r._id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
     var alt=(i%2===1)?' erp-row-alt':'';
     return '<tr class="erp-tr'+alt+'">'
       +'<td class="erp-td erp-sticky-col erp-col-date" style="left:0;">'+escH(r.date)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:84px;">'+escH(r.sales)+'</td>'
-      +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:148px;">'+tag+hl(r.customer,q)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:148px;">'+hl(r.customer,q)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-model" style="left:266px;">'+escH(r.model)+'</td>'
       +'<td class="erp-td erp-col-info">'+(r.info?hl(r.info,q):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-col-other">'+(r.other?hl(r.other,q):'<span class="erp-empty">—</span>')+'</td>'
@@ -1848,11 +1864,24 @@ function getFilteredUnifiedRows(){
   var model=(document.getElementById('f-uni-model')||{}).value||'';
   var person=(document.getElementById('f-uni-person')||{}).value||'';
   var keyword=(document.getElementById('f-uni-keyword')||{}).value||'';
+  var dateFrom=(document.getElementById('f-uni-date-from')||{}).value||'';
+  var dateTo=(document.getElementById('f-uni-date-to')||{}).value||'';
+  var fromKey=dateFrom?dateSortKey(dateFrom):null;
+  var toKey=dateTo?dateSortKey(dateTo):null;
+  function inDateRange(dateStr){
+    if(!fromKey&&!toKey) return true;
+    var k=dateSortKey(dateStr);
+    if(k==='00000000') return false; // 日期本身看不懂，篩日期區間時當作不符合
+    if(fromKey&&k<fromKey) return false;
+    if(toKey&&k>toKey) return false;
+    return true;
+  }
   var fCust=custData.filter(function(r){
     if(company&&!matchQ(r.company,company)) return false;
     if(model&&!matchQ([r.model,r.raw].join(' '),model)) return false;
     if(person&&!matchQ([r.sales,r.contact,r.raw].join(' '),person)) return false;
     if(keyword&&!matchQ([r.company,r.contact,r.model,r.price,r.delivery,r.status,r.note,r.raw].join(' '),keyword)) return false;
+    if(!inDateRange(r.date)) return false;
     return true;
   });
   var fVisit=visitData.filter(function(r){
@@ -1860,14 +1889,17 @@ function getFilteredUnifiedRows(){
     if(model&&!matchQ(r.model||'',model)) return false;
     if(person&&!matchQ(r.sales,person)) return false;
     if(keyword&&!matchQ([r.customer,r.sales,r.model,r.customer_info,r.competitor,r.market_info,r.other,r.work,r.work_purpose,r.next_action].join(' '),keyword)) return false;
+    if(!inDateRange(r.report_date)) return false;
     return true;
   });
-  return {fCust:fCust,fVisit:fVisit,filterSummary:{company:company,model:model,person:person,keyword:keyword}};
+  return {fCust:fCust,fVisit:fVisit,filterSummary:{company:company,model:model,person:person,keyword:keyword,dateFrom:dateFrom,dateTo:dateTo}};
 }
 function renderUnified(){
   var f=getFilteredUnifiedRows();
   var company=f.filterSummary.company,model=f.filterSummary.model,person=f.filterSummary.person,keyword=f.filterSummary.keyword;
-  var q=company||model||person||keyword;
+  var dateFrom=f.filterSummary.dateFrom,dateTo=f.filterSummary.dateTo;
+  var q=company||model||person||keyword; // 只用文字類篩選詞做畫面上的黃底標示，日期不適合拿來highlight文字
+  var anyFilter=q||dateFrom||dateTo;
   var fCust=f.fCust,fVisit=f.fVisit;
   // 注意：客戶商務頁籤故意不放CRM資料（crm_records），CRM只在「CRM需求統計」頁籤顯示，
   // 避免同一筆訂單在兩個頁籤都出現、造成重複計算或混淆
@@ -1878,7 +1910,7 @@ function renderUnified(){
     statsEl.innerHTML=
       '<span class="stat-pill">微信訊息 <b>'+custData.length+'</b></span>'
       +'<span class="stat-pill">拜訪紀錄 <b>'+visitData.length+'</b></span>'
-      +(q?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
+      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
   }
 
   var el=document.getElementById('unified-records');
@@ -1939,7 +1971,7 @@ async function deleteCustRecord(id){
   custData=custData.filter(function(r){return r.id!==id;});
   renderUnified();
 }
-// 編輯商務訊息(客戶名稱/業務姓名/內容)
+// 編輯商務訊息(客戶名稱/業務姓名/機型/客戶資訊/其他)
 var editWechatMsgTargetId=null;
 function openEditWechatMsg(id){
   var r=custData.find(function(x){return x.id===id;});
@@ -1947,7 +1979,9 @@ function openEditWechatMsg(id){
   editWechatMsgTargetId=id;
   document.getElementById('ewm-company').value=r.company||'';
   document.getElementById('ewm-sales').value=r.sales||'';
-  document.getElementById('ewm-note').value=r.note||r.raw||'';
+  document.getElementById('ewm-model').value=r.model||'';
+  document.getElementById('ewm-note').value=r.raw||r.note||'';
+  document.getElementById('ewm-other').value=r.other||'';
   document.getElementById('ewm-msg').style.display='none';
   document.getElementById('edit-wechat-msg-modal').style.display='flex';
 }
@@ -1955,16 +1989,19 @@ function closeEditWechatMsg(){document.getElementById('edit-wechat-msg-modal').s
 async function submitEditWechatMsg(){
   var company=document.getElementById('ewm-company').value.trim();
   var sales=document.getElementById('ewm-sales').value.trim();
+  var model=document.getElementById('ewm-model').value.trim();
   var note=document.getElementById('ewm-note').value.trim();
+  var other=document.getElementById('ewm-other').value.trim();
   var msgEl=document.getElementById('ewm-msg');
   var btn=document.getElementById('ewm-submit-btn');
   msgEl.style.display='none';
   if(!company||!sales||!note){
     msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
-    msgEl.textContent='客戶名稱、業務姓名、商務訊息都要填';return;
+    msgEl.textContent='客戶名稱、業務姓名、客戶資訊都要填';return;
   }
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
-  var {data:updated,error}=await sb.from('wechat_messages').update({company:company,sales:sales,note:note}).eq('id',editWechatMsgTargetId).select().single();
+  // 原本raw欄位是AI解析的完整原文，這裡編輯的是「客戶資訊」欄，統一存回raw(跟表格顯示的來源欄位一致)，note保留原樣不動
+  var {data:updated,error}=await sb.from('wechat_messages').update({company:company,sales:sales,model:model,raw:note,other:other}).eq('id',editWechatMsgTargetId).select().single();
   if(error){
     msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
     msgEl.textContent='儲存失敗：'+error.message;
@@ -2745,11 +2782,12 @@ async function submitChangeOwnPw(){
 }
 
 // ══ 匯入微信訊息 ════════════════════════════════════════════
-function openImport(){document.getElementById('import-modal').style.display='flex';document.getElementById('parse-result').style.display='none';setMsgType(currentTab==='engineer'?'engineer':'customer');}
+function openImport(){document.getElementById('import-modal').style.display='flex';var pr=document.getElementById('parse-result');if(pr)pr.style.display='none';setMsgType(currentTab==='engineer'?'engineer':'customer');}
 function closeImport(){document.getElementById('import-modal').style.display='none';}
 function setMsgType(type){
   currentMsgType=type;
-  document.getElementById('type-customer-btn').classList.toggle('active',type==='customer');
+  var custBtn=document.getElementById('type-customer-btn');
+  if(custBtn) custBtn.classList.toggle('active',type==='customer');
   var engBtn=document.getElementById('type-engineer-btn');
   if(engBtn) engBtn.classList.toggle('active',type==='engineer');
   document.getElementById('manual-customer-form').style.display=type==='customer'?'':'none';
@@ -2890,16 +2928,19 @@ async function manualSaveCustomer(){
   var company=document.getElementById('m-company').value.trim();
   var sales=document.getElementById('m-sales').value.trim();
   var note=document.getElementById('m-note').value.trim();
-  if(!company||!sales||!note){alert('客戶名稱、業務姓名、商務訊息都要填，這筆才能儲存');return;}
+  var model=document.getElementById('m-model').value.trim();
+  var other=document.getElementById('m-other').value.trim();
+  var dateVal=document.getElementById('m-date').value; // 沒填就用今天
+  if(!company||!sales||!note){alert('客戶名稱、業務姓名、客戶資訊都要填，這筆才能儲存');return;}
   var {data:inserted,error}=await sb.from('wechat_messages').insert({
-    company,sales,note,
-    date:new Date().toISOString().split('T')[0],
+    company,sales,note,model,other,
+    date:dateVal||new Date().toISOString().split('T')[0],
     raw:'',tags:[],created_by:currentUser.id
   }).select().single();
   if(error){alert('儲存失敗：'+error.message);return;}
   custData.unshift(inserted);
   refreshCategoryDropdown();
-  ['m-company','m-sales','m-note'].forEach(function(id){document.getElementById(id).value='';});
+  ['m-company','m-sales','m-note','m-model','m-other','m-date'].forEach(function(id){document.getElementById(id).value='';});
   closeImport();
   if(currentTab==='customer') renderUnified();
 }
@@ -3285,5 +3326,4 @@ function closeDetail(){document.getElementById('detail-modal').style.display='no
 </script>
 </body>
 </html>
-
 

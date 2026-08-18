@@ -87,12 +87,13 @@ textarea.input-field{resize:none;line-height:1.7;}
 /* ── Misc ── */
 .filter-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
 /* 客戶商務：統計pill＋4個篩選欄位＋清除按鈕全部合併在同一排，省掉獨立label那一行的高度 */
-.uni-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
-.uni-filter-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0;}
-.filter-icon-input{position:relative;flex:1 1 150px;min-width:130px;}
+.uni-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;margin-bottom:10px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.uni-filter-inline{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;flex:1;min-width:0;}
+.filter-icon-input{position:relative;flex:0 1 150px;min-width:110px;}
 .filter-icon-input i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-s);font-size:12px;pointer-events:none;}
 .filter-icon-input input{padding-left:28px;}
-.uni-filter-keyword{flex:2 1 220px;min-width:180px;}
+.uni-filter-keyword{flex:0 1 200px;min-width:140px;}
+.uni-toolbar-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto;}
 .stats-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
 .stat-pill{background:var(--card);border:1px solid var(--border2);border-radius:6px;padding:4px 12px;font-size:12px;color:var(--text-m);white-space:nowrap;}
 .stat-pill b{font-weight:700;color:var(--text-h);}
@@ -197,6 +198,9 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   /* 搜尋欄位改成2欄一排；清除篩選縮成只留圖示，跟最後一個欄位(全文關鍵字)同一排、貼右側 */
   .filter-icon-input{flex:1 1 calc(50% - 4px) !important;min-width:0 !important;}
   .uni-filter-keyword{flex:1 1 calc(50% - 46px) !important;}
+  .uni-toolbar{flex-wrap:wrap !important;}
+  .uni-filter-inline{flex-wrap:wrap !important;}
+  .uni-toolbar-actions{margin-left:0 !important;width:100%;}
   .uni-toolbar .btn-ghost{flex:0 0 36px !important;padding:8px !important;}
   .uni-toolbar .btn-ghost span{display:none;} /* 清除篩選只留圖示 */
 }
@@ -375,7 +379,6 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   <!-- ══ 客戶商務 ══ -->
   <div id="tab-customer">
     <div class="uni-toolbar">
-      <div class="stats-row" id="unified-stats-row" style="margin:0;"></div>
       <div class="uni-filter-inline">
         <div class="filter-icon-input">
           <i class="fa-regular fa-building"></i>
@@ -401,6 +404,8 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
           <i class="fa-regular fa-calendar"></i>
           <input id="f-uni-date-to" class="filter-input" type="date" oninput="debounceUnified()" title="日期區間訖" />
         </div>
+      </div>
+      <div class="uni-toolbar-actions">
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="clearUnifiedFilter()">
           <i class="fa-solid fa-rotate-left" style="font-size:11px;margin-right:3px;"></i><span>清除篩選</span>
         </button>

@@ -1634,9 +1634,9 @@ async function onLogin(user){
   document.getElementById('nav-user-info').textContent=currentUserProfile.name+' · '+roleLabel(currentUserProfile.role);
   var usersBtn=document.getElementById('tab-users-btn');
   if(usersBtn) usersBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
-  // 助理只有「客戶商務」權限，CRM需求統計分頁籤整個藏起來
+  // CRM需求統計分頁籤：所有角色皆可見(助理權限已比照總監開放)
   var statBtn=document.getElementById('tab-stat-btn');
-  if(statBtn) statBtn.style.display=(currentUserProfile.role==='assistant')?'none':'';
+  if(statBtn) statBtn.style.display='';
   // CRM Excel匯入只開放給大總管(其他角色資料庫層級也會擋，這裡先把按鈕藏起來避免點了才發現失敗)
   var excelBtn=document.getElementById('btn-excel-import');
   if(excelBtn) excelBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
@@ -2298,8 +2298,14 @@ function renderStats(){
     else if(sc==='lost'){lost.push(r);totalLost+=r.qty;}
     else unknown.push(r);
   });
-  // 各分類內部依「週次」新到舊排序，分類間的順序固定：已確認→進行中→流失→無備註月份→狀態不明
-  function byWeekDesc(a,b){return dateSortKey(b.week).localeCompare(dateSortKey(a.week));}
+  // 各分類內部依「最後修改日期」新到舊排序(沒有updatedAt的退回用週次排序)，分類間的順序固定：已確認→進行中→流失→無備註月份→狀態不明
+  function byWeekDesc(a,b){
+    var au=a.updatedAt||'',bu=b.updatedAt||'';
+    if(au&&bu&&au!==bu) return bu.localeCompare(au);
+    if(au&&!bu) return -1;
+    if(!au&&bu) return 1;
+    return dateSortKey(b.week).localeCompare(dateSortKey(a.week));
+  }
   [confirmed,ongoing,lost,unclassified,unknown].forEach(function(arr){arr.sort(byWeekDesc);});
   var rows=confirmed.concat(ongoing,lost,unclassified,unknown);
   window._lastStatsRows=rows; // 給匯出Excel用，確保匯出的內容跟畫面上篩選後看到的完全一致

@@ -1214,6 +1214,21 @@ var T2S={
 var S2T={};
 Object.keys(T2S).forEach(function(t){S2T[T2S[t]]=t;});
 function toS(s){return String(s||'').split('').map(function(c){return T2S[c]||c;}).join('');}
+// 把使用者輸入的業務姓名對齊到帳號設定裡的正確寫法(避免繁簡打法不一致導致RLS比對不到、新增被擋)
+// 找不到對應帳號時原樣返回(可能是還沒建帳號的業務，不擋使用者操作)
+function normalizeSalesName(name){
+  var n=String(name||'').trim();
+  if(!n) return n;
+  var list=window._salesNameList||[];
+  for(var i=0;i<list.length;i++){
+    if(list[i]===n) return n; // 完全相符，不用轉換
+  }
+  var nS=toS(n);
+  for(var j=0;j<list.length;j++){
+    if(toS(list[j])===nS) return list[j]; // 繁簡不同但轉換後相符，改用帳號設定的寫法
+  }
+  return n; // 都對不上，維持原樣
+}
 function toT(s){return String(s||'').split('').map(function(c){return S2T[c]||c;}).join('');}
 function norm(s){var v=String(s||'').toLowerCase();return v+' '+toS(v)+' '+toT(v);}
 function matchQ(hay,q){if(!q)return true;var n=q.toLowerCase();var h=norm(hay);return h.indexOf(n)>-1||h.indexOf(toS(n))>-1||h.indexOf(toT(n))>-1;}
@@ -2017,7 +2032,7 @@ function openEditWechatMsg(id){
 function closeEditWechatMsg(){document.getElementById('edit-wechat-msg-modal').style.display='none';editWechatMsgTargetId=null;}
 async function submitEditWechatMsg(){
   var company=document.getElementById('ewm-company').value.trim();
-  var sales=document.getElementById('ewm-sales').value.trim();
+  var sales=normalizeSalesName(document.getElementById('ewm-sales').value.trim());
   var model=document.getElementById('ewm-model').value.trim();
   var note=document.getElementById('ewm-note').value.trim();
   var other=document.getElementById('ewm-other').value.trim();
@@ -2146,7 +2161,7 @@ function parseDeliveryFieldEdits(text){
 async function submitEditCRM(){
   var isNew=(editCRMTargetId===null);
   var company=document.getElementById('ecrm-company').value.trim();
-  var sales=document.getElementById('ecrm-sales').value.trim();
+  var sales=normalizeSalesName(document.getElementById('ecrm-sales').value.trim());
   var status=document.getElementById('ecrm-status').value.trim();
   var msgEl=document.getElementById('ecrm-msg');
   var btn=document.getElementById('ecrm-submit-btn');
@@ -2871,7 +2886,7 @@ async function confirmSaveCustomerParse(){
   inputs.forEach(function(inp){
     var idx=parseInt(inp.getAttribute('data-idx'),10);
     var val=inp.value.trim();
-    parsedArr[idx].sales=val;
+    parsedArr[idx].sales=normalizeSalesName(val);
     if(!val){missing=true;inp.style.borderColor='var(--red)';}
     else{inp.style.borderColor='';}
   });
@@ -2961,7 +2976,7 @@ async function parseMessage(){
 
 async function manualSaveCustomer(){
   var company=document.getElementById('m-company').value.trim();
-  var sales=document.getElementById('m-sales').value.trim();
+  var sales=normalizeSalesName(document.getElementById('m-sales').value.trim());
   var note=document.getElementById('m-note').value.trim();
   var model=document.getElementById('m-model').value.trim();
   var other=document.getElementById('m-other').value.trim();
@@ -3085,7 +3100,7 @@ function handleExcelFile(e){
               }
               parsedVisit.push({
                 doc_no:String(vrow[0]||'').trim()||null,
-                sales:String(vrow[1]||'').trim()||sheetName,
+                sales:normalizeSalesName(String(vrow[1]||'').trim()||sheetName),
                 report_date:vDateStr,
                 customer:vCustomer,
                 industry:String(vrow[4]||'').trim(),
@@ -3134,7 +3149,7 @@ function handleExcelFile(e){
               var modelFound=findKnownModel(wSummary);
               visitReportRowCount++;
               parsedReport.push({
-                company:custMatch?custMatch[0]:'',sales:wName,date:wDateStr,
+                company:custMatch?custMatch[0]:'',sales:normalizeSalesName(wName),date:wDateStr,
                 model:modelFound,
                 raw:wSummary,note:'',tags:[],created_by:currentUser.id
               });
@@ -3224,7 +3239,7 @@ function handleExcelFile(e){
 
             rowCount++;
             parsed.push({
-              sales:sales||sheetName,customer:customer,model:model,qty:qty,
+              sales:normalizeSalesName(sales||sheetName),customer:customer,model:model,qty:qty,
               delivery:deliveryStr,status_w1:status1,week_w1:w1?w1.label:'',
               status_w2:status2,week_w2:w2?w2.label:'',
               sheet:sheetName,import_date:importDate,created_by:currentUser.id

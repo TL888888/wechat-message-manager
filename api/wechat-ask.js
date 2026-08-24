@@ -5,7 +5,10 @@ const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
-const MAX_RECORDS = 50;
+const MAX_RECORDS_PER_TABLE = 30; // 資料庫查詢階段先抓，實際餵給AI的量由下面的字數預算再收斂
+// 餵給AI的資料總字數預算（粗抓，避免超過免費版Groq「每分鐘8000 token」的限制；
+// 中文一個字通常不只1個token，這裡故意抓得保守一點，含系統提示與問題本身的空間）
+const MAX_PROMPT_CHARS = 3200;
 
 // Groq 定價（每百萬 token 美元），這是預留位置數字，請上 Groq 官網
 // https://groq.com/pricing 核對 openai/gpt-oss-120b 目前實際費率後再更新這兩個數字，
@@ -44,6 +47,22 @@ module.exports = async function handler(req, res) {
   }
   const userEmail = userData.user.email;
 
+  // 不管最後是成功、查無資料、還是失敗，都寫進歷史紀錄，讓使用者自己問過什麼都查得到
+  async function logAttempt(answer, matchedCount, cost) {
+    try {
+      await userClient.from('wechat_ai_qa_usage_log').insert({
+        user_id: userData.user.id,
+        user_email: userEmail,
+        question,
+        answer,
+        matched_records_count: matchedCount || 0,
+        estimated_cost_usd: cost || 0,
+      });
+    } catch (e) {
+      // 寫歷史紀錄失敗不影響本次回答，只是記錄不到而已
+    }
+  }
+
   try {
     // ── 每日費用上限檢查：要看全站總和，只能用service role繞過RLS查 ──
     const serviceClient = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY_WECHAT);
@@ -67,10 +86,9 @@ module.exports = async function handler(req, res) {
     );
 
     if (todaySpent >= dailyLimit) {
-      res.status(200).json({
-        answer: '今日 AI 問答用量已達全站上限，請明天再試，或聯絡管理員調整上限。',
-        matched_records_count: 0,
-      });
+      const answer = '今日 AI 問答用量已達全站上限，請明天再試，或聯絡管理員調整上限。';
+      await logAttempt(answer, 0, 0);
+      res.status(200).json({ answer, matched_records_count: 0 });
       return;
     }
 
@@ -128,11 +146,10 @@ module.exports = async function handler(req, res) {
     const matchedSales = matchFuzzy(salesSet);
 
     if (!matchedCustomers.length && !matchedModels.length && !matchedSales.length) {
-      res.status(200).json({
-        answer:
-          '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。',
-        matched_records_count: 0,
-      });
+      const answer =
+        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。';
+      await logAttempt(answer, 0, 0);
+      res.status(200).json({ answer, matched_records_count: 0 });
       return;
     }
 
@@ -155,7 +172,7 @@ module.exports = async function handler(req, res) {
         'sales'
       )
         .order('date', { ascending: false })
-        .limit(MAX_RECORDS),
+        .limit(MAX_RECORDS_PER_TABLE),
       applyFilters(
         userClient
           .from('crm_records')
@@ -165,7 +182,7 @@ module.exports = async function handler(req, res) {
         'sales'
       )
         .order('import_date', { ascending: false })
-        .limit(MAX_RECORDS),
+        .limit(MAX_RECORDS_PER_TABLE),
       applyFilters(
         userClient
           .from('visit_records')
@@ -175,65 +192,85 @@ module.exports = async function handler(req, res) {
         'sales'
       )
         .order('report_date', { ascending: false })
-        .limit(MAX_RECORDS),
+        .limit(MAX_RECORDS_PER_TABLE),
     ]);
 
+    // 截斷長度比之前更緊，優先保留報價/日期/客戶/機型這些關鍵欄位，長文字欄位只留摘要
     const truncate = (s, n) => (s && s.length > n ? s.slice(0, n) + '…' : s || '');
 
     const records = [];
     (wmRes.data || []).forEach((r) =>
       records.push(
-        `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${truncate(r.raw, 200)} 備註:${truncate(r.note, 100)} 其他:${truncate(r.other, 100)}`
+        `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${truncate(r.raw, 80)} 備註:${truncate(r.note, 40)} 其他:${truncate(r.other, 40)}`
       )
     );
     (crRes.data || []).forEach((r) =>
       records.push(
-        `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1} 本週狀態:${r.status_w2} 業務:${r.sales}`
+        `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${truncate(r.status_w1, 40)} 本週狀態:${truncate(r.status_w2, 40)} 業務:${r.sales}`
       )
     );
     (vrRes.data || []).forEach((r) =>
       records.push(
-        `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${truncate(r.customer_info, 200)} 市場訊息:${truncate(r.market_info, 150)} 其他:${truncate(r.other, 100)} 業務:${r.sales}`
+        `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${truncate(r.customer_info, 80)} 市場訊息:${truncate(r.market_info, 40)} 其他:${truncate(r.other, 40)} 業務:${r.sales}`
       )
     );
 
-    const limitedRecords = records.slice(0, MAX_RECORDS);
-
-    if (!limitedRecords.length) {
-      res.status(200).json({
-        answer: '有比對到關鍵字，但你看得到的範圍內沒有相關紀錄。',
-        matched_records_count: 0,
-      });
+    if (!records.length) {
+      const answer = '有比對到關鍵字，但你看得到的範圍內沒有相關紀錄。';
+      await logAttempt(answer, 0, 0);
+      res.status(200).json({ answer, matched_records_count: 0 });
       return;
     }
 
-    // ── 呼叫 Groq，讓AI只根據撈到的紀錄回答，不臆測 ──
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GROQ_API_KEY_WECHAT}`,
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是公司內部營業商務資料查詢助理，只能根據使用者提供的資料紀錄回答問題，不可捏造資料裡沒有的內容。一律用繁體中文回答，簡潔直接，並在回答中標明相關日期。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。',
-          },
-          {
-            role: 'user',
-            content: `問題：${question}\n\n以下是相關資料紀錄：\n${limitedRecords.join('\n')}`,
-          },
-        ],
-        temperature: 0.2,
-      }),
-    });
+    // 依「最新的優先」用字數預算收斂到安全範圍內，避免超過Groq免費版的TPM限制
+    const limitedRecords = [];
+    let charBudget = MAX_PROMPT_CHARS;
+    for (const rec of records) {
+      if (charBudget - rec.length <= 0) break;
+      limitedRecords.push(rec);
+      charBudget -= rec.length;
+    }
+    const omittedCount = records.length - limitedRecords.length;
 
-    const groqData = await groqRes.json();
+    // ── 呼叫 Groq，讓AI只根據撈到的紀錄回答，不臆測 ──
+    let groqRes, groqData;
+    try {
+      groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.GROQ_API_KEY_WECHAT}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content:
+                '你是公司內部營業商務資料查詢助理，只能根據使用者提供的資料紀錄回答問題，不可捏造資料裡沒有的內容。一律用繁體中文回答，簡潔直接，並在回答中標明相關日期。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。',
+            },
+            {
+              role: 'user',
+              content: `問題：${question}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
+            },
+          ],
+          temperature: 0.2,
+        }),
+      });
+      groqData = await groqRes.json();
+    } catch (fetchErr) {
+      const answer = '查詢失敗（無法連線到AI服務）：' + String(fetchErr.message || fetchErr);
+      await logAttempt(answer, limitedRecords.length, 0);
+      res.status(200).json({ answer, matched_records_count: limitedRecords.length });
+      return;
+    }
+
     if (!groqRes.ok) {
-      throw new Error((groqData && groqData.error && groqData.error.message) || 'Groq API 呼叫失敗');
+      const errMsg = (groqData && groqData.error && groqData.error.message) || 'Groq API 呼叫失敗';
+      const answer = '查詢失敗：' + errMsg;
+      await logAttempt(answer, limitedRecords.length, 0);
+      res.status(200).json({ answer, matched_records_count: limitedRecords.length });
+      return;
     }
 
     const answer =
@@ -245,15 +282,7 @@ module.exports = async function handler(req, res) {
       (promptTokens / 1000000) * PRICE_PER_M_PROMPT_TOKENS +
       (completionTokens / 1000000) * PRICE_PER_M_COMPLETION_TOKENS;
 
-    // ── 寫入歷史紀錄（用登入者自己的身份寫，觸發器自動帶入角色/業務/地區，防止偽造）──
-    await userClient.from('wechat_ai_qa_usage_log').insert({
-      user_id: userData.user.id,
-      user_email: userEmail,
-      question,
-      answer,
-      matched_records_count: limitedRecords.length,
-      estimated_cost_usd: estimatedCost,
-    });
+    await logAttempt(answer, limitedRecords.length, estimatedCost);
 
     // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──
     fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {

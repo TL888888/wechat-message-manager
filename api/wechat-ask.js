@@ -97,10 +97,35 @@ module.exports = async function handler(req, res) {
     const modelSet = new Set([...uniq(wmM.data, 'model'), ...uniq(crM.data, 'model')]);
     const salesSet = new Set([...uniq(wmS.data, 'sales'), ...uniq(crS.data, 'sales')]);
 
-    const matchAgainst = (set) => [...set].filter((v) => question.includes(v));
-    const matchedCustomers = matchAgainst(customerSet);
-    const matchedModels = matchAgainst(modelSet);
-    const matchedSales = matchAgainst(salesSet);
+    // 嚴格比對：問題要完整包含資料庫值（用於機型代碼，差一碼就是不同機器，不能放寬）
+    const matchStrict = (set) => [...set].filter((v) => question.includes(v));
+
+    // 模糊比對：資料庫值本身可能有地區/廠別等前後綴變體（如「無錫健鼎」「健鼎(越南)」），
+    // 只要值裡有一段2~4字的片段出現在問題裡就算比對到，這樣打「健鼎」能同時抓到全部變體
+    const matchFuzzy = (set) => {
+      const matched = [];
+      for (const candidate of set) {
+        if (question.includes(candidate)) {
+          matched.push(candidate);
+          continue;
+        }
+        let found = false;
+        for (let len = Math.min(4, candidate.length); len >= 2 && !found; len--) {
+          for (let i = 0; i + len <= candidate.length; i++) {
+            if (question.includes(candidate.slice(i, i + len))) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (found) matched.push(candidate);
+      }
+      return matched;
+    };
+
+    const matchedCustomers = matchFuzzy(customerSet);
+    const matchedModels = matchStrict(modelSet);
+    const matchedSales = matchFuzzy(salesSet);
 
     if (!matchedCustomers.length && !matchedModels.length && !matchedSales.length) {
       res.status(200).json({

@@ -364,6 +364,12 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openImport()">
         <i class="fa-solid fa-plus" style="font-size:11px;"></i> <span class="btn-label-full">匯入訊息</span>
       </button>
+      <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openAiQa()">
+        <i class="fa-solid fa-robot" style="font-size:11px;color:var(--accent);"></i> <span class="btn-label-full">AI問答</span>
+      </button>
+      <button class="btn-ghost" style="font-size:13px;padding:6px 10px;display:none;" onclick="openAiUsage()" title="AI用量統計" id="btn-ai-usage">
+        <i class="fa-solid fa-chart-line"></i>
+      </button>
       <button class="btn-ghost" style="font-size:13px;padding:6px 10px;" onclick="openChangeOwnPw()" title="修改密碼">
         <i class="fa-solid fa-key"></i>
       </button>
@@ -724,6 +730,46 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
     </div>
     <button class="btn-primary" style="width:100%;justify-content:center;" id="ecrm-submit-btn" onclick="submitEditCRM()">儲存</button>
     <div id="ecrm-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- ══ AI問答（含歷史問答內部頁籤）══ -->
+<div id="ai-qa-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAiQa()">
+  <div class="modal-box slide-in" style="max-width:600px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-robot" style="color:var(--accent);margin-right:8px;"></i>AI問答</div>
+      <button onclick="closeAiQa()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border);">
+      <button id="aiqa-tab-ask-btn" class="tab-btn active" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('ask')">問答</button>
+      <button id="aiqa-tab-history-btn" class="tab-btn" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('history')">歷史問答</button>
+    </div>
+
+    <!-- 問答分頁 -->
+    <div id="aiqa-panel-ask">
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:10px;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答（例如「健鼎DG6N2的報價歷史」「某業務本月CRM進度」）</div>
+      <div id="aiqa-conversation" style="max-height:340px;overflow-y:auto;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input id="aiqa-question-input" class="input-field" style="flex:1;" placeholder="輸入你的問題..." onkeydown="if(event.key==='Enter')submitAiQuestion();" />
+        <button class="btn-primary" id="aiqa-submit-btn" onclick="submitAiQuestion()" style="flex-shrink:0;"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+    <!-- 歷史問答分頁 -->
+    <div id="aiqa-panel-history" style="display:none;">
+      <div id="aiqa-history-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AI用量統計（僅大總管可見） ══ -->
+<div id="ai-usage-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAiUsage()">
+  <div class="modal-box slide-in" style="max-width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-chart-line" style="color:var(--accent);margin-right:8px;"></i>AI用量統計</div>
+      <button onclick="closeAiUsage()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="ai-usage-content"><div style="text-align:center;padding:20px;color:var(--text-s);"><span class="spinner"></span> 載入中...</div></div>
   </div>
 </div>
 
@@ -1655,6 +1701,9 @@ async function onLogin(user){
   // CRM Excel匯入只開放給大總管(其他角色資料庫層級也會擋，這裡先把按鈕藏起來避免點了才發現失敗)
   var excelBtn=document.getElementById('btn-excel-import');
   if(excelBtn) excelBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
+  // AI用量統計（含每日上限設定）：只有大總管看得到
+  var aiUsageBtn=document.getElementById('btn-ai-usage');
+  if(aiUsageBtn) aiUsageBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
   var btn=document.getElementById('login-btn');
   btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> 登入';
   await loadAllData();
@@ -3373,6 +3422,140 @@ function toggleExpand(btn){
   }
 }
 function closeDetail(){document.getElementById('detail-modal').style.display='none';}
+
+// ══ AI問答 ════════════════════════════════════════════════
+function openAiQa(){
+  document.getElementById('ai-qa-modal').style.display='flex';
+  switchAiQaTab('ask');
+}
+function closeAiQa(){document.getElementById('ai-qa-modal').style.display='none';}
+function switchAiQaTab(tab){
+  var askBtn=document.getElementById('aiqa-tab-ask-btn');
+  var historyBtn=document.getElementById('aiqa-tab-history-btn');
+  var askPanel=document.getElementById('aiqa-panel-ask');
+  var historyPanel=document.getElementById('aiqa-panel-history');
+  if(tab==='ask'){
+    askBtn.classList.add('active');historyBtn.classList.remove('active');
+    askPanel.style.display='block';historyPanel.style.display='none';
+  }else{
+    askBtn.classList.remove('active');historyBtn.classList.add('active');
+    askPanel.style.display='none';historyPanel.style.display='block';
+    loadAiQaHistory();
+  }
+}
+function appendAiQaBubble(role,text){
+  var wrap=document.getElementById('aiqa-conversation');
+  var isUser=(role==='user');
+  var bubble=document.createElement('div');
+  bubble.style.cssText='margin-bottom:10px;display:flex;'+(isUser?'justify-content:flex-end;':'justify-content:flex-start;');
+  bubble.innerHTML='<div style="max-width:85%;padding:9px 13px;border-radius:10px;font-size:13px;line-height:1.6;white-space:pre-wrap;'
+    +(isUser?'background:var(--accent);color:#fff;':'background:var(--bg);border:1px solid var(--border);color:var(--text-b);')
+    +'">'+escH(text)+'</div>';
+  wrap.appendChild(bubble);
+  wrap.scrollTop=wrap.scrollHeight;
+  return bubble;
+}
+async function submitAiQuestion(){
+  var input=document.getElementById('aiqa-question-input');
+  var question=input.value.trim();
+  if(!question) return;
+  var btn=document.getElementById('aiqa-submit-btn');
+  input.value='';
+  appendAiQaBubble('user',question);
+  var loadingBubble=appendAiQaBubble('ai','思考中...');
+  btn.disabled=true;
+  try{
+    var {data:{session}}=await sb.auth.getSession();
+    var resp=await fetch('/api/wechat-ask',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?session.access_token:'')},
+      body:JSON.stringify({question:question})
+    });
+    var result=await resp.json().catch(function(){return {error:'伺服器回應格式異常'};});
+    if(!resp.ok||result.error){
+      loadingBubble.querySelector('div').textContent='查詢失敗：'+(result.error||'未知錯誤');
+    }else{
+      loadingBubble.querySelector('div').textContent=result.answer||'（AI沒有回傳內容）';
+    }
+  }catch(err){
+    loadingBubble.querySelector('div').textContent='查詢失敗：'+err.message;
+  }
+  btn.disabled=false;
+}
+async function loadAiQaHistory(){
+  var el=document.getElementById('aiqa-history-list');
+  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-s);"><span class="spinner"></span> 載入中...</div>';
+  var {data,error}=await sb.from('wechat_ai_qa_usage_log').select('*').order('created_at',{ascending:false}).limit(50);
+  if(error){el.innerHTML='<div class="empty-state">讀取失敗：'+escH(error.message)+'</div>';return;}
+  if(!data||!data.length){el.innerHTML='<div class="empty-state">目前還沒有問答紀錄</div>';return;}
+  el.innerHTML=data.map(function(r){
+    var dt=r.created_at?new Date(r.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    return '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
+      +'<div style="font-size:11px;color:var(--text-s);margin-bottom:4px;">'+escH(dt)+(r.user_email?' · '+escH(r.user_email):'')+'</div>'
+      +'<div style="font-weight:600;color:var(--text-h);margin-bottom:4px;">Q：'+escH(r.question||'')+'</div>'
+      +'<div style="font-size:13px;color:var(--text-b);white-space:pre-wrap;">A：'+escH(r.answer||'')+'</div>'
+    +'</div>';
+  }).join('');
+}
+
+// ══ AI用量統計（僅大總管）════════════════════════════════════
+async function openAiUsage(){
+  document.getElementById('ai-usage-modal').style.display='flex';
+  var el=document.getElementById('ai-usage-content');
+  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-s);"><span class="spinner"></span> 載入中...</div>';
+  var {data:settingsRow,error:settingsErr}=await sb.from('wechat_ai_qa_settings').select('*').eq('id',1).single();
+  var todayStart=new Date();todayStart.setHours(0,0,0,0);
+  var {data:todayLogs,error:logsErr}=await sb.from('wechat_ai_qa_usage_log').select('estimated_cost_usd,created_at').gte('created_at',todayStart.toISOString());
+  var {data:monthLogs}=await sb.from('wechat_ai_qa_usage_log').select('estimated_cost_usd,created_at').gte('created_at',new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString());
+  if(settingsErr){el.innerHTML='<div class="empty-state">讀取失敗：'+escH(settingsErr.message)+'</div>';return;}
+  var todayCount=(todayLogs||[]).length;
+  var todayCost=(todayLogs||[]).reduce(function(s,r){return s+Number(r.estimated_cost_usd||0);},0);
+  var monthCount=(monthLogs||[]).length;
+  var monthCost=(monthLogs||[]).reduce(function(s,r){return s+Number(r.estimated_cost_usd||0);},0);
+  var limit=settingsRow?Number(settingsRow.daily_cost_limit_usd):0;
+  el.innerHTML=
+    '<div style="font-size:11px;color:var(--text-s);margin-bottom:14px;">目前AI問答功能使用的是Groq免費額度，這個上限主要是防呆機制，避免異常大量呼叫把免費額度一次用光；不代表真實帳單金額。</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
+      +'<div style="background:var(--accent-bg);border-radius:10px;padding:12px 14px;">'
+        +'<div style="font-size:11px;color:var(--text-s);">今日查詢次數</div>'
+        +'<div style="font-size:20px;font-weight:700;color:var(--text-h);">'+todayCount+'</div>'
+        +'<div style="font-size:11px;color:var(--text-s);">預估花費 $'+todayCost.toFixed(4)+'</div>'
+      +'</div>'
+      +'<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">'
+        +'<div style="font-size:11px;color:var(--text-s);">本月查詢次數</div>'
+        +'<div style="font-size:20px;font-weight:700;color:var(--text-h);">'+monthCount+'</div>'
+        +'<div style="font-size:11px;color:var(--text-s);">預估花費 $'+monthCost.toFixed(4)+'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="margin-bottom:8px;">'
+      +'<div class="filter-label" style="margin-bottom:6px;">全站每日費用上限（美元）</div>'
+      +'<input id="ai-usage-limit-input" class="input-field" type="number" step="0.01" value="'+limit+'" />'
+    +'</div>'
+    +'<button class="btn-primary" style="width:100%;justify-content:center;" id="ai-usage-save-btn" onclick="saveAiUsageLimit()">儲存上限</button>'
+    +'<div id="ai-usage-msg" style="display:none;margin-top:10px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>';
+}
+function closeAiUsage(){document.getElementById('ai-usage-modal').style.display='none';}
+async function saveAiUsageLimit(){
+  var val=parseFloat(document.getElementById('ai-usage-limit-input').value);
+  var msgEl=document.getElementById('ai-usage-msg');
+  var btn=document.getElementById('ai-usage-save-btn');
+  msgEl.style.display='none';
+  if(isNaN(val)||val<=0){
+    msgEl.style.display='block';msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='請輸入大於0的數字';return;
+  }
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
+  var {error}=await sb.from('wechat_ai_qa_settings').update({daily_cost_limit_usd:val,updated_at:new Date().toISOString(),updated_by:currentUser.id}).eq('id',1);
+  btn.disabled=false;btn.innerHTML='儲存上限';
+  msgEl.style.display='block';
+  if(error){
+    msgEl.style.background='var(--red-bg)';msgEl.style.color='var(--red)';
+    msgEl.textContent='儲存失敗：'+error.message;
+  }else{
+    msgEl.style.background='var(--green-bg,#e6f4ea)';msgEl.style.color='var(--green,#1e7e34)';
+    msgEl.textContent='已更新每日上限';
+  }
+}
 </script>
 </body>
 </html>

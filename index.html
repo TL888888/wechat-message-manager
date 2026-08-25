@@ -747,7 +747,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
     <!-- 問答分頁 -->
     <div id="aiqa-panel-ask">
-      <div style="font-size:12px;color:var(--text-s);margin-bottom:10px;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答（例如「健鼎DG6N2的報價歷史」「某業務本月CRM進度」）</div>
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:10px;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答</div>
       <div id="aiqa-conversation" style="max-height:340px;overflow-y:auto;margin-bottom:12px;"></div>
       <div style="display:flex;gap:8px;">
         <input id="aiqa-question-input" class="input-field" style="flex:1;" placeholder="輸入你的問題..." onkeydown="if(event.key==='Enter')submitAiQuestion();" />
@@ -757,6 +757,10 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
     <!-- 歷史問答分頁 -->
     <div id="aiqa-panel-history" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:11px;color:var(--text-s);">僅保留最近90天內的紀錄</div>
+        <button id="aiqa-clear-history-btn" class="btn-ghost" style="display:none;font-size:12px;padding:5px 10px;color:#dc2626;" onclick="clearAiQaHistory()"><i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>清除紀錄</button>
+      </div>
       <div id="aiqa-history-list" style="max-height:420px;overflow-y:auto;"></div>
     </div>
   </div>
@@ -1704,6 +1708,9 @@ async function onLogin(user){
   // AI用量統計（含每日上限設定）：只有大總管看得到
   var aiUsageBtn=document.getElementById('btn-ai-usage');
   if(aiUsageBtn) aiUsageBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
+  // AI問答「清除紀錄」：只有大總管看得到（資料庫層級DELETE政策也是限admin，這裡只是先把按鈕藏起來）
+  var aiqaClearBtn=document.getElementById('aiqa-clear-history-btn');
+  if(aiqaClearBtn) aiqaClearBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
   var btn=document.getElementById('login-btn');
   btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> 登入';
   await loadAllData();
@@ -3479,6 +3486,19 @@ async function submitAiQuestion(){
     }
   }catch(err){
     loadingBubble.querySelector('div').textContent='查詢失敗：'+err.message;
+  }
+  btn.disabled=false;
+}
+async function clearAiQaHistory(){
+  if(!confirm('確定要清除全部AI問答歷史紀錄嗎？此動作無法復原，且會影響所有看得到這些紀錄的人。')) return;
+  var btn=document.getElementById('aiqa-clear-history-btn');
+  btn.disabled=true;
+  try{
+    var {error}=await sb.from('wechat_ai_qa_usage_log').delete().not('id','is',null);
+    if(error){alert('清除失敗：'+error.message);}
+    else{loadAiQaHistory();}
+  }catch(err){
+    alert('清除失敗：'+err.message);
   }
   btn.disabled=false;
 }

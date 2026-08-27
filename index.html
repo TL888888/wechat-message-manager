@@ -107,6 +107,16 @@ textarea.input-field{resize:none;line-height:1.7;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .slide-in{animation:slideIn 0.22s ease;}
 @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* ══ AI問答：可拖曳、可縮放的浮動視窗 ══ */
+.ai-widget-box{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,0.28);display:flex;flex-direction:column;z-index:300;opacity:0;transform:scale(0.92);pointer-events:none;transition:opacity 0.22s ease,transform 0.22s ease;overflow:hidden;}
+.ai-widget-box.open{opacity:1;transform:scale(1);pointer-events:auto;}
+.ai-widget-box.dragging,.ai-widget-box.resizing{transition:none;}
+.ai-widget-header{background:var(--accent);color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex-shrink:0;}
+.ai-widget-icon-btn{background:none;border:none;color:rgba(255,255,255,0.85);cursor:pointer;padding:5px;font-size:13px;border-radius:5px;}
+.ai-widget-icon-btn:hover{color:#fff;background:rgba(255,255,255,0.15);}
+.ai-widget-body{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--bg);}
+.ai-widget-resize-handle{position:absolute;right:2px;bottom:2px;width:18px;height:18px;cursor:nwse-resize;color:var(--border2);display:flex;align-items:flex-end;justify-content:flex-end;padding:2px;}
+.ai-widget-resize-handle:hover{color:var(--accent);}
 mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 .raw-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;color:var(--text-m);line-height:1.75;white-space:pre-wrap;word-break:break-all;}
 .status-dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
@@ -733,37 +743,44 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   </div>
 </div>
 
-<!-- ══ AI問答（含歷史問答內部頁籤）══ -->
-<div id="ai-qa-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAiQa()">
-  <div class="modal-box slide-in" style="max-width:600px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-robot" style="color:var(--accent);margin-right:8px;"></i>問問AI</div>
-      <button onclick="closeAiQa()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+<!-- ══ AI問答（含歷史問答內部頁籤）：可拖曳/可縮放浮動視窗 ══ -->
+<div id="ai-qa-modal" class="ai-widget-box">
+  <div id="ai-qa-drag-header" class="ai-widget-header">
+    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <i class="fa-solid fa-up-down-left-right" style="font-size:11px;opacity:0.75;flex-shrink:0;"></i>
+      <i class="fa-solid fa-robot" style="flex-shrink:0;"></i>
+      <span style="font-weight:700;font-size:14px;white-space:nowrap;">問問AI</span>
     </div>
-    <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border);">
-      <button id="aiqa-tab-ask-btn" class="tab-btn active" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('ask')">問答</button>
-      <button id="aiqa-tab-history-btn" class="tab-btn" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('history')">歷史問答</button>
+    <div style="display:flex;align-items:center;gap:2px;flex-shrink:0;">
+      <button onclick="aiWidgetCtrl && aiWidgetCtrl.resetPosition()" title="還原視窗位置與大小" class="ai-widget-icon-btn"><i class="fa-solid fa-compress"></i></button>
+      <button onclick="closeAiQa()" class="ai-widget-icon-btn" title="關閉"><i class="fa-solid fa-xmark" style="font-size:15px;"></i></button>
     </div>
-
+  </div>
+  <div style="display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--card);">
+    <button id="aiqa-tab-ask-btn" class="tab-btn active" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('ask')">問答</button>
+    <button id="aiqa-tab-history-btn" class="tab-btn" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('history')">歷史問答</button>
+  </div>
+  <div class="ai-widget-body">
     <!-- 問答分頁 -->
-    <div id="aiqa-panel-ask">
-      <div style="font-size:12px;color:var(--text-s);margin-bottom:10px;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答</div>
-      <div id="aiqa-conversation" style="max-height:340px;overflow-y:auto;margin-bottom:12px;"></div>
-      <div style="display:flex;gap:8px;">
+    <div id="aiqa-panel-ask" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div style="font-size:12px;color:var(--text-s);padding:10px 14px 0;flex-shrink:0;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答</div>
+      <div id="aiqa-conversation" style="flex:1;min-height:0;overflow-y:auto;padding:10px 14px;"></div>
+      <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;background:var(--card);">
         <input id="aiqa-question-input" class="input-field" style="flex:1;" placeholder="輸入你的問題..." onkeydown="if(event.key==='Enter')submitAiQuestion();" />
         <button class="btn-primary" id="aiqa-submit-btn" onclick="submitAiQuestion()" style="flex-shrink:0;"><i class="fa-solid fa-paper-plane"></i></button>
       </div>
     </div>
 
     <!-- 歷史問答分頁 -->
-    <div id="aiqa-panel-history" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div id="aiqa-panel-history" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:10px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0;">
         <div style="font-size:11px;color:var(--text-s);">僅保留最近90天內的紀錄</div>
         <button id="aiqa-clear-history-btn" class="btn-ghost" style="display:none;font-size:12px;padding:5px 10px;color:#dc2626;" onclick="clearAiQaHistory()"><i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>清除紀錄</button>
       </div>
-      <div id="aiqa-history-list" style="max-height:420px;overflow-y:auto;"></div>
+      <div id="aiqa-history-list"></div>
     </div>
   </div>
+  <div id="ai-qa-resize-handle" class="ai-widget-resize-handle" title="拖曳調整大小"><i class="fa-solid fa-up-right-and-down-left-from-center" style="font-size:10px;"></i></div>
 </div>
 
 <!-- ══ AI用量統計（僅大總管可見） ══ -->
@@ -3430,12 +3447,105 @@ function toggleExpand(btn){
 }
 function closeDetail(){document.getElementById('detail-modal').style.display='none';}
 
-// ══ AI問答 ════════════════════════════════════════════════
+// ══ AI問答視窗：可拖曳、可縮放（共用邏輯）════════════════════
+var AI_WIDGET_MIN_WIDTH=320, AI_WIDGET_MIN_HEIGHT=360;
+function aiWidgetDefaultGeo(){
+  var vw=window.innerWidth, vh=window.innerHeight;
+  var width=Math.min(400, vw-32), height=Math.min(560, vh-100);
+  return {x:vw-width-20, y:vh-height-90, width:width, height:height};
+}
+function aiWidgetClampGeo(geo){
+  var vw=window.innerWidth, vh=window.innerHeight;
+  var width=Math.min(geo.width, vw-16), height=Math.min(geo.height, vh-16);
+  return {
+    width:width, height:height,
+    x:Math.min(Math.max(geo.x,8), Math.max(8, vw-width-8)),
+    y:Math.min(Math.max(geo.y,8), Math.max(8, vh-height-8))
+  };
+}
+function initAiWidget(opts){
+  var box=document.getElementById(opts.boxId);
+  var header=document.getElementById(opts.headerId);
+  var resizeHandle=document.getElementById(opts.resizeId);
+  if(!box||!header||!resizeHandle) return null;
+  var geo;
+  try{ var saved=sessionStorage.getItem(opts.geoKey); geo=saved?aiWidgetClampGeo(JSON.parse(saved)):aiWidgetDefaultGeo(); }
+  catch(e){ geo=aiWidgetDefaultGeo(); }
+
+  function applyGeo(){ box.style.left=geo.x+'px'; box.style.top=geo.y+'px'; box.style.width=geo.width+'px'; box.style.height=geo.height+'px'; }
+  function saveGeo(){ try{ sessionStorage.setItem(opts.geoKey, JSON.stringify(geo)); }catch(e){} }
+  applyGeo();
+
+  window.addEventListener('resize', function(){ geo=aiWidgetClampGeo(geo); applyGeo(); });
+
+  function getPoint(e){ return (e.touches&&e.touches[0])?e.touches[0]:e; }
+
+  var dragState=null;
+  function onDragMove(e){
+    if(!dragState) return;
+    var p=getPoint(e);
+    var dx=p.clientX-dragState.startX, dy=p.clientY-dragState.startY;
+    var vw=window.innerWidth, vh=window.innerHeight;
+    geo.x=Math.min(Math.max(dragState.origX+dx,8), Math.max(8, vw-geo.width-8));
+    geo.y=Math.min(Math.max(dragState.origY+dy,8), Math.max(8, vh-geo.height-8));
+    applyGeo();
+  }
+  function onDragEnd(){
+    dragState=null; box.classList.remove('dragging'); document.body.style.userSelect='';
+    saveGeo();
+    window.removeEventListener('mousemove', onDragMove); window.removeEventListener('mouseup', onDragEnd);
+    window.removeEventListener('touchmove', onDragMove); window.removeEventListener('touchend', onDragEnd);
+  }
+  function onDragStart(e){
+    if(e.target.closest('button')) return;
+    var p=getPoint(e);
+    dragState={startX:p.clientX, startY:p.clientY, origX:geo.x, origY:geo.y};
+    box.classList.add('dragging'); document.body.style.userSelect='none';
+    window.addEventListener('mousemove', onDragMove); window.addEventListener('mouseup', onDragEnd);
+    window.addEventListener('touchmove', onDragMove, {passive:false}); window.addEventListener('touchend', onDragEnd);
+  }
+  header.addEventListener('mousedown', onDragStart);
+  header.addEventListener('touchstart', onDragStart, {passive:true});
+
+  var resizeState=null;
+  function onResizeMove(e){
+    if(!resizeState) return;
+    if(e.preventDefault) e.preventDefault();
+    var p=getPoint(e);
+    var dx=p.clientX-resizeState.startX, dy=p.clientY-resizeState.startY;
+    var vw=window.innerWidth, vh=window.innerHeight;
+    geo.width=Math.min(Math.max(resizeState.origW+dx, AI_WIDGET_MIN_WIDTH), vw-geo.x-8);
+    geo.height=Math.min(Math.max(resizeState.origH+dy, AI_WIDGET_MIN_HEIGHT), vh-geo.y-8);
+    applyGeo();
+  }
+  function onResizeEnd(){
+    resizeState=null; box.classList.remove('resizing'); document.body.style.userSelect='';
+    saveGeo();
+    window.removeEventListener('mousemove', onResizeMove); window.removeEventListener('mouseup', onResizeEnd);
+    window.removeEventListener('touchmove', onResizeMove); window.removeEventListener('touchend', onResizeEnd);
+  }
+  function onResizeStart(e){
+    e.stopPropagation(); if(e.preventDefault) e.preventDefault();
+    var p=getPoint(e);
+    resizeState={startX:p.clientX, startY:p.clientY, origW:geo.width, origH:geo.height};
+    box.classList.add('resizing'); document.body.style.userSelect='none';
+    window.addEventListener('mousemove', onResizeMove); window.addEventListener('mouseup', onResizeEnd);
+    window.addEventListener('touchmove', onResizeMove, {passive:false}); window.addEventListener('touchend', onResizeEnd);
+  }
+  resizeHandle.addEventListener('mousedown', onResizeStart);
+  resizeHandle.addEventListener('touchstart', onResizeStart, {passive:false});
+
+  return {
+    resetPosition:function(){ geo=aiWidgetDefaultGeo(); applyGeo(); saveGeo(); }
+  };
+}
+var aiWidgetCtrl=initAiWidget({boxId:'ai-qa-modal', headerId:'ai-qa-drag-header', resizeId:'ai-qa-resize-handle', geoKey:'wechat_ai_chat_geo'});
+
 function openAiQa(){
-  document.getElementById('ai-qa-modal').style.display='flex';
+  document.getElementById('ai-qa-modal').classList.add('open');
   switchAiQaTab('ask');
 }
-function closeAiQa(){document.getElementById('ai-qa-modal').style.display='none';}
+function closeAiQa(){document.getElementById('ai-qa-modal').classList.remove('open');}
 function switchAiQaTab(tab){
   var askBtn=document.getElementById('aiqa-tab-ask-btn');
   var historyBtn=document.getElementById('aiqa-tab-history-btn');
@@ -3443,10 +3553,10 @@ function switchAiQaTab(tab){
   var historyPanel=document.getElementById('aiqa-panel-history');
   if(tab==='ask'){
     askBtn.classList.add('active');historyBtn.classList.remove('active');
-    askPanel.style.display='block';historyPanel.style.display='none';
+    askPanel.style.display='flex';historyPanel.style.display='none';
   }else{
     askBtn.classList.remove('active');historyBtn.classList.add('active');
-    askPanel.style.display='none';historyPanel.style.display='block';
+    askPanel.style.display='none';historyPanel.style.display='flex';
     loadAiQaHistory();
   }
 }

@@ -92,28 +92,22 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // ── 第一段：抓RLS範圍內的候選客戶/機型/業務名稱，跟問題文字做子字串比對 ──
-    const [wmC, wmM, wmS, crC, crM, crS, vrC] = await Promise.all([
-      userClient.from('wechat_messages').select('company').not('company', 'is', null),
-      userClient.from('wechat_messages').select('model').not('model', 'is', null),
-      userClient.from('wechat_messages').select('sales').not('sales', 'is', null),
-      userClient.from('crm_records').select('customer').not('customer', 'is', null),
-      userClient.from('crm_records').select('model').not('model', 'is', null),
-      userClient.from('crm_records').select('sales').not('sales', 'is', null),
-      userClient.from('visit_records').select('customer').not('customer', 'is', null),
+    // 改用資料庫端的RPC函式直接拿「不重複」的客戶/機型/業務清單（RLS依舊套用在呼叫者身上），
+    // 不用再把visit_records這種上萬筆的表整批分頁撈到JS裡自己去重，效能好很多，
+    // 也不會因為表持續變大而重新踩到查詢筆數上限的問題
+    const [custRes, modelRes, salesRes] = await Promise.all([
+      userClient.rpc('wechat_ai_qa_candidate_customers'),
+      userClient.rpc('wechat_ai_qa_candidate_models'),
+      userClient.rpc('wechat_ai_qa_candidate_sales'),
     ]);
 
-    const uniq = (rows, key) => [
-      ...new Set((rows || []).map((r) => (r[key] || '').trim()).filter((v) => v.length >= 2)),
+    const uniqFromRpc = (data, key) => [
+      ...new Set((data || []).map((r) => (r[key] || '').trim()).filter((v) => v.length >= 2)),
     ];
 
-    const customerSet = new Set([
-      ...uniq(wmC.data, 'company'),
-      ...uniq(crC.data, 'customer'),
-      ...uniq(vrC.data, 'customer'),
-    ]);
-    const modelSet = new Set([...uniq(wmM.data, 'model'), ...uniq(crM.data, 'model')]);
-    const salesSet = new Set([...uniq(wmS.data, 'sales'), ...uniq(crS.data, 'sales')]);
+    const customerSet = new Set(uniqFromRpc(custRes.data, 'customer'));
+    const modelSet = new Set(uniqFromRpc(modelRes.data, 'model'));
+    const salesSet = new Set(uniqFromRpc(salesRes.data, 'sales'));
 
     // 嚴格比對：問題要完整包含資料庫值（用於機型代碼，差一碼就是不同機器，不能放寬）
     const matchStrict = (set) => [...set].filter((v) => question.includes(v));

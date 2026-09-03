@@ -118,11 +118,18 @@ module.exports = async function handler(req, res) {
     // 嚴格比對：問題要完整包含資料庫值（用於機型代碼，差一碼就是不同機器，不能放寬）
     const matchStrict = (set) => [...set].filter((v) => question.includes(v));
 
+    // 這些是很常見的中文商業用詞／使用者問句常見詞，如果拿它們去比對，
+    // 幾乎任何問句都會「巧合」命中一堆不相關的客戶，所以明確排除，不當作有效比對片段
+    const FUZZY_STOPWORDS = new Set([
+      '股份','有限','公司','集團','電子','科技','工業','企業','國際','實業',
+      '控股','材料','機械','精密','工程','需求','訊息','資訊','報價','資料',
+      '進度','狀態','客戶','業務','時間','數量','機型','設備','技術','產品',
+      '管理','系統','廠商','廠房','製造','製程','生產','設計','服務','出貨',
+    ]);
     // 模糊比對：資料庫值本身可能有地區/廠別等前後綴變體（如「無錫健鼎」「健鼎(越南)」），
-    // 只要值裡有一段3~4字的片段出現在問題裡就算比對到，這樣打「健鼎」能同時抓到全部變體
-    // （最短片段原本是2個字，但2個字常常剛好是普通中文詞彙如「需求」「訊息」「科技」，
-    // 使用者問句裡常常自然帶到，會誤把完全不相關的客戶也判定成有比對到，抓錯資料，
-    // 所以拉高到3個字，大幅降低這種巧合誤判的機率）
+    // 只要值裡有一段2~4字的片段出現在問題裡就算比對到，這樣打「健鼎」能同時抓到全部變體
+    // （片段本身如果剛好是「需求」「訊息」「科技」這類常見詞，會排除不算，
+    // 避免使用者問句的普通用字剛好跟某個不相關客戶名稱的一部分撞在一起，誤判成有比對到）
     const matchFuzzy = (set) => {
       const matched = [];
       for (const candidate of set) {
@@ -131,9 +138,11 @@ module.exports = async function handler(req, res) {
           continue;
         }
         let found = false;
-        for (let len = Math.min(4, candidate.length); len >= 3 && !found; len--) {
+        for (let len = Math.min(4, candidate.length); len >= 2 && !found; len--) {
           for (let i = 0; i + len <= candidate.length; i++) {
-            if (question.includes(candidate.slice(i, i + len))) {
+            const frag = candidate.slice(i, i + len);
+            if (FUZZY_STOPWORDS.has(frag)) continue;
+            if (question.includes(frag)) {
               found = true;
               break;
             }

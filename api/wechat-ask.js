@@ -168,16 +168,8 @@ module.exports = async function handler(req, res) {
     const matchedSales = matchFuzzy(salesSet);
 
     if (!matchedCustomers.length && !matchedModels.length && !matchedSales.length) {
-      // ── 暫時性除錯區塊：不管查誰只要比對不到，都把候選名單狀況顯示出來，
-      // 方便一次看出問題是「資料庫根本沒撈到候選名單」還是「比對邏輯漏掉」，
-      // 確認沒問題後記得把這整塊拿掉，正式環境不應該把內部資料細節顯示給使用者 ──
-      const debugCustomerSample = [...customerSet].filter((c) => question.split('').some((ch) => c.includes(ch))).slice(0, 15);
-      const debugInfo =
-        `\n\n[除錯資訊] 候選客戶總數:${customerSet.size} 候選機型總數:${modelSet.size} 候選業務總數:${salesSet.size}\n` +
-        `跟問題「${question}」有任一字元重疊的候選客戶(最多列15筆):${JSON.stringify(debugCustomerSample)}`;
       const answer =
-        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。' +
-        debugInfo;
+        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。';
       await logAttempt(answer, 0, 0);
       res.status(200).json({ answer, matched_records_count: 0 });
       return;

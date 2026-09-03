@@ -95,19 +95,35 @@ module.exports = async function handler(req, res) {
     // 改用資料庫端的RPC函式直接拿「不重複」的客戶/機型/業務清單（RLS依舊套用在呼叫者身上），
     // 不用再把visit_records這種上萬筆的表整批分頁撈到JS裡自己去重，效能好很多，
     // 也不會因為表持續變大而重新踩到查詢筆數上限的問題
-    const [custRes, modelRes, salesRes] = await Promise.all([
-      userClient.rpc('wechat_ai_qa_candidate_customers'),
-      userClient.rpc('wechat_ai_qa_candidate_models'),
-      userClient.rpc('wechat_ai_qa_candidate_sales'),
+    // ──但注意：Supabase不管是一般查詢還是RPC，單次回應預設都還是有1000筆上限，
+    // 資料庫幫忙去重後的結果如果本身還是超過1000筆，一樣會被砍掉，所以RPC呼叫也要分頁撈到底
+    async function fetchAllRpc(fnName) {
+      const PAGE_SIZE = 1000;
+      let all = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await userClient.rpc(fnName).range(from, from + PAGE_SIZE - 1);
+        if (error || !data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return all;
+    }
+
+    const [custData, modelData, salesData] = await Promise.all([
+      fetchAllRpc('wechat_ai_qa_candidate_customers'),
+      fetchAllRpc('wechat_ai_qa_candidate_models'),
+      fetchAllRpc('wechat_ai_qa_candidate_sales'),
     ]);
 
     const uniqFromRpc = (data, key) => [
       ...new Set((data || []).map((r) => (r[key] || '').trim()).filter((v) => v.length >= 2)),
     ];
 
-    const customerSet = new Set(uniqFromRpc(custRes.data, 'customer'));
-    const modelSet = new Set(uniqFromRpc(modelRes.data, 'model'));
-    const salesSet = new Set(uniqFromRpc(salesRes.data, 'sales'));
+    const customerSet = new Set(uniqFromRpc(custData, 'customer'));
+    const modelSet = new Set(uniqFromRpc(modelData, 'model'));
+    const salesSet = new Set(uniqFromRpc(salesData, 'sales'));
 
     // 嚴格比對：問題要完整包含資料庫值（用於機型代碼，差一碼就是不同機器，不能放寬）
     const matchStrict = (set) => [...set].filter((v) => question.includes(v));

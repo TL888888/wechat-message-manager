@@ -237,23 +237,23 @@ module.exports = async function handler(req, res) {
       ),
     ]);
 
-    // 截斷長度比之前更緊，優先保留報價/日期/客戶/機型這些關鍵欄位，長文字欄位只留摘要
-    const truncate = (s, n) => (s && s.length > n ? s.slice(0, n) + '…' : s || '');
-
+    // 之前這裡有針對每個欄位個別截斷字數，現在已升級付費方案不用再省，
+    // 拿掉單欄位截斷，改成完全依賴下面的MAX_PROMPT_CHARS整體字數預算去收斂要放幾筆記錄，
+    // 避免像客戶資訊裡的報價金額出現在文字後段卻被單獨截斷掉、AI看不到的問題
     const records = [];
     (wmData || []).forEach((r) =>
       records.push(
-        `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${truncate(r.raw, 80)} 備註:${truncate(r.note, 40)} 其他:${truncate(r.other, 40)}`
+        `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${r.raw || ''} 備註:${r.note || ''} 其他:${r.other || ''}`
       )
     );
     (crData || []).forEach((r) =>
       records.push(
-        `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${truncate(r.status_w1, 40)} 本週狀態:${truncate(r.status_w2, 40)} 業務:${r.sales}`
+        `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales}`
       )
     );
     (vrData || []).forEach((r) =>
       records.push(
-        `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${truncate(r.customer_info, 80)} 市場訊息:${truncate(r.market_info, 40)} 其他:${truncate(r.other, 40)} 業務:${r.sales}`
+        `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`
       )
     );
 

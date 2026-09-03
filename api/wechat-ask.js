@@ -19,6 +19,11 @@ const MAX_PROMPT_CHARS = 13000;
 const PRICE_PER_M_PROMPT_TOKENS = 0.15;
 const PRICE_PER_M_COMPLETION_TOKENS = 0.6;
 
+// ---- AI用量統計：推播到中央表（供「統計系統」的AI用量統計模組使用）----
+const STATS_SYSTEM_NAME = 'wechat';
+const STATS_API_KEY_NAME = 'DEEPINFRA_API_KEY_SALES';
+const STATS_PUSH_URL = process.env.STATS_PUSH_URL || `${SUPABASE_URL}/functions/v1/stats-ai-usage-push`;
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' });
@@ -288,19 +293,27 @@ module.exports = async function handler(req, res) {
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
     // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──
-    fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-stats-secret': process.env.STATS_PUSH_SECRET,
-      },
-      body: JSON.stringify({
-        system_name: 'wechat-manager',
-        ai_provider: 'deepinfra',
-        query_count_increment: 1,
-        estimated_cost_increment: estimatedCost,
-      }),
-    }).catch(() => {});
+    if (process.env.STATS_PUSH_SECRET) {
+      fetch(STATS_PUSH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'x-push-secret': process.env.STATS_PUSH_SECRET,
+        },
+        body: JSON.stringify({
+          system_name: STATS_SYSTEM_NAME,
+          api_key_name: STATS_API_KEY_NAME,
+          ai_provider: 'deepinfra',
+          ai_model: AI_MODEL,
+          asker_email: userEmail,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: promptTokens + completionTokens,
+          cache_hit: false,
+        }),
+      }).catch(() => {});
+    }
 
     res.status(200).json({
       answer,

@@ -733,36 +733,49 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
   </div>
 </div>
 
-<!-- ══ AI問答（含歷史問答內部頁籤）══ -->
-<div id="ai-qa-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAiQa()">
-  <div class="modal-box slide-in" style="max-width:600px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-robot" style="color:var(--accent);margin-right:8px;"></i>問問AI</div>
-      <button onclick="closeAiQa()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+<!-- ══ AI問答（含歷史問答內部頁籤）══ 可拖曳、可調整大小的浮動視窗，比照技術論壇pdf_reader_v2樣式 -->
+<div id="ai-qa-modal" style="display:none;position:fixed;z-index:200;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 30px rgba(16,24,40,0.25);overflow:hidden;flex-direction:column;">
+  <div id="aiqa-drag-handle" onmousedown="aiqaDragStart(event)" ontouchstart="aiqaDragStart(event)" style="cursor:move;user-select:none;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--accent);color:#fff;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;">
+      <i class="fa-solid fa-up-down-left-right" style="font-size:11px;opacity:0.7;"></i>
+      <i class="fa-solid fa-robot"></i>問問AI
     </div>
-    <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:2px;">
+      <button onclick="resetAiQaGeo()" title="還原視窗位置與大小" style="background:none;border:none;color:rgba(255,255,255,0.85);cursor:pointer;padding:4px 6px;font-size:13px;">
+        <i class="fa-solid fa-compress"></i>
+      </button>
+      <button onclick="closeAiQa()" style="background:none;border:none;color:rgba(255,255,255,0.85);cursor:pointer;padding:4px 6px;font-size:16px;">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+  <div style="padding:16px;overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0;">
+    <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <button id="aiqa-tab-ask-btn" class="tab-btn active" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('ask')">問答</button>
       <button id="aiqa-tab-history-btn" class="tab-btn" style="border-radius:7px 7px 0 0;" onclick="switchAiQaTab('history')">歷史問答</button>
     </div>
 
     <!-- 問答分頁 -->
-    <div id="aiqa-panel-ask">
-      <div style="font-size:12px;color:var(--text-s);margin-bottom:10px;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答</div>
-      <div id="aiqa-conversation" style="max-height:340px;overflow-y:auto;margin-bottom:12px;"></div>
-      <div style="display:flex;gap:8px;">
+    <div id="aiqa-panel-ask" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:10px;flex-shrink:0;">可以直接用自然語言問客戶商務/CRM需求/拜訪紀錄的相關問題，AI只會依你自己看得到的資料範圍回答</div>
+      <div id="aiqa-conversation" style="flex:1;overflow-y:auto;margin-bottom:12px;min-height:0;"></div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
         <input id="aiqa-question-input" class="input-field" style="flex:1;" placeholder="輸入你的問題..." onkeydown="if(event.key==='Enter')submitAiQuestion();" />
         <button class="btn-primary" id="aiqa-submit-btn" onclick="submitAiQuestion()" style="flex-shrink:0;"><i class="fa-solid fa-paper-plane"></i></button>
       </div>
     </div>
 
     <!-- 歷史問答分頁 -->
-    <div id="aiqa-panel-history" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div id="aiqa-panel-history" style="display:none;flex-direction:column;min-height:0;flex:1;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0;">
         <div style="font-size:11px;color:var(--text-s);">僅保留最近90天內的紀錄</div>
         <button id="aiqa-clear-history-btn" class="btn-ghost" style="display:none;font-size:12px;padding:5px 10px;color:#dc2626;" onclick="clearAiQaHistory()"><i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>清除紀錄</button>
       </div>
-      <div id="aiqa-history-list" style="max-height:420px;overflow-y:auto;"></div>
+      <div id="aiqa-history-list" style="flex:1;overflow-y:auto;min-height:0;"></div>
     </div>
+  </div>
+  <div onmousedown="aiqaResizeStart(event)" ontouchstart="aiqaResizeStart(event)" title="拖曳調整大小" style="position:absolute;right:2px;bottom:2px;width:18px;height:18px;cursor:nwse-resize;color:var(--text-s);display:flex;align-items:flex-end;justify-content:flex-end;">
+    <i class="fa-solid fa-up-right-and-down-left-from-center" style="font-size:11px;transform:rotate(90deg);"></i>
   </div>
 </div>
 
@@ -3287,7 +3300,7 @@ function handleExcelFile(e){
 
             var model,qty,delivery;
             if(isDualBlockFormat&&w2){
-              // 永遠讀「本週」（最新那個週次區塊）的機型/數量/需求時間，不管上週寫什麼
+              // 永遠只看「本週」欄位的機型/數量/需求時間/進度，本週留空就是空白，不回頭抓上週
               model=String(row[w2.idx-3]||'').trim();
               qty=String(row[w2.idx-2]||'').trim();
               delivery=String(row[w2.idx-1]||'').trim();
@@ -3306,13 +3319,6 @@ function handleExcelFile(e){
 
             var status1=w1?String(row[w1.idx]||'').trim():'';
             var status2=w2?String(row[w2.idx]||'').trim():'';
-
-            if(!status1&&!status2){
-              for(var wi=weekCols.length-1;wi>=0;wi--){
-                var sv=String(row[weekCols[wi].idx]||'').trim();
-                if(sv){status2=sv;if(!w2)w2={label:weekCols[wi].label};break;}
-              }
-            }
 
             rowCount++;
             parsed.push({
@@ -3452,8 +3458,125 @@ function toggleExpand(btn){
 function closeDetail(){document.getElementById('detail-modal').style.display='none';}
 
 // ══ AI問答 ════════════════════════════════════════════════
+// 視窗位置／大小（可拖曳、可調整大小），記憶在 sessionStorage，比照技術論壇pdf_reader_v2的做法
+var AIQA_GEO_KEY='wechatAiQaGeo';
+var AIQA_MIN_WIDTH=320;
+var AIQA_MIN_HEIGHT=380;
+function aiqaGetDefaultGeo(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  if(vw<640){
+    return {x:16,y:Math.round(vh*0.05),width:vw-32,height:Math.round(vh*0.9)-24};
+  }
+  var width=440,height=580;
+  return {x:24,y:vh-height-24,width:width,height:height};
+}
+function aiqaClampGeo(geo){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  var width=Math.min(Math.max(geo.width,AIQA_MIN_WIDTH),vw-16);
+  var height=Math.min(Math.max(geo.height,AIQA_MIN_HEIGHT),vh-16);
+  var x=Math.min(Math.max(geo.x,8),Math.max(8,vw-width-8));
+  var y=Math.min(Math.max(geo.y,8),Math.max(8,vh-height-8));
+  return {x:x,y:y,width:width,height:height};
+}
+function aiqaLoadGeo(){
+  try{
+    var saved=sessionStorage.getItem(AIQA_GEO_KEY);
+    if(saved) return aiqaClampGeo(JSON.parse(saved));
+  }catch(e){}
+  return aiqaGetDefaultGeo();
+}
+function aiqaSaveGeo(geo){
+  try{sessionStorage.setItem(AIQA_GEO_KEY,JSON.stringify(geo));}catch(e){}
+}
+function aiqaApplyGeo(geo){
+  var el=document.getElementById('ai-qa-modal');
+  el.style.left=geo.x+'px';
+  el.style.top=geo.y+'px';
+  el.style.width=geo.width+'px';
+  el.style.height=geo.height+'px';
+}
+var aiqaGeo=aiqaLoadGeo();
+function resetAiQaGeo(){
+  aiqaGeo=aiqaGetDefaultGeo();
+  aiqaSaveGeo(aiqaGeo);
+  aiqaApplyGeo(aiqaGeo);
+}
+window.addEventListener('resize',function(){
+  if(document.getElementById('ai-qa-modal').style.display==='none') return;
+  aiqaGeo=aiqaClampGeo(aiqaGeo);
+  aiqaSaveGeo(aiqaGeo);
+  aiqaApplyGeo(aiqaGeo);
+});
+function aiqaGetPoint(e){return (e.touches&&e.touches[0])?e.touches[0]:e;}
+
+var aiqaDragState=null;
+function aiqaDragMove(e){
+  if(!aiqaDragState) return;
+  var p=aiqaGetPoint(e);
+  var dx=p.clientX-aiqaDragState.startX;
+  var dy=p.clientY-aiqaDragState.startY;
+  var vw=window.innerWidth,vh=window.innerHeight;
+  aiqaGeo.x=Math.min(Math.max(aiqaDragState.origX+dx,8),Math.max(8,vw-aiqaGeo.width-8));
+  aiqaGeo.y=Math.min(Math.max(aiqaDragState.origY+dy,8),Math.max(8,vh-aiqaGeo.height-8));
+  aiqaApplyGeo(aiqaGeo);
+}
+function aiqaDragEnd(){
+  aiqaDragState=null;
+  document.body.style.userSelect='';
+  aiqaSaveGeo(aiqaGeo);
+  window.removeEventListener('mousemove',aiqaDragMove);
+  window.removeEventListener('mouseup',aiqaDragEnd);
+  window.removeEventListener('touchmove',aiqaDragMove);
+  window.removeEventListener('touchend',aiqaDragEnd);
+}
+function aiqaDragStart(e){
+  if(e.target.closest('button')) return; // 按鈕（還原視窗／關閉）不觸發拖曳
+  var p=aiqaGetPoint(e);
+  aiqaDragState={startX:p.clientX,startY:p.clientY,origX:aiqaGeo.x,origY:aiqaGeo.y};
+  document.body.style.userSelect='none';
+  window.addEventListener('mousemove',aiqaDragMove);
+  window.addEventListener('mouseup',aiqaDragEnd);
+  window.addEventListener('touchmove',aiqaDragMove,{passive:false});
+  window.addEventListener('touchend',aiqaDragEnd);
+}
+
+var aiqaResizeState=null;
+function aiqaResizeMove(e){
+  if(!aiqaResizeState) return;
+  if(e.preventDefault) e.preventDefault();
+  var p=aiqaGetPoint(e);
+  var dx=p.clientX-aiqaResizeState.startX;
+  var dy=p.clientY-aiqaResizeState.startY;
+  var vw=window.innerWidth,vh=window.innerHeight;
+  aiqaGeo.width=Math.min(Math.max(aiqaResizeState.origW+dx,AIQA_MIN_WIDTH),vw-aiqaGeo.x-8);
+  aiqaGeo.height=Math.min(Math.max(aiqaResizeState.origH+dy,AIQA_MIN_HEIGHT),vh-aiqaGeo.y-8);
+  aiqaApplyGeo(aiqaGeo);
+}
+function aiqaResizeEnd(){
+  aiqaResizeState=null;
+  document.body.style.userSelect='';
+  aiqaSaveGeo(aiqaGeo);
+  window.removeEventListener('mousemove',aiqaResizeMove);
+  window.removeEventListener('mouseup',aiqaResizeEnd);
+  window.removeEventListener('touchmove',aiqaResizeMove);
+  window.removeEventListener('touchend',aiqaResizeEnd);
+}
+function aiqaResizeStart(e){
+  e.stopPropagation();
+  if(e.preventDefault) e.preventDefault();
+  var p=aiqaGetPoint(e);
+  aiqaResizeState={startX:p.clientX,startY:p.clientY,origW:aiqaGeo.width,origH:aiqaGeo.height};
+  document.body.style.userSelect='none';
+  window.addEventListener('mousemove',aiqaResizeMove);
+  window.addEventListener('mouseup',aiqaResizeEnd);
+  window.addEventListener('touchmove',aiqaResizeMove,{passive:false});
+  window.addEventListener('touchend',aiqaResizeEnd);
+}
+
 function openAiQa(){
+  aiqaGeo=aiqaLoadGeo();
   document.getElementById('ai-qa-modal').style.display='flex';
+  aiqaApplyGeo(aiqaGeo);
   switchAiQaTab('ask');
 }
 function closeAiQa(){document.getElementById('ai-qa-modal').style.display='none';}
@@ -3464,10 +3587,10 @@ function switchAiQaTab(tab){
   var historyPanel=document.getElementById('aiqa-panel-history');
   if(tab==='ask'){
     askBtn.classList.add('active');historyBtn.classList.remove('active');
-    askPanel.style.display='block';historyPanel.style.display='none';
+    askPanel.style.display='flex';historyPanel.style.display='none';
   }else{
     askBtn.classList.remove('active');historyBtn.classList.add('active');
-    askPanel.style.display='none';historyPanel.style.display='block';
+    askPanel.style.display='none';historyPanel.style.display='flex';
     loadAiQaHistory();
   }
 }

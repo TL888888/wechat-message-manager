@@ -176,62 +176,82 @@ module.exports = async function handler(req, res) {
     }
 
     // ── 第二段：依比對到的關鍵字查三張表（RLS自動限縮，不用另外寫權限判斷）──
-    const applyFilters = (query, customerCol, modelCol, salesCol) => {
-      let q = query;
-      if (matchedCustomers.length) q = q.in(customerCol, matchedCustomers);
-      if (matchedModels.length && modelCol) q = q.in(modelCol, matchedModels);
-      if (matchedSales.length && salesCol) q = q.in(salesCol, matchedSales);
-      return q;
-    };
+    // 客戶／機型／業務三個線索之間改成「符合任一個就算」（OR），不是「全部都要符合」（AND）。
+    // 原本用AND的問題：機型欄位常常是一整段自由文字（例如「鑽孔機:成型機:RU6HM-125*82台...」），
+    // 不是乾淨的機型代碼，同時問「客戶+機型」時，客戶明明對得上，卻因為機型欄位比對不到精確字串
+    // 而被AND邏輯整筆排除，明明是最相關的資料卻查不到。
+    // 改成分開查三次（每個線索各自用.in()安全比對，不用字串拼接.or()以免客戶名稱裡的括號/逗號等
+    // 特殊字元弄壞查詢語法），再合併去重，只要任一線索命中就收進來。
+    async function fetchByAnyDimension(table, selectCols, customerCol, modelCol, salesCol, orderCol) {
+      const queries = [];
+      if (matchedCustomers.length) {
+        queries.push(
+          userClient.from(table).select(selectCols).in(customerCol, matchedCustomers)
+            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+        );
+      }
+      if (matchedModels.length && modelCol) {
+        queries.push(
+          userClient.from(table).select(selectCols).in(modelCol, matchedModels)
+            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+        );
+      }
+      if (matchedSales.length && salesCol) {
+        queries.push(
+          userClient.from(table).select(selectCols).in(salesCol, matchedSales)
+            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+        );
+      }
+      const results = await Promise.all(queries);
+      const merged = [];
+      const seen = new Set();
+      results.forEach((r) => {
+        (r.data || []).forEach((row) => {
+          const key = JSON.stringify(row);
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(row);
+          }
+        });
+      });
+      // 合併多路查詢後，依日期重新排序、收斂到同樣的上限，避免筆數暴增
+      merged.sort((a, b) => (a[orderCol] < b[orderCol] ? 1 : -1));
+      return merged.slice(0, MAX_RECORDS_PER_TABLE);
+    }
 
-    const [wmRes, crRes, vrRes] = await Promise.all([
-      applyFilters(
-        userClient
-          .from('wechat_messages')
-          .select('date,company,model,qty,price,delivery,status,sales,raw,note,other'),
-        'company',
-        'model',
-        'sales'
-      )
-        .order('date', { ascending: false })
-        .limit(MAX_RECORDS_PER_TABLE),
-      applyFilters(
-        userClient
-          .from('crm_records')
-          .select('import_date,customer,model,qty,delivery,status_w1,status_w2,sales'),
-        'customer',
-        'model',
-        'sales'
-      )
-        .order('import_date', { ascending: false })
-        .limit(MAX_RECORDS_PER_TABLE),
-      applyFilters(
-        userClient
-          .from('visit_records')
-          .select('report_date,customer,model,customer_info,market_info,other,sales'),
-        'customer',
-        'model',
-        'sales'
-      )
-        .order('report_date', { ascending: false })
-        .limit(MAX_RECORDS_PER_TABLE),
+    const [wmData, crData, vrData] = await Promise.all([
+      fetchByAnyDimension(
+        'wechat_messages',
+        'date,company,model,qty,price,delivery,status,sales,raw,note,other',
+        'company', 'model', 'sales', 'date'
+      ),
+      fetchByAnyDimension(
+        'crm_records',
+        'import_date,customer,model,qty,delivery,status_w1,status_w2,sales',
+        'customer', 'model', 'sales', 'import_date'
+      ),
+      fetchByAnyDimension(
+        'visit_records',
+        'report_date,customer,model,customer_info,market_info,other,sales',
+        'customer', 'model', 'sales', 'report_date'
+      ),
     ]);
 
     // 截斷長度比之前更緊，優先保留報價/日期/客戶/機型這些關鍵欄位，長文字欄位只留摘要
     const truncate = (s, n) => (s && s.length > n ? s.slice(0, n) + '…' : s || '');
 
     const records = [];
-    (wmRes.data || []).forEach((r) =>
+    (wmData || []).forEach((r) =>
       records.push(
         `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${truncate(r.raw, 80)} 備註:${truncate(r.note, 40)} 其他:${truncate(r.other, 40)}`
       )
     );
-    (crRes.data || []).forEach((r) =>
+    (crData || []).forEach((r) =>
       records.push(
         `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${truncate(r.status_w1, 40)} 本週狀態:${truncate(r.status_w2, 40)} 業務:${r.sales}`
       )
     );
-    (vrRes.data || []).forEach((r) =>
+    (vrData || []).forEach((r) =>
       records.push(
         `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${truncate(r.customer_info, 80)} 市場訊息:${truncate(r.market_info, 40)} 其他:${truncate(r.other, 40)} 業務:${r.sales}`
       )

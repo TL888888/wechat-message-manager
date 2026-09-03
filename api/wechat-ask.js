@@ -1,28 +1,20 @@
 const { createClient } = require('@supabase/supabase-js');
 
-// ---- AI 供應商設定（可抽換）：預設 DeepInfra，未來要換供應商只需在 Vercel 環境變數覆蓋這兩個值 ----
-const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.deepinfra.com/v1/openai/chat/completions';
-const AI_MODEL = process.env.AI_MODEL || 'openai/gpt-oss-120b';
-const AI_API_KEY = process.env.DEEPINFRA_API_KEY_SALES;
-
 const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 // 這把是前端本來就在用的 anon key（公開金鑰，不是機密，RLS會保護資料，這裡沿用同一把）
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
 
-const MAX_RECORDS_PER_TABLE = 40; // 資料庫查詢階段先抓，實際餵給AI的量由下面的字數預算再收斂
-// 餵給AI的資料總字數預算。原本 3200 是配合 Groq 免費版「每分鐘8000 token」限制設的保守值；
-// 換成 DeepInfra 付費版後沒有這個免費額度限制，放寬到 13000（約可容納更完整的比對紀錄）。
-const MAX_PROMPT_CHARS = 13000;
+const GROQ_MODEL = 'openai/gpt-oss-120b';
+const MAX_RECORDS_PER_TABLE = 30; // 資料庫查詢階段先抓，實際餵給AI的量由下面的字數預算再收斂
+// 餵給AI的資料總字數預算（粗抓，避免超過免費版Groq「每分鐘8000 token」的限制；
+// 中文一個字通常不只1個token，這裡故意抓得保守一點，含系統提示與問題本身的空間）
+const MAX_PROMPT_CHARS = 3200;
 
-// AI 服務定價（每百萬 token 美元），這是預留位置數字，請上供應商官網核對目前實際費率後再更新這兩個數字，
+// Groq 定價（每百萬 token 美元），這是預留位置數字，請上 Groq 官網
+// https://groq.com/pricing 核對 openai/gpt-oss-120b 目前實際費率後再更新這兩個數字，
 // 否則統計出來的 estimated_cost_usd 只是概估，不是真實帳單金額
 const PRICE_PER_M_PROMPT_TOKENS = 0.15;
-const PRICE_PER_M_COMPLETION_TOKENS = 0.6;
-
-// ---- AI用量統計：推播到中央表（供「統計系統」的AI用量統計模組使用）----
-const STATS_SYSTEM_NAME = 'wechat';
-const STATS_API_KEY_NAME = 'DEEPINFRA_API_KEY_SALES';
-const STATS_PUSH_URL = process.env.STATS_PUSH_URL || `${SUPABASE_URL}/functions/v1/stats-ai-usage-push`;
+const PRICE_PER_M_COMPLETION_TOKENS = 0.75;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -127,7 +119,10 @@ module.exports = async function handler(req, res) {
     const matchStrict = (set) => [...set].filter((v) => question.includes(v));
 
     // 模糊比對：資料庫值本身可能有地區/廠別等前後綴變體（如「無錫健鼎」「健鼎(越南)」），
-    // 只要值裡有一段2~4字的片段出現在問題裡就算比對到，這樣打「健鼎」能同時抓到全部變體
+    // 只要值裡有一段3~4字的片段出現在問題裡就算比對到，這樣打「健鼎」能同時抓到全部變體
+    // （最短片段原本是2個字，但2個字常常剛好是普通中文詞彙如「需求」「訊息」「科技」，
+    // 使用者問句裡常常自然帶到，會誤把完全不相關的客戶也判定成有比對到，抓錯資料，
+    // 所以拉高到3個字，大幅降低這種巧合誤判的機率）
     const matchFuzzy = (set) => {
       const matched = [];
       for (const candidate of set) {
@@ -136,7 +131,7 @@ module.exports = async function handler(req, res) {
           continue;
         }
         let found = false;
-        for (let len = Math.min(4, candidate.length); len >= 2 && !found; len--) {
+        for (let len = Math.min(4, candidate.length); len >= 3 && !found; len--) {
           for (let i = 0; i + len <= candidate.length; i++) {
             if (question.includes(candidate.slice(i, i + len))) {
               found = true;
@@ -203,7 +198,7 @@ module.exports = async function handler(req, res) {
         .limit(MAX_RECORDS_PER_TABLE),
     ]);
 
-    // 截斷長度：優先保留報價/日期/客戶/機型這些關鍵欄位，長文字欄位只留摘要
+    // 截斷長度比之前更緊，優先保留報價/日期/客戶/機型這些關鍵欄位，長文字欄位只留摘要
     const truncate = (s, n) => (s && s.length > n ? s.slice(0, n) + '…' : s || '');
 
     const records = [];
@@ -230,7 +225,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // 依「最新的優先」用字數預算收斂到安全範圍內
+    // 依「最新的優先」用字數預算收斂到安全範圍內，避免超過Groq免費版的TPM限制
     const limitedRecords = [];
     let charBudget = MAX_PROMPT_CHARS;
     for (const rec of records) {
@@ -240,17 +235,17 @@ module.exports = async function handler(req, res) {
     }
     const omittedCount = records.length - limitedRecords.length;
 
-    // ── 呼叫 AI，讓AI只根據撈到的紀錄回答，不臆測 ──
-    let aiRes, aiData;
+    // ── 呼叫 Groq，讓AI只根據撈到的紀錄回答，不臆測 ──
+    let groqRes, groqData;
     try {
-      aiRes = await fetch(AI_BASE_URL, {
+      groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${AI_API_KEY}`,
+          Authorization: `Bearer ${process.env.GROQ_API_KEY_WECHAT}`,
         },
         body: JSON.stringify({
-          model: AI_MODEL,
+          model: GROQ_MODEL,
           messages: [
             {
               role: 'system',
@@ -265,7 +260,7 @@ module.exports = async function handler(req, res) {
           temperature: 0.2,
         }),
       });
-      aiData = await aiRes.json();
+      groqData = await groqRes.json();
     } catch (fetchErr) {
       const answer = '查詢失敗（無法連線到AI服務）：' + String(fetchErr.message || fetchErr);
       await logAttempt(answer, limitedRecords.length, 0);
@@ -273,8 +268,8 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    if (!aiRes.ok) {
-      const errMsg = (aiData && aiData.error && aiData.error.message) || 'AI 服務呼叫失敗';
+    if (!groqRes.ok) {
+      const errMsg = (groqData && groqData.error && groqData.error.message) || 'Groq API 呼叫失敗';
       const answer = '查詢失敗：' + errMsg;
       await logAttempt(answer, limitedRecords.length, 0);
       res.status(200).json({ answer, matched_records_count: limitedRecords.length });
@@ -282,43 +277,30 @@ module.exports = async function handler(req, res) {
     }
 
     const answer =
-      (aiData.choices && aiData.choices[0] && aiData.choices[0].message && aiData.choices[0].message.content) ||
+      (groqData.choices && groqData.choices[0] && groqData.choices[0].message && groqData.choices[0].message.content) ||
       '（AI 沒有回傳內容）';
-    const promptTokens = (aiData.usage && aiData.usage.prompt_tokens) || 0;
-    const completionTokens = (aiData.usage && aiData.usage.completion_tokens) || 0;
+    const promptTokens = (groqData.usage && groqData.usage.prompt_tokens) || 0;
+    const completionTokens = (groqData.usage && groqData.usage.completion_tokens) || 0;
     const estimatedCost =
       (promptTokens / 1000000) * PRICE_PER_M_PROMPT_TOKENS +
       (completionTokens / 1000000) * PRICE_PER_M_COMPLETION_TOKENS;
 
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
-    // ── 推播到中央用量統計（總經理需求）。這裡用 await 確保真的送出去再往下走，
-    //    不然 Vercel 會在回應送出後立刻關閉執行環境，導致沒等到的推播半路被中斷 ──
-    if (process.env.STATS_PUSH_SECRET) {
-      try {
-        await fetch(STATS_PUSH_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'x-push-secret': process.env.STATS_PUSH_SECRET,
-          },
-          body: JSON.stringify({
-            system_name: STATS_SYSTEM_NAME,
-            api_key_name: STATS_API_KEY_NAME,
-            ai_provider: 'deepinfra',
-            ai_model: AI_MODEL,
-            asker_email: userEmail,
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: promptTokens + completionTokens,
-            cache_hit: false,
-          }),
-        });
-      } catch (e) {
-        // 推播失敗不影響這次回答
-      }
-    }
+    // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──
+    fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stats-secret': process.env.STATS_PUSH_SECRET,
+      },
+      body: JSON.stringify({
+        system_name: 'wechat-manager',
+        ai_provider: 'groq',
+        query_count_increment: 1,
+        estimated_cost_increment: estimatedCost,
+      }),
+    }).catch(() => {});
 
     res.status(200).json({
       answer,

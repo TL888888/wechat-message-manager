@@ -292,27 +292,32 @@ module.exports = async function handler(req, res) {
 
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
-    // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──
+    // ── 推播到中央用量統計（總經理需求）。這裡用 await 確保真的送出去再往下走，
+    //    不然 Vercel 會在回應送出後立刻關閉執行環境，導致沒等到的推播半路被中斷 ──
     if (process.env.STATS_PUSH_SECRET) {
-      fetch(STATS_PUSH_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'x-push-secret': process.env.STATS_PUSH_SECRET,
-        },
-        body: JSON.stringify({
-          system_name: STATS_SYSTEM_NAME,
-          api_key_name: STATS_API_KEY_NAME,
-          ai_provider: 'deepinfra',
-          ai_model: AI_MODEL,
-          asker_email: userEmail,
-          prompt_tokens: promptTokens,
-          completion_tokens: completionTokens,
-          total_tokens: promptTokens + completionTokens,
-          cache_hit: false,
-        }),
-      }).catch(() => {});
+      try {
+        await fetch(STATS_PUSH_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'x-push-secret': process.env.STATS_PUSH_SECRET,
+          },
+          body: JSON.stringify({
+            system_name: STATS_SYSTEM_NAME,
+            api_key_name: STATS_API_KEY_NAME,
+            ai_provider: 'deepinfra',
+            ai_model: AI_MODEL,
+            asker_email: userEmail,
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: promptTokens + completionTokens,
+            cache_hit: false,
+          }),
+        });
+      } catch (e) {
+        // 推播失敗不影響這次回答
+      }
     }
 
     res.status(200).json({

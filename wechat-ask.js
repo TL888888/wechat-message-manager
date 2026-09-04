@@ -1,0 +1,361 @@
+const { createClient } = require('@supabase/supabase-js');
+
+const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
+// 這把是前端本來就在用的 anon key（公開金鑰，不是機密，RLS會保護資料，這裡沿用同一把）
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
+
+const GROQ_MODEL = 'openai/gpt-oss-120b';
+const MAX_RECORDS_PER_TABLE = 30; // 資料庫查詢階段先抓，實際餵給AI的量由下面的字數預算再收斂
+// 餵給AI的資料總字數預算（粗抓，避免超過免費版Groq「每分鐘8000 token」的限制；
+// 中文一個字通常不只1個token，這裡故意抓得保守一點，含系統提示與問題本身的空間）
+const MAX_PROMPT_CHARS = 3200;
+
+// Groq 定價（每百萬 token 美元），這是預留位置數字，請上 Groq 官網
+// https://groq.com/pricing 核對 openai/gpt-oss-120b 目前實際費率後再更新這兩個數字，
+// 否則統計出來的 estimated_cost_usd 只是概估，不是真實帳單金額
+const PRICE_PER_M_PROMPT_TOKENS = 0.15;
+const PRICE_PER_M_COMPLETION_TOKENS = 0.75;
+
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'method not allowed' });
+    return;
+  }
+
+  const authHeader = req.headers['authorization'] || '';
+  const accessToken = authHeader.replace(/^Bearer\s+/i, '');
+  if (!accessToken) {
+    res.status(401).json({ error: '未登入' });
+    return;
+  }
+
+  const { question } = req.body || {};
+  if (!question || typeof question !== 'string' || !question.trim()) {
+    res.status(400).json({ error: '請輸入問題' });
+    return;
+  }
+
+  // 用登入者自己的身份查詢，RLS自動限縮成他原本看得到的範圍
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+
+  const { data: userData, error: userErr } = await userClient.auth.getUser(accessToken);
+  if (userErr || !userData || !userData.user) {
+    res.status(401).json({ error: '登入狀態已失效，請重新登入' });
+    return;
+  }
+  const userEmail = userData.user.email;
+
+  // 不管最後是成功、查無資料、還是失敗，都寫進歷史紀錄，讓使用者自己問過什麼都查得到
+  async function logAttempt(answer, matchedCount, cost) {
+    try {
+      await userClient.from('wechat_ai_qa_usage_log').insert({
+        user_id: userData.user.id,
+        user_email: userEmail,
+        question,
+        answer,
+        matched_records_count: matchedCount || 0,
+        estimated_cost_usd: cost || 0,
+      });
+    } catch (e) {
+      // 寫歷史紀錄失敗不影響本次回答，只是記錄不到而已
+    }
+  }
+
+  try {
+    // ── 每日費用上限檢查：要看全站總和，只能用service role繞過RLS查 ──
+    const serviceClient = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY_WECHAT);
+
+    const { data: settingsRow } = await serviceClient
+      .from('wechat_ai_qa_settings')
+      .select('daily_cost_limit_usd')
+      .eq('id', 1)
+      .single();
+    const dailyLimit = settingsRow ? Number(settingsRow.daily_cost_limit_usd) : 5;
+
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const { data: todayLogs } = await serviceClient
+      .from('wechat_ai_qa_usage_log')
+      .select('estimated_cost_usd')
+      .gte('created_at', todayStart.toISOString());
+    const todaySpent = (todayLogs || []).reduce(
+      (sum, r) => sum + Number(r.estimated_cost_usd || 0),
+      0
+    );
+
+    if (todaySpent >= dailyLimit) {
+      const answer = '今日 AI 問答用量已達全站上限，請明天再試，或聯絡管理員調整上限。';
+      await logAttempt(answer, 0, 0);
+      res.status(200).json({ answer, matched_records_count: 0 });
+      return;
+    }
+
+    // 改用資料庫端的RPC函式直接拿「不重複」的客戶/機型/業務清單（RLS依舊套用在呼叫者身上），
+    // 不用再把visit_records這種上萬筆的表整批分頁撈到JS裡自己去重，效能好很多，
+    // 也不會因為表持續變大而重新踩到查詢筆數上限的問題
+    // ──但注意：Supabase不管是一般查詢還是RPC，單次回應預設都還是有1000筆上限，
+    // 資料庫幫忙去重後的結果如果本身還是超過1000筆，一樣會被砍掉，所以RPC呼叫也要分頁撈到底
+    async function fetchAllRpc(fnName) {
+      const PAGE_SIZE = 1000;
+      let all = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await userClient.rpc(fnName).range(from, from + PAGE_SIZE - 1);
+        if (error || !data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return all;
+    }
+
+    const [custData, modelData, salesData] = await Promise.all([
+      fetchAllRpc('wechat_ai_qa_candidate_customers'),
+      fetchAllRpc('wechat_ai_qa_candidate_models'),
+      fetchAllRpc('wechat_ai_qa_candidate_sales'),
+    ]);
+
+    const uniqFromRpc = (data, key) => [
+      ...new Set((data || []).map((r) => (r[key] || '').trim()).filter((v) => v.length >= 2)),
+    ];
+
+    const customerSet = new Set(uniqFromRpc(custData, 'customer'));
+    const modelSet = new Set(uniqFromRpc(modelData, 'model'));
+    const salesSet = new Set(uniqFromRpc(salesData, 'sales'));
+
+    // 嚴格比對：問題要完整包含資料庫值（用於機型代碼，差一碼就是不同機器，不能放寬）
+    const matchStrict = (set) => [...set].filter((v) => question.includes(v));
+
+    // 這些是很常見的中文商業用詞／使用者問句常見詞，如果拿它們去比對，
+    // 幾乎任何問句都會「巧合」命中一堆不相關的客戶，所以明確排除，不當作有效比對片段
+    const FUZZY_STOPWORDS = new Set([
+      '股份','有限','公司','集團','電子','科技','工業','企業','國際','實業',
+      '控股','材料','機械','精密','工程','需求','訊息','資訊','報價','資料',
+      '進度','狀態','客戶','業務','時間','數量','機型','設備','技術','產品',
+      '管理','系統','廠商','廠房','製造','製程','生產','設計','服務','出貨',
+    ]);
+    // 模糊比對：資料庫值本身可能有地區/廠別等前後綴變體（如「無錫健鼎」「健鼎(越南)」），
+    // 只要值裡有一段2~4字的片段出現在問題裡就算比對到，這樣打「健鼎」能同時抓到全部變體
+    // （片段本身如果剛好是「需求」「訊息」「科技」這類常見詞，會排除不算，
+    // 避免使用者問句的普通用字剛好跟某個不相關客戶名稱的一部分撞在一起，誤判成有比對到）
+    const matchFuzzy = (set) => {
+      const matched = [];
+      for (const candidate of set) {
+        if (question.includes(candidate)) {
+          matched.push(candidate);
+          continue;
+        }
+        let found = false;
+        for (let len = Math.min(4, candidate.length); len >= 2 && !found; len--) {
+          for (let i = 0; i + len <= candidate.length; i++) {
+            const frag = candidate.slice(i, i + len);
+            if (FUZZY_STOPWORDS.has(frag)) continue;
+            if (question.includes(frag)) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (found) matched.push(candidate);
+      }
+      return matched;
+    };
+
+    const matchedCustomers = matchFuzzy(customerSet);
+    const matchedModels = matchStrict(modelSet);
+    const matchedSales = matchFuzzy(salesSet);
+
+    if (!matchedCustomers.length && !matchedModels.length && !matchedSales.length) {
+      const answer =
+        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。';
+      await logAttempt(answer, 0, 0);
+      res.status(200).json({ answer, matched_records_count: 0 });
+      return;
+    }
+
+    // ── 第二段：依比對到的關鍵字查三張表（RLS自動限縮，不用另外寫權限判斷）──
+    // 客戶／機型／業務三個線索之間改成「符合任一個就算」（OR），不是「全部都要符合」（AND）。
+    // 原本用AND的問題：機型欄位常常是一整段自由文字（例如「鑽孔機:成型機:RU6HM-125*82台...」），
+    // 不是乾淨的機型代碼，同時問「客戶+機型」時，客戶明明對得上，卻因為機型欄位比對不到精確字串
+    // 而被AND邏輯整筆排除，明明是最相關的資料卻查不到。
+    // 改成分開查三次（每個線索各自用.in()安全比對，不用字串拼接.or()以免客戶名稱裡的括號/逗號等
+    // 特殊字元弄壞查詢語法），再合併去重，只要任一線索命中就收進來。
+    async function fetchByAnyDimension(table, selectCols, customerCol, modelCol, salesCol, orderCol) {
+      const queries = [];
+      if (matchedCustomers.length) {
+        queries.push(
+          userClient.from(table).select(selectCols).in(customerCol, matchedCustomers)
+            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+        );
+      }
+      if (matchedModels.length && modelCol) {
+        queries.push(
+          userClient.from(table).select(selectCols).in(modelCol, matchedModels)
+            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+        );
+      }
+      if (matchedSales.length && salesCol) {
+        queries.push(
+          userClient.from(table).select(selectCols).in(salesCol, matchedSales)
+            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+        );
+      }
+      const results = await Promise.all(queries);
+      const merged = [];
+      const seen = new Set();
+      results.forEach((r) => {
+        (r.data || []).forEach((row) => {
+          const key = JSON.stringify(row);
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(row);
+          }
+        });
+      });
+      // 合併多路查詢後，依日期重新排序、收斂到同樣的上限，避免筆數暴增
+      merged.sort((a, b) => (a[orderCol] < b[orderCol] ? 1 : -1));
+      return merged.slice(0, MAX_RECORDS_PER_TABLE);
+    }
+
+    const [wmData, crData, vrData] = await Promise.all([
+      fetchByAnyDimension(
+        'wechat_messages',
+        'date,company,model,qty,price,delivery,status,sales,raw,note,other',
+        'company', 'model', 'sales', 'date'
+      ),
+      fetchByAnyDimension(
+        'crm_records',
+        'import_date,customer,model,qty,delivery,status_w1,status_w2,sales',
+        'customer', 'model', 'sales', 'import_date'
+      ),
+      fetchByAnyDimension(
+        'visit_records',
+        'report_date,customer,model,customer_info,market_info,other,sales',
+        'customer', 'model', 'sales', 'report_date'
+      ),
+    ]);
+
+    // 之前這裡有針對每個欄位個別截斷字數，現在已升級付費方案不用再省，
+    // 拿掉單欄位截斷，改成完全依賴下面的MAX_PROMPT_CHARS整體字數預算去收斂要放幾筆記錄，
+    // 避免像客戶資訊裡的報價金額出現在文字後段卻被單獨截斷掉、AI看不到的問題
+    //
+    // 重要：三種資料來源要先「混在一起依日期全部重新排序」，不能照商務訊息／CRM／拜訪紀錄
+    // 的順序依序塞入陣列——不然字數預算被前面類型用光時，後面類型（例如拜訪紀錄）會直接
+    // 完全擠不進去，不管它日期多新、多相關，這就是華通那筆報價一直被漏掉的真正原因。
+    const recordItems = [];
+    (wmData || []).forEach((r) =>
+      recordItems.push({
+        date: r.date || '',
+        text: `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${r.raw || ''} 備註:${r.note || ''} 其他:${r.other || ''}`,
+      })
+    );
+    (crData || []).forEach((r) =>
+      recordItems.push({
+        date: r.import_date || '',
+        text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales}`,
+      })
+    );
+    (vrData || []).forEach((r) =>
+      recordItems.push({
+        date: r.report_date || '',
+        text: `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`,
+      })
+    );
+    recordItems.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const records = recordItems.map((it) => it.text);
+
+    if (!records.length) {
+      const answer = '有比對到關鍵字，但你看得到的範圍內沒有相關紀錄。';
+      await logAttempt(answer, 0, 0);
+      res.status(200).json({ answer, matched_records_count: 0 });
+      return;
+    }
+
+    // 依「最新的優先」用字數預算收斂到安全範圍內，避免超過Groq免費版的TPM限制
+    const limitedRecords = [];
+    let charBudget = MAX_PROMPT_CHARS;
+    for (const rec of records) {
+      if (charBudget - rec.length <= 0) break;
+      limitedRecords.push(rec);
+      charBudget -= rec.length;
+    }
+    const omittedCount = records.length - limitedRecords.length;
+
+    // ── 呼叫 Groq，讓AI只根據撈到的紀錄回答，不臆測 ──
+    let groqRes, groqData;
+    try {
+      groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.GROQ_API_KEY_WECHAT}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content:
+                '你是公司內部營業商務資料查詢助理，只能根據使用者提供的資料紀錄回答問題，不可捏造資料裡沒有的內容。一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。',
+            },
+            {
+              role: 'user',
+              content: `問題：${question}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
+            },
+          ],
+          temperature: 0.2,
+        }),
+      });
+      groqData = await groqRes.json();
+    } catch (fetchErr) {
+      const answer = '查詢失敗（無法連線到AI服務）：' + String(fetchErr.message || fetchErr);
+      await logAttempt(answer, limitedRecords.length, 0);
+      res.status(200).json({ answer, matched_records_count: limitedRecords.length });
+      return;
+    }
+
+    if (!groqRes.ok) {
+      const errMsg = (groqData && groqData.error && groqData.error.message) || 'Groq API 呼叫失敗';
+      const answer = '查詢失敗：' + errMsg;
+      await logAttempt(answer, limitedRecords.length, 0);
+      res.status(200).json({ answer, matched_records_count: limitedRecords.length });
+      return;
+    }
+
+    const answer =
+      (groqData.choices && groqData.choices[0] && groqData.choices[0].message && groqData.choices[0].message.content) ||
+      '（AI 沒有回傳內容）';
+    const promptTokens = (groqData.usage && groqData.usage.prompt_tokens) || 0;
+    const completionTokens = (groqData.usage && groqData.usage.completion_tokens) || 0;
+    const estimatedCost =
+      (promptTokens / 1000000) * PRICE_PER_M_PROMPT_TOKENS +
+      (completionTokens / 1000000) * PRICE_PER_M_COMPLETION_TOKENS;
+
+    await logAttempt(answer, limitedRecords.length, estimatedCost);
+
+    // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──
+    fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stats-secret': process.env.STATS_PUSH_SECRET,
+      },
+      body: JSON.stringify({
+        system_name: 'wechat-manager',
+        ai_provider: 'groq',
+        query_count_increment: 1,
+        estimated_cost_increment: estimatedCost,
+      }),
+    }).catch(() => {});
+
+    res.status(200).json({
+      answer,
+      matched_records_count: limitedRecords.length,
+      estimated_cost_usd: estimatedCost,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String((err && err.message) || err) });
+  }
+};

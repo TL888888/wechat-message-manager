@@ -347,7 +347,7 @@ module.exports = async function handler(req, res) {
         'x-push-secret': process.env.STATS_PUSH_SECRET,
       },
       body: JSON.stringify({
-        system_name: 'wechat-manager',
+        system_name: 'wechat',
         api_key_name: 'GROQ_API_KEY_WECHAT',
         ai_provider: 'groq',
         ai_model: GROQ_MODEL,

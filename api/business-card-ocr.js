@@ -31,7 +31,7 @@ async function pushUsageStats({ promptTokens, completionTokens, askerEmail }) {
         'x-push-secret': STATS_PUSH_SECRET,
       },
       body: JSON.stringify({
-        system_name: 'wechat-manager-ocr',
+        system_name: 'wechat',
         api_key_name: 'DEEPINFRA_API_KEY_SALES',
         ai_provider: 'deepinfra',
         ai_model: AI_MODEL_OCR,

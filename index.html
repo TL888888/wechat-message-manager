@@ -2234,6 +2234,7 @@ async function handleCardPhotoSelected(e){
       statusEl.textContent='辨識失敗：'+(result.error||'請直接手動輸入');
     }else{
       statusEl.textContent='辨識完成，請確認以下內容再儲存';
+      if(result.record_date) document.getElementById('cf-date').value=result.record_date; // 名片上有看到日期就蓋掉預設的今天
       document.getElementById('cf-company').value=result.company||'';
       document.getElementById('cf-contact').value=result.contact||'';
       document.getElementById('cf-model').value=result.model||'';
@@ -3710,7 +3711,7 @@ function aiqaLoadGeo(){
     var saved=sessionStorage.getItem(AIQA_GEO_KEY);
     if(saved) return aiqaClampGeo(JSON.parse(saved));
   }catch(e){}
-  return aiqaGetDefaultGeo();
+  return aiqaClampGeo(aiqaGetDefaultGeo());
 }
 function aiqaSaveGeo(geo){
   try{sessionStorage.setItem(AIQA_GEO_KEY,JSON.stringify(geo));}catch(e){}
@@ -3724,7 +3725,7 @@ function aiqaApplyGeo(geo){
 }
 var aiqaGeo=aiqaLoadGeo();
 function resetAiQaGeo(){
-  aiqaGeo=aiqaGetDefaultGeo();
+  aiqaGeo=aiqaClampGeo(aiqaGetDefaultGeo());
   aiqaSaveGeo(aiqaGeo);
   aiqaApplyGeo(aiqaGeo);
 }

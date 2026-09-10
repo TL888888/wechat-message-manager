@@ -20,20 +20,26 @@ const AI_API_KEY = process.env.DEEPINFRA_API_KEY_SALES;
 // ---- AI用量統計：推播設定（跟 api/wechat-ask.js 用同一支中央統計函式，用ai_model欄位區分是問答還是名片辨識）----
 const STATS_PUSH_SECRET = process.env.STATS_PUSH_SECRET;
 
-async function pushUsageStats({ promptTokens, completionTokens }) {
+async function pushUsageStats({ promptTokens, completionTokens, askerEmail }) {
   if (!STATS_PUSH_SECRET) return; // 尚未設定推播密鑰時直接跳過，不報錯
   try {
     await fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-stats-secret': STATS_PUSH_SECRET,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'x-push-secret': STATS_PUSH_SECRET,
       },
       body: JSON.stringify({
         system_name: 'wechat-manager-ocr',
+        api_key_name: 'DEEPINFRA_API_KEY_SALES',
         ai_provider: 'deepinfra',
-        query_count_increment: 1,
-        estimated_cost_increment: 0, // DeepInfra視覺模型定價跟文字模型不同，這裡先不概算金額，只計次數
+        ai_model: AI_MODEL_OCR,
+        asker_email: askerEmail || null,
+        prompt_tokens: promptTokens || 0,
+        completion_tokens: completionTokens || 0,
+        total_tokens: (promptTokens || 0) + (completionTokens || 0),
+        cache_hit: false,
       }),
     });
   } catch (e) {
@@ -189,7 +195,7 @@ module.exports = async function handler(req, res) {
     }
 
     const usage = data?.usage || {};
-    await pushUsageStats({ promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens });
+    await pushUsageStats({ promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, askerEmail: userData.user.email });
 
     // 格式防呆：只有真的是YYYY-MM-DD才回傳，避免AI偶爾格式跑掉，前端<input type="date">吃到怪格式會直接顯示空白
     var recordDate = fields.record_date || '';

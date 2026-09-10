@@ -240,22 +240,31 @@ module.exports = async function handler(req, res) {
     // 之前這裡有針對每個欄位個別截斷字數，現在已升級付費方案不用再省，
     // 拿掉單欄位截斷，改成完全依賴下面的MAX_PROMPT_CHARS整體字數預算去收斂要放幾筆記錄，
     // 避免像客戶資訊裡的報價金額出現在文字後段卻被單獨截斷掉、AI看不到的問題
-    const records = [];
+    //
+    // 重要：三種資料來源要先「混在一起依日期全部重新排序」，不能照商務訊息／CRM／拜訪紀錄
+    // 的順序依序塞入陣列——不然字數預算被前面類型用光時，後面類型（例如拜訪紀錄）會直接
+    // 完全擠不進去，不管它日期多新、多相關，這就是華通那筆報價一直被漏掉的真正原因。
+    const recordItems = [];
     (wmData || []).forEach((r) =>
-      records.push(
-        `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${r.raw || ''} 備註:${r.note || ''} 其他:${r.other || ''}`
-      )
+      recordItems.push({
+        date: r.date || '',
+        text: `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${r.raw || ''} 備註:${r.note || ''} 其他:${r.other || ''}`,
+      })
     );
     (crData || []).forEach((r) =>
-      records.push(
-        `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales}`
-      )
+      recordItems.push({
+        date: r.import_date || '',
+        text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales}`,
+      })
     );
     (vrData || []).forEach((r) =>
-      records.push(
-        `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`
-      )
+      recordItems.push({
+        date: r.report_date || '',
+        text: `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`,
+      })
     );
+    recordItems.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const records = recordItems.map((it) => it.text);
 
     if (!records.length) {
       const answer = '有比對到關鍵字，但你看得到的範圍內沒有相關紀錄。';
@@ -327,17 +336,26 @@ module.exports = async function handler(req, res) {
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
     // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──
+    // 這段原本一直沒有成功推播過：少帶Authorization標頭(Supabase Edge Function平台本身就先擋掉)，
+    // 且自訂驗證標頭名稱打成x-stats-secret，實際上函式認的是x-push-secret，
+    // 照目前運作正常的董事長訪談系統(ocr.js)那套寫法修正
     fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-stats-secret': process.env.STATS_PUSH_SECRET,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'x-push-secret': process.env.STATS_PUSH_SECRET,
       },
       body: JSON.stringify({
         system_name: 'wechat-manager',
+        api_key_name: 'GROQ_API_KEY_WECHAT',
         ai_provider: 'groq',
-        query_count_increment: 1,
-        estimated_cost_increment: estimatedCost,
+        ai_model: GROQ_MODEL,
+        asker_email: userEmail || null,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: promptTokens + completionTokens,
+        cache_hit: false,
       }),
     }).catch(() => {});
 

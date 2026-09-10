@@ -4,6 +4,7 @@ const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 // 這把是前端本來就在用的 anon key（公開金鑰，不是機密，RLS會保護資料，這裡沿用同一把）
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
 
+const STATS_PUSH_URL = process.env.STATS_PUSH_URL || 'https://bvuygyajzupeqpqfwmgi.supabase.co/functions/v1/stats-ai-usage-push';
 const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.deepinfra.com/v1/openai/chat/completions';
 const AI_MODEL = process.env.AI_MODEL_WECHAT || 'openai/gpt-oss-120b';
 const AI_API_KEY = process.env.DEEPINFRA_API_KEY_SALES;
@@ -346,25 +347,33 @@ module.exports = async function handler(req, res) {
     // 這段原本一直沒有成功推播過：少帶Authorization標頭(Supabase Edge Function平台本身就先擋掉)，
     // 且自訂驗證標頭名稱打成x-stats-secret，實際上函式認的是x-push-secret，
     // 照目前運作正常的董事長訪談系統(ocr.js)那套寫法修正
-    fetch(`${SUPABASE_URL}/functions/v1/stats-ai-usage-push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'x-push-secret': process.env.STATS_PUSH_SECRET,
-      },
-      body: JSON.stringify({
-        system_name: 'wechat',
-        api_key_name: 'DEEPINFRA_API_KEY_SALES',
-        ai_provider: 'deepinfra',
-        ai_model: AI_MODEL,
-        asker_email: userEmail || null,
-        prompt_tokens: promptTokens,
-        completion_tokens: completionTokens,
-        total_tokens: promptTokens + completionTokens,
-        cache_hit: false,
-      }),
-    }).catch(() => {});
+    try {
+      const pushRes = await fetch(STATS_PUSH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'x-push-secret': process.env.STATS_PUSH_SECRET,
+        },
+        body: JSON.stringify({
+          system_name: 'wechat',
+          api_key_name: 'DEEPINFRA_API_KEY_SALES',
+          ai_provider: 'deepinfra',
+          ai_model: AI_MODEL,
+          asker_email: userEmail || null,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: promptTokens + completionTokens,
+          cache_hit: false,
+        }),
+      });
+      if (!pushRes.ok) {
+        const body = await pushRes.text().catch(() => '');
+        console.error('[stats-push] 失敗 status=' + pushRes.status + ' body=' + body);
+      }
+    } catch (e) {
+      console.error('[stats-push] 例外:', e && e.message);
+    }
 
     res.status(200).json({
       answer,

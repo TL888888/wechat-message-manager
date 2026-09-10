@@ -137,6 +137,7 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 .erp-col-sales{width:64px;min-width:64px;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* 客戶欄：約6個中文字寬度 */
 .erp-col-customer{width:118px;min-width:118px;max-width:118px;white-space:normal;word-break:break-word;}
+.erp-col-contact{width:96px;min-width:96px;max-width:96px;white-space:normal;word-break:break-word;}
 .erp-col-model{width:118px;min-width:118px;max-width:118px;white-space:normal;word-break:break-word;}
 /* CRM需求統計專用欄位 */
 .erp-col-status{width:112px;min-width:112px;max-width:112px;white-space:nowrap;}
@@ -350,6 +351,9 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <button class="tab-btn" style="color:var(--accent);" onclick="openAiQa()">
         <i class="fa-solid fa-robot" style="margin-right:5px;font-size:13px;"></i>問問AI
       </button>
+      <button id="tab-cards-btn" class="tab-btn" onclick="switchTab('cards')">
+        <i class="fa-solid fa-id-card" style="margin-right:5px;font-size:13px;"></i>名片管理
+      </button>
       <button id="tab-cust-btn" class="tab-btn active" onclick="switchTab('customer')">
         <i class="fa-solid fa-handshake" style="margin-right:5px;font-size:13px;"></i>客戶商務
       </button>
@@ -381,6 +385,45 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 </header>
 
 <main style="max-width:1600px;margin:0 auto;padding:16px;">
+
+  <!-- ══ 名片管理 ══ -->
+  <div id="tab-cards" style="display:none;">
+    <div class="filter-panel" style="max-width:640px;margin:0 auto;">
+      <div style="font-size:15px;font-weight:700;color:var(--text-h);margin-bottom:4px;"><i class="fa-solid fa-id-card" style="color:var(--accent);margin-right:8px;"></i>新增名片</div>
+      <div style="font-size:12px;color:var(--text-s);margin-bottom:14px;">拍照或上傳名片照片，AI會自動辨識公司/聯絡人等資訊，確認無誤後再儲存；照片本身不會被保存。</div>
+
+      <div style="margin-bottom:14px;">
+        <input type="file" id="card-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleCardPhotoSelected(event)" />
+        <button class="btn-primary" style="width:100%;justify-content:center;" onclick="document.getElementById('card-photo-input').click()" id="card-photo-btn">
+          <i class="fa-solid fa-camera"></i> 拍照或選擇名片照片
+        </button>
+        <div id="card-ocr-status" style="font-size:12px;color:var(--text-s);margin-top:8px;display:none;"></div>
+      </div>
+
+      <div id="card-form-area" style="display:none;">
+        <div style="display:grid;grid-template-columns:64px 1fr;gap:10px 12px;align-items:start;">
+          <div class="filter-label" style="padding-top:9px;">日期</div>
+          <input id="cf-date" class="input-field" type="date" readonly style="background:var(--bg2);" />
+          <div class="filter-label" style="padding-top:9px;">業務</div>
+          <select id="cf-sales" class="input-field"></select>
+          <div class="filter-label" style="padding-top:9px;">公司</div>
+          <input id="cf-company" class="input-field" placeholder="公司名稱" />
+          <div class="filter-label" style="padding-top:9px;">聯絡人</div>
+          <input id="cf-contact" class="input-field" placeholder="聯絡人姓名" />
+          <div class="filter-label" style="padding-top:9px;">機型</div>
+          <input id="cf-model" class="input-field" placeholder="機型（如名片上有看到相關代碼）" />
+          <div class="filter-label" style="padding-top:9px;">內容</div>
+          <textarea id="cf-content" class="input-field" rows="3" placeholder="名片上手寫的加註內容"></textarea>
+          <div class="filter-label" style="padding-top:9px;">備註</div>
+          <textarea id="cf-note" class="input-field" rows="3" placeholder="職稱/電話/email/地址等"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="btn-ghost" style="flex:1;justify-content:center;" onclick="resetCardForm()">取消</button>
+          <button class="btn-primary" style="flex:1;justify-content:center;" id="card-save-btn" onclick="saveBusinessCard()"><i class="fa-solid fa-check"></i> 儲存</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ 客戶商務 ══ -->
   <div id="tab-customer">
@@ -911,6 +954,7 @@ var currentMsgType = 'customer';
 var custData = [];
 var crmData = [];
 var visitData = [];
+var cardData = [];
 var engData = [];
 var uniPage = 1;
 var uniPageSize = 15;
@@ -1734,7 +1778,7 @@ function roleLabel(r){return r==='admin'?'大總管':r==='director'?'總監':r==
 async function doLogout(){
   await sb.auth.signOut();
   currentUser=null;currentUserProfile=null;
-  custData=[];crmData=[];engData=[];
+  custData=[];crmData=[];engData=[];cardData=[];
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
 }
@@ -1808,18 +1852,20 @@ async function loadAllData(){
   var latestDate=latestImport.data?latestImport.data.import_date:null;
   window._latestCrmImportDate=latestDate; // 給「新增CRM需求紀錄」用，讓手動新增的資料跟目前顯示的這批同一個匯入日期，不會被篩選條件擋掉
 
-  var [wRes,cRes,eRes,uRes]=await Promise.all([
+  var [wRes,cRes,eRes,uRes,cardRes]=await Promise.all([
     sb.from('wechat_messages').select('*').order('created_at',{ascending:false}),
     latestDate
       ? sb.from('crm_records').select('*').eq('import_date',latestDate).order('created_at',{ascending:false})
       : sb.from('crm_records').select('*').order('created_at',{ascending:false}),
     sb.from('engineer_messages').select('*').order('created_at',{ascending:false}),
     sb.from('users').select('id,name,role,sales_name,region'),
+    sb.from('business_cards').select('*').order('created_at',{ascending:false}),
     loadVisitFirstPage() // 拜訪紀錄只先抓第一批，跟其他小表一起等，讓畫面能盡快顯示
   ]);
   custData=wRes.data||[];
   crmData=cRes.data||[];
   engData=eRes.data||[];
+  cardData=cardRes.data||[];
   // 建立 users 對照表
   (uRes.data||[]).forEach(function(u){usersMap[u.id]=u;});
   // 建立「業務姓名」選單資料（給匯入表單的業務欄位做下拉選擇用），去重、去空白
@@ -1849,15 +1895,16 @@ function formatCreatedAt(ts){
 // ══ TAB ═════════════════════════════════════════════════════
 function switchTab(tab){
   currentTab=tab;
-  ['customer','stats','users'].forEach(function(t){
+  ['customer','stats','users','cards'].forEach(function(t){
     var panel=document.getElementById('tab-'+t);
     if(panel) panel.style.display=t===tab?'':'none';
-    var btn=document.getElementById('tab-'+(t==='customer'?'cust':t==='stats'?'stat':'users')+'-btn');
+    var btn=document.getElementById('tab-'+(t==='customer'?'cust':t==='stats'?'stat':t==='users'?'users':'cards')+'-btn');
     if(btn) btn.classList.toggle('active',t===tab);
   });
   if(tab==='customer') renderUnified();
   else if(tab==='stats') renderStats();
   else if(tab==='users') renderUsersList();
+  else if(tab==='cards') resetCardForm();
 }
 
 // ══ 客戶商務：統一渲染（客戶→機型 群組展開）══════════════
@@ -1871,13 +1918,13 @@ function clearUnifiedFilter(){
 // 匯出「客戶商務」目前篩選條件下的完整清單成Excel（不受目前頁面只顯示15筆的限制，符合條件的全部匯出）
 function exportUnifiedExcel(){
   var f=getFilteredUnifiedRows();
-  var rows=buildUnifiedRows(f.fCust,f.fVisit);
+  var rows=buildUnifiedRows(f.fCust,f.fVisit,f.fCard);
   if(!rows.length){alert('目前篩選條件下沒有資料可以匯出，請先確認篩選條件');return;}
   var data=rows.map(function(r){
-    return {'日期':r.date,'業務':r.sales,'客戶':r.customer,'機型':r.model,'客戶資訊':r.info,'其他':r.other};
+    return {'日期':r.date,'業務':r.sales,'公司':r.customer,'聯絡人':r.contact,'機型':r.model,'內容':r.info,'備註':r.other};
   });
   var ws=XLSX.utils.json_to_sheet(data);
-  ws['!cols']=[{wch:11},{wch:10},{wch:16},{wch:12},{wch:60},{wch:30}];
+  ws['!cols']=[{wch:11},{wch:10},{wch:16},{wch:12},{wch:12},{wch:60},{wch:30}];
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'客戶商務');
   var todayStr=new Date().toISOString().split('T')[0];
@@ -1899,11 +1946,13 @@ function formatShortDate(iso){
   if(isNaN(d.getTime())) return '';
   return (d.getMonth()+1)+'/'+d.getDate();
 }
-// 合併微信訊息＋拜訪紀錄成統一的表格列資料（依畫面要求的欄位順序：日期/業務/客戶/機型/客戶資訊/其他）
-function buildUnifiedRows(fCust,fVisit){
+// 合併微信訊息＋拜訪紀錄＋名片管理成統一的表格列資料
+// （欄位順序：日期/業務/公司/聯絡人/機型/內容/備註；「聯絡人」對名片管理是真實資料，
+// 對微信訊息(如果原本有contact欄位)也會帶出來，拜訪紀錄/CRM沒有這個概念所以會是空的）
+function buildUnifiedRows(fCust,fVisit,fCard){
   var rows=[];
   fCust.forEach(function(r){
-    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',model:r.model||'',info:r.raw||r.note||'',other:r.other||''});
+    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',contact:r.contact||'',model:r.model||'',info:r.raw||r.note||'',other:r.other||''});
   });
   fVisit.forEach(function(r){
     var infoParts=[];
@@ -1913,7 +1962,10 @@ function buildUnifiedRows(fCust,fVisit){
     var otherParts=[];
     if(r.other) otherParts.push(r.other);
     if(r.companion) otherParts.push('【陪同人員】'+r.companion);
-    rows.push({_type:'visit',_id:r.id,_raw:r,date:r.report_date||'',sales:r.sales||'',customer:r.customer||'',model:r.model||'',info:infoParts.join('\n\n'),other:otherParts.join('\n\n')});
+    rows.push({_type:'visit',_id:r.id,_raw:r,date:r.report_date||'',sales:r.sales||'',customer:r.customer||'',contact:'',model:r.model||'',info:infoParts.join('\n\n'),other:otherParts.join('\n\n')});
+  });
+  (fCard||[]).forEach(function(r){
+    rows.push({_type:'card',_id:r.id,_raw:r,date:r.upload_date||'',sales:r.sales||'',customer:r.company||'',contact:r.contact||'',model:r.model||'',info:r.content||'',other:r.note||''});
   });
   rows.sort(function(a,b){return dateSortKey(b.date).localeCompare(dateSortKey(a.date));});
   return rows;
@@ -1922,21 +1974,27 @@ function buildUnifiedTableHtml(pageRows,q){
   var thead='<thead><tr>'
     +'<th class="erp-th erp-sticky-col erp-col-date" style="left:0;">日期</th>'
     +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:84px;">業務</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:148px;">客戶</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-model" style="left:266px;">機型</th>'
-    +'<th class="erp-th erp-col-info">客戶資訊</th>'
-    +'<th class="erp-th erp-col-other">其他</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:148px;">公司</th>'
+    +'<th class="erp-th erp-col-contact">聯絡人</th>'
+    +'<th class="erp-th erp-col-model">機型</th>'
+    +'<th class="erp-th erp-col-info">內容</th>'
+    +'<th class="erp-th erp-col-other">備註</th>'
     +'<th class="erp-th erp-td-op">操作</th>'
   +'</tr></thead>';
+  var editHandlers={wechat:'openEditWechatMsg',card:'openEditBusinessCard'};
+  var deleteHandlers={wechat:'deleteCustRecord',visit:'deleteVisitRecord',card:'deleteBusinessCard'};
   var tbody='<tbody>'+pageRows.map(function(r,i){
-    var editBtn=(r._type==='wechat'&&canEdit(r._raw))?'<button class="erp-op-btn" onclick="openEditWechatMsg(\''+r._id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
-    var delBtn=canDelete(r._raw)?'<button class="erp-op-btn erp-op-del" onclick="'+(r._type==='wechat'?'deleteCustRecord':'deleteVisitRecord')+'(\''+r._id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
+    var editFn=editHandlers[r._type];
+    var editBtn=(editFn&&canEdit(r._raw))?'<button class="erp-op-btn" onclick="'+editFn+'(\''+r._id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
+    var delFn=deleteHandlers[r._type];
+    var delBtn=(delFn&&canDelete(r._raw))?'<button class="erp-op-btn erp-op-del" onclick="'+delFn+'(\''+r._id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
     var alt=(i%2===1)?' erp-row-alt':'';
     return '<tr class="erp-tr'+alt+'">'
       +'<td class="erp-td erp-sticky-col erp-col-date" style="left:0;">'+escH(r.date)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:84px;">'+escH(r.sales)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:148px;">'+hl(r.customer,q)+'</td>'
-      +'<td class="erp-td erp-sticky-col erp-col-model" style="left:266px;">'+escH(r.model)+'</td>'
+      +'<td class="erp-td erp-col-contact">'+(r.contact?hl(r.contact,q):'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-col-model">'+escH(r.model)+'</td>'
       +'<td class="erp-td erp-col-info">'+(r.info?hl(r.info,q):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-col-other">'+(r.other?hl(r.other,q):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
@@ -2005,7 +2063,15 @@ function getFilteredUnifiedRows(){
     if(!inDateRange(r.report_date)) return false;
     return true;
   });
-  return {fCust:fCust,fVisit:fVisit,filterSummary:{company:company,model:model,person:person,keyword:keyword,dateFrom:dateFrom,dateTo:dateTo}};
+  var fCard=cardData.filter(function(r){
+    if(company&&!matchQ(r.company,company)) return false;
+    if(model&&!matchQ(r.model||'',model)) return false;
+    if(person&&!matchQ([r.sales,r.contact].join(' '),person)) return false;
+    if(keyword&&!matchQ([r.company,r.contact,r.model,r.content,r.note,r.sales].join(' '),keyword)) return false;
+    if(!inDateRange(r.upload_date)) return false;
+    return true;
+  });
+  return {fCust:fCust,fVisit:fVisit,fCard:fCard,filterSummary:{company:company,model:model,person:person,keyword:keyword,dateFrom:dateFrom,dateTo:dateTo}};
 }
 function renderUnified(){
   var f=getFilteredUnifiedRows();
@@ -2013,7 +2079,7 @@ function renderUnified(){
   var dateFrom=f.filterSummary.dateFrom,dateTo=f.filterSummary.dateTo;
   var q=company||model||person||keyword; // 只用文字類篩選詞做畫面上的黃底標示，日期不適合拿來highlight文字
   var anyFilter=q||dateFrom||dateTo;
-  var fCust=f.fCust,fVisit=f.fVisit;
+  var fCust=f.fCust,fVisit=f.fVisit,fCard=f.fCard;
   // 注意：客戶商務頁籤故意不放CRM資料（crm_records），CRM只在「CRM需求統計」頁籤顯示，
   // 避免同一筆訂單在兩個頁籤都出現、造成重複計算或混淆
 
@@ -2023,12 +2089,13 @@ function renderUnified(){
     statsEl.innerHTML=
       '<span class="stat-pill">微信訊息 <b>'+custData.length+'</b></span>'
       +'<span class="stat-pill">拜訪紀錄 <b>'+visitData.length+'</b></span>'
-      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
+      +'<span class="stat-pill">名片 <b>'+cardData.length+'</b></span>'
+      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b> 名片<b>'+fCard.length+'</b></span>':'');
   }
 
   var el=document.getElementById('unified-records');
   if(!el) return;
-  var rows=buildUnifiedRows(fCust,fVisit);
+  var rows=buildUnifiedRows(fCust,fVisit,fCard);
   if(!rows.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合紀錄</div>';
     renderUniPager(0,0);
@@ -2076,6 +2143,133 @@ function canDelete(r){
 function canEdit(r){
   if(!currentUserProfile) return false;
   return true;
+}
+
+// ══ 名片管理 ═══════════════════════════════════════════════
+var editingCardId=null;
+function populateCardSalesDropdown(){
+  var sel=document.getElementById('cf-sales');
+  if(!sel) return;
+  var mySales=(currentUserProfile&&currentUserProfile.sales_name)||'';
+  var list=(window._salesNameList||[]).slice();
+  if(mySales && list.indexOf(mySales)===-1) list.unshift(mySales);
+  sel.innerHTML=list.map(function(n){return '<option value="'+escH(n)+'"'+(n===mySales?' selected':'')+'>'+escH(n)+'</option>';}).join('');
+}
+function resetCardForm(){
+  editingCardId=null;
+  var fileInput=document.getElementById('card-photo-input');
+  if(fileInput) fileInput.value='';
+  var statusEl=document.getElementById('card-ocr-status');
+  if(statusEl){statusEl.style.display='none';statusEl.textContent='';}
+  var formArea=document.getElementById('card-form-area');
+  if(formArea) formArea.style.display='none';
+  var photoBtn=document.getElementById('card-photo-btn');
+  if(photoBtn){photoBtn.style.display='';photoBtn.disabled=false;}
+  ['cf-company','cf-contact','cf-model','cf-content','cf-note'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.value='';
+  });
+  var dateEl=document.getElementById('cf-date');
+  if(dateEl) dateEl.value=new Date().toISOString().split('T')[0];
+  populateCardSalesDropdown();
+}
+function fileToDataUrl(file){
+  return new Promise(function(resolve,reject){
+    var reader=new FileReader();
+    reader.onload=function(){resolve(reader.result);};
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function handleCardPhotoSelected(e){
+  var file=e.target.files&&e.target.files[0];
+  if(!file) return;
+  var statusEl=document.getElementById('card-ocr-status');
+  statusEl.style.display='block';
+  statusEl.textContent='辨識中，請稍候…';
+  var photoBtn=document.getElementById('card-photo-btn');
+  photoBtn.disabled=true;
+  try{
+    var dataUrl=await fileToDataUrl(file);
+    var {data:{session}}=await sb.auth.getSession();
+    var resp=await fetch('/api/business-card-ocr',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?session.access_token:'')},
+      body:JSON.stringify({image:dataUrl}),
+    });
+    var result=await resp.json();
+    if(!resp.ok){
+      statusEl.textContent='辨識失敗：'+(result.error||'請直接手動輸入');
+    }else{
+      statusEl.textContent='辨識完成，請確認以下內容再儲存';
+      document.getElementById('cf-company').value=result.company||'';
+      document.getElementById('cf-contact').value=result.contact||'';
+      document.getElementById('cf-model').value=result.model||'';
+      document.getElementById('cf-content').value=result.content||'';
+      document.getElementById('cf-note').value=result.note||'';
+    }
+  }catch(err){
+    statusEl.textContent='辨識失敗：'+err.message+'，可直接手動輸入';
+  }
+  photoBtn.disabled=false;
+  document.getElementById('cf-date').value=new Date().toISOString().split('T')[0];
+  populateCardSalesDropdown();
+  document.getElementById('card-form-area').style.display='block';
+}
+async function saveBusinessCard(){
+  var payload={
+    upload_date:document.getElementById('cf-date').value||new Date().toISOString().split('T')[0],
+    sales:document.getElementById('cf-sales').value||'',
+    company:document.getElementById('cf-company').value.trim(),
+    contact:document.getElementById('cf-contact').value.trim(),
+    model:document.getElementById('cf-model').value.trim(),
+    content:document.getElementById('cf-content').value.trim(),
+    note:document.getElementById('cf-note').value.trim(),
+  };
+  if(!payload.company&&!payload.contact){
+    alert('公司或聯絡人至少要填一個');
+    return;
+  }
+  var btn=document.getElementById('card-save-btn');
+  btn.disabled=true;
+  try{
+    if(editingCardId){
+      var {error}=await sb.from('business_cards').update(payload).eq('id',editingCardId);
+      if(error) throw error;
+      cardData=cardData.map(function(r){return r.id===editingCardId?Object.assign({},r,payload):r;});
+    }else{
+      payload.created_by=currentUser.id;
+      var {data,error}=await sb.from('business_cards').insert(payload).select().single();
+      if(error) throw error;
+      cardData=[data].concat(cardData);
+    }
+    resetCardForm();
+    alert('已儲存，可以到「客戶商務」查看');
+  }catch(err){
+    alert('儲存失敗：'+err.message);
+  }
+  btn.disabled=false;
+}
+function openEditBusinessCard(id){
+  var r=cardData.find(function(x){return x.id===id;});
+  if(!r) return;
+  switchTab('cards'); // 會先呼叫 resetCardForm()，所以下面的欄位賦值要放在這行之後
+  editingCardId=id;
+  document.getElementById('card-photo-btn').style.display='none';
+  document.getElementById('card-form-area').style.display='block';
+  document.getElementById('cf-date').value=r.upload_date||'';
+  document.getElementById('cf-sales').value=r.sales||'';
+  document.getElementById('cf-company').value=r.company||'';
+  document.getElementById('cf-contact').value=r.contact||'';
+  document.getElementById('cf-model').value=r.model||'';
+  document.getElementById('cf-content').value=r.content||'';
+  document.getElementById('cf-note').value=r.note||'';
+}
+async function deleteBusinessCard(id){
+  if(!confirm('確定刪除這張名片資料？')) return;
+  var {error}=await sb.from('business_cards').delete().eq('id',id);
+  if(error){alert('刪除失敗：'+error.message);return;}
+  cardData=cardData.filter(function(r){return r.id!==id;});
+  if(currentTab==='customer') renderUnified();
 }
 
 async function deleteCustRecord(id){

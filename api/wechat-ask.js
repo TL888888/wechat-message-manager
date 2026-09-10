@@ -4,14 +4,16 @@ const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 // 這把是前端本來就在用的 anon key（公開金鑰，不是機密，RLS會保護資料，這裡沿用同一把）
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
 
-const GROQ_MODEL = 'openai/gpt-oss-120b';
+const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.deepinfra.com/v1/openai/chat/completions';
+const AI_MODEL = process.env.AI_MODEL_WECHAT || 'openai/gpt-oss-120b';
+const AI_API_KEY = process.env.DEEPINFRA_API_KEY_SALES;
 const MAX_RECORDS_PER_TABLE = 30; // 資料庫查詢階段先抓，實際餵給AI的量由下面的字數預算再收斂
-// 餵給AI的資料總字數預算（粗抓，避免超過免費版Groq「每分鐘8000 token」的限制；
-// 中文一個字通常不只1個token，這裡故意抓得保守一點，含系統提示與問題本身的空間）
+// 餵給AI的資料總字數預算（粗抓，避免單次請求過大；中文一個字通常不只1個token，這裡故意抓得保守一點，
+// 含系統提示與問題本身的空間）
 const MAX_PROMPT_CHARS = 3200;
 
-// Groq 定價（每百萬 token 美元），這是預留位置數字，請上 Groq 官網
-// https://groq.com/pricing 核對 openai/gpt-oss-120b 目前實際費率後再更新這兩個數字，
+// DeepInfra 定價（每百萬 token 美元），這是預留位置數字，請上 DeepInfra 官網
+// https://deepinfra.com/pricing 核對 openai/gpt-oss-120b 目前實際費率後再更新這兩個數字，
 // 否則統計出來的 estimated_cost_usd 只是概估，不是真實帳單金額
 const PRICE_PER_M_PROMPT_TOKENS = 0.15;
 const PRICE_PER_M_COMPLETION_TOKENS = 0.75;
@@ -46,6 +48,11 @@ module.exports = async function handler(req, res) {
     return;
   }
   const userEmail = userData.user.email;
+
+  if (!AI_API_KEY) {
+    res.status(500).json({ error: '伺服器未設定 DEEPINFRA_API_KEY_SALES' });
+    return;
+  }
 
   // 不管最後是成功、查無資料、還是失敗，都寫進歷史紀錄，讓使用者自己問過什麼都查得到
   async function logAttempt(answer, matchedCount, cost) {
@@ -273,7 +280,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // 依「最新的優先」用字數預算收斂到安全範圍內，避免超過Groq免費版的TPM限制
+    // 依「最新的優先」用字數預算收斂到安全範圍內，避免單次請求過大
     const limitedRecords = [];
     let charBudget = MAX_PROMPT_CHARS;
     for (const rec of records) {
@@ -283,17 +290,17 @@ module.exports = async function handler(req, res) {
     }
     const omittedCount = records.length - limitedRecords.length;
 
-    // ── 呼叫 Groq，讓AI只根據撈到的紀錄回答，不臆測 ──
-    let groqRes, groqData;
+    // ── 呼叫 AI，讓它只根據撈到的紀錄回答，不臆測 ──
+    let aiRes, aiData;
     try {
-      groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      aiRes = await fetch(AI_BASE_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.GROQ_API_KEY_WECHAT}`,
+          Authorization: `Bearer ${AI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: GROQ_MODEL,
+          model: AI_MODEL,
           messages: [
             {
               role: 'system',
@@ -308,7 +315,7 @@ module.exports = async function handler(req, res) {
           temperature: 0.2,
         }),
       });
-      groqData = await groqRes.json();
+      aiData = await aiRes.json();
     } catch (fetchErr) {
       const answer = '查詢失敗（無法連線到AI服務）：' + String(fetchErr.message || fetchErr);
       await logAttempt(answer, limitedRecords.length, 0);
@@ -316,8 +323,8 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    if (!groqRes.ok) {
-      const errMsg = (groqData && groqData.error && groqData.error.message) || 'Groq API 呼叫失敗';
+    if (!aiRes.ok) {
+      const errMsg = (aiData && aiData.error && aiData.error.message) || 'AI服務呼叫失敗';
       const answer = '查詢失敗：' + errMsg;
       await logAttempt(answer, limitedRecords.length, 0);
       res.status(200).json({ answer, matched_records_count: limitedRecords.length });
@@ -325,10 +332,10 @@ module.exports = async function handler(req, res) {
     }
 
     const answer =
-      (groqData.choices && groqData.choices[0] && groqData.choices[0].message && groqData.choices[0].message.content) ||
+      (aiData.choices && aiData.choices[0] && aiData.choices[0].message && aiData.choices[0].message.content) ||
       '（AI 沒有回傳內容）';
-    const promptTokens = (groqData.usage && groqData.usage.prompt_tokens) || 0;
-    const completionTokens = (groqData.usage && groqData.usage.completion_tokens) || 0;
+    const promptTokens = (aiData.usage && aiData.usage.prompt_tokens) || 0;
+    const completionTokens = (aiData.usage && aiData.usage.completion_tokens) || 0;
     const estimatedCost =
       (promptTokens / 1000000) * PRICE_PER_M_PROMPT_TOKENS +
       (completionTokens / 1000000) * PRICE_PER_M_COMPLETION_TOKENS;
@@ -348,9 +355,9 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         system_name: 'wechat',
-        api_key_name: 'GROQ_API_KEY_WECHAT',
-        ai_provider: 'groq',
-        ai_model: GROQ_MODEL,
+        api_key_name: 'DEEPINFRA_API_KEY_SALES',
+        ai_provider: 'deepinfra',
+        ai_model: AI_MODEL,
         asker_email: userEmail || null,
         prompt_tokens: promptTokens,
         completion_tokens: completionTokens,

@@ -2180,6 +2180,28 @@ function fileToDataUrl(file){
     reader.readAsDataURL(file);
   });
 }
+// 手機拍照的原始檔案常常有好幾MB，直接轉base64送出容易超過伺服器單次請求大小上限，
+// 這裡先縮圖＋轉成JPEG壓縮再送出，名片本來就是平面文字，縮小到1600px長邊完全不影響辨識效果
+function resizeImageForOcr(file,maxDim,quality){
+  return new Promise(function(resolve,reject){
+    var url=URL.createObjectURL(file);
+    var img=new Image();
+    img.onload=function(){
+      URL.revokeObjectURL(url);
+      var w=img.width,h=img.height;
+      if(w>maxDim||h>maxDim){
+        if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}
+        else{w=Math.round(w*maxDim/h);h=maxDim;}
+      }
+      var canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('圖片讀取失敗'));};
+    img.src=url;
+  });
+}
 async function handleCardPhotoSelected(e){
   var file=e.target.files&&e.target.files[0];
   if(!file) return;
@@ -2189,14 +2211,25 @@ async function handleCardPhotoSelected(e){
   var photoBtn=document.getElementById('card-photo-btn');
   photoBtn.disabled=true;
   try{
-    var dataUrl=await fileToDataUrl(file);
+    var dataUrl;
+    try{
+      dataUrl=await resizeImageForOcr(file,1600,0.82);
+    }catch(resizeErr){
+      dataUrl=await fileToDataUrl(file); // 縮圖萬一失敗，退回原始檔案再試一次
+    }
     var {data:{session}}=await sb.auth.getSession();
     var resp=await fetch('/api/business-card-ocr',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?session.access_token:'')},
       body:JSON.stringify({image:dataUrl}),
     });
-    var result=await resp.json();
+    var rawText=await resp.text();
+    var result;
+    try{
+      result=JSON.parse(rawText);
+    }catch(parseErr){
+      result={error: resp.status===413?'圖片檔案還是太大，請換一張再試一次':('伺服器回應異常（狀態碼'+resp.status+'）')};
+    }
     if(!resp.ok){
       statusEl.textContent='辨識失敗：'+(result.error||'請直接手動輸入');
     }else{

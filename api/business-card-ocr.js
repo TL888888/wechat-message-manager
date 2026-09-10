@@ -41,17 +41,22 @@ async function pushUsageStats({ promptTokens, completionTokens }) {
   }
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt(currentYear) {
   return '你是專業的名片辨識助理。使用者會傳一張名片照片，文字可能是繁體中文、簡體中文或英文。'
     + '請仔細判讀圖片中的文字，並把結果整理成以下欄位，只能回傳一個JSON物件本身，不要有任何其他文字、不要用markdown的```包住、不要加任何說明：\n'
-    + '{"company":"","contact":"","model":"","content":"","note":""}\n'
+    + '{"record_date":"","company":"","contact":"","model":"","content":"","note":""}\n'
     + '欄位規則：\n'
+    + '- record_date：如果名片上有「手寫或印刷出一組實際日期數字」（例如手寫的「2026.9.4」「2026/9/26」「113.5.10」這種格式），轉成YYYY-MM-DD格式填在這裡。\n'
+    + '  日期的分隔符號可能是點「.」、斜線「/」或減號「-」，都要能辨識；「2026.9.4」代表2026年9月4日，不是4月9日。\n'
+    + `  如果只寫了「月.日」或「月/日」沒有寫年份，用今年(西元${currentYear}年)當年份組成完整日期。\n`
+    + '  如果是民國年（例如113、115開頭的年份），要換算成西元年（民國年+1911）再轉成YYYY-MM-DD格式。\n'
+    + '  完全沒有看到任何日期數字，就留空字串，絕對不可以自己編造或推測一個日期去填。\n'
     + '- company：名片上的公司/單位名稱。\n'
     + '- contact：名片上的人名（聯絡人姓名），只填姓名本身，職稱不要放這裡。\n'
     + '- model：如果名片上有印出看起來像產品型號/機型代碼的文字（例如一串英數字組合），填在這裡；名片上通常沒有這個資訊，看不出來就留空字串，絕對不要瞎猜。\n'
-    + '- content：名片上「手寫」加註的文字，例如手寫的產品代號、備註小字等；沒有手寫內容就留空字串。\n'
+    + '- content：名片上「手寫」加註的文字（已經被辨識成record_date的日期，這裡不用重複寫一次），例如手寫的產品代號、備註小字等；沒有其他手寫內容就留空字串。\n'
     + '- note：名片上「印刷體」的其他資訊，例如職稱、電話、email、地址(換行分隔每一項)。\n'
-    + '看不清楚、模糊、或無法判斷的欄位，一律留空字串，絕對不要瞎猜或編造內容。';
+    + '看不清楚、模糊、或無法判斷的欄位，一律留空字串，絕對不要瞎猜或編造內容，尤其是日期欄位，寧可留空也不要猜。';
 }
 
 // 模糊比對：跟 api/wechat-ask.js 的 matchFuzzy 邏輯一致，排除常見中文商業用詞當比對片段，
@@ -129,9 +134,10 @@ module.exports = async function handler(req, res) {
   }
 
   const dataUrl = image.startsWith('data:') ? image : `data:${mime_type || 'image/jpeg'};base64,${image}`;
+  const currentYear = new Date().getFullYear();
 
   const messages = [
-    { role: 'system', content: buildSystemPrompt() },
+    { role: 'system', content: buildSystemPrompt(currentYear) },
     {
       role: 'user',
       content: [
@@ -184,7 +190,12 @@ module.exports = async function handler(req, res) {
     const usage = data?.usage || {};
     await pushUsageStats({ promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens });
 
+    // 格式防呆：只有真的是YYYY-MM-DD才回傳，避免AI偶爾格式跑掉，前端<input type="date">吃到怪格式會直接顯示空白
+    var recordDate = fields.record_date || '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)) recordDate = '';
+
     res.status(200).json({
+      record_date: recordDate,
       company: fields.company || '',
       contact: fields.contact || '',
       model: correctedModel,

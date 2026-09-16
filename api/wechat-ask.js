@@ -125,6 +125,30 @@ module.exports = async function handler(req, res) {
       fetchAllRpc('wechat_ai_qa_candidate_sales'),
     ]);
 
+    // 名片管理是獨立的表，沒有現成的RPC候選清單，直接用分頁查詢拿公司/聯絡人清單
+    // （量還小，先用簡單的分頁.select()就好，之後名片數量大了再考慮跟其他表一樣做成RPC）
+    async function fetchAllValues(table, column) {
+      const PAGE_SIZE = 1000;
+      let all = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await userClient
+          .from(table)
+          .select(column)
+          .not(column, 'is', null)
+          .range(from, from + PAGE_SIZE - 1);
+        if (error || !data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return all;
+    }
+    const [cardCompanyData, cardContactData] = await Promise.all([
+      fetchAllValues('business_cards', 'company'),
+      fetchAllValues('business_cards', 'contact'),
+    ]);
+
     const uniqFromRpc = (data, key) => [
       ...new Set((data || []).map((r) => (r[key] || '').trim()).filter((v) => v.length >= 2)),
     ];
@@ -132,6 +156,8 @@ module.exports = async function handler(req, res) {
     const customerSet = new Set(uniqFromRpc(custData, 'customer'));
     const modelSet = new Set(uniqFromRpc(modelData, 'model'));
     const salesSet = new Set(uniqFromRpc(salesData, 'sales'));
+    const cardCompanySet = new Set(uniqFromRpc(cardCompanyData, 'company'));
+    const cardContactSet = new Set(uniqFromRpc(cardContactData, 'contact'));
 
     // 嚴格比對：問題要完整包含資料庫值（用於機型代碼，差一碼就是不同機器，不能放寬）
     const matchStrict = (set) => [...set].filter((v) => question.includes(v));
@@ -174,10 +200,18 @@ module.exports = async function handler(req, res) {
     const matchedCustomers = matchFuzzy(customerSet);
     const matchedModels = matchStrict(modelSet);
     const matchedSales = matchFuzzy(salesSet);
+    const matchedCardCompanies = matchFuzzy(cardCompanySet);
+    const matchedCardContacts = matchFuzzy(cardContactSet);
 
-    if (!matchedCustomers.length && !matchedModels.length && !matchedSales.length) {
+    if (
+      !matchedCustomers.length &&
+      !matchedModels.length &&
+      !matchedSales.length &&
+      !matchedCardCompanies.length &&
+      !matchedCardContacts.length
+    ) {
       const answer =
-        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。';
+        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名／名片聯絡人關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。';
       await logAttempt(answer, 0, 0);
       res.status(200).json({ answer, matched_records_count: 0 });
       return;
@@ -227,7 +261,7 @@ module.exports = async function handler(req, res) {
       return merged.slice(0, MAX_RECORDS_PER_TABLE);
     }
 
-    const [wmData, crData, vrData] = await Promise.all([
+    const [wmData, crData, vrData, cardMatchData] = await Promise.all([
       fetchByAnyDimension(
         'wechat_messages',
         'date,company,model,qty,price,delivery,status,sales,raw,note,other',
@@ -243,6 +277,40 @@ module.exports = async function handler(req, res) {
         'report_date,customer,model,customer_info,market_info,other,sales',
         'customer', 'model', 'sales', 'report_date'
       ),
+      (async () => {
+        // 名片管理是獨立表，欄位跟其他三張不一樣（公司/聯絡人，沒有機型），另外查
+        const queries = [];
+        const selectCols = 'upload_date,company,contact,phone,mobile,email,address,note,sales';
+        if (matchedCardCompanies.length) {
+          queries.push(
+            userClient.from('business_cards').select(selectCols).in('company', matchedCardCompanies)
+              .order('upload_date', { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+          );
+        }
+        if (matchedCardContacts.length) {
+          queries.push(
+            userClient.from('business_cards').select(selectCols).in('contact', matchedCardContacts)
+              .order('upload_date', { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+          );
+        }
+        if (matchedSales.length) {
+          queries.push(
+            userClient.from('business_cards').select(selectCols).in('sales', matchedSales)
+              .order('upload_date', { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
+          );
+        }
+        if (!queries.length) return [];
+        const results = await Promise.all(queries);
+        const merged = [];
+        const seen = new Set();
+        results.forEach((r) => {
+          (r.data || []).forEach((row) => {
+            const key = JSON.stringify(row);
+            if (!seen.has(key)) { seen.add(key); merged.push(row); }
+          });
+        });
+        return merged.slice(0, MAX_RECORDS_PER_TABLE);
+      })(),
     ]);
 
     // 之前這裡有針對每個欄位個別截斷字數，現在已升級付費方案不用再省，
@@ -269,6 +337,12 @@ module.exports = async function handler(req, res) {
       recordItems.push({
         date: r.report_date || '',
         text: `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`,
+      })
+    );
+    (cardMatchData || []).forEach((r) =>
+      recordItems.push({
+        date: r.upload_date || '',
+        text: `[名片] 日期:${r.upload_date} 公司:${r.company} 聯絡人:${r.contact} 電話:${r.phone || ''} 手機:${r.mobile || ''} email:${r.email || ''} 地址:${r.address || ''} 備註:${r.note || ''} 業務:${r.sales}`,
       })
     );
     recordItems.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));

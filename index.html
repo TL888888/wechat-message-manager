@@ -388,16 +388,36 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
   <!-- ══ 名片管理 ══ -->
   <div id="tab-cards" style="display:none;">
-    <div class="filter-panel" style="max-width:640px;margin:0 auto;">
-      <div style="font-size:15px;font-weight:700;color:var(--text-h);margin-bottom:4px;"><i class="fa-solid fa-id-card" style="color:var(--accent);margin-right:8px;"></i>新增名片</div>
-      <div style="font-size:12px;color:var(--text-s);margin-bottom:14px;">拍照或上傳名片照片，AI會自動辨識公司/聯絡人等資訊，確認無誤後再儲存；照片本身不會被保存。</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:15px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-id-card" style="color:var(--accent);margin-right:8px;"></i>名片管理</div>
+      <div style="display:flex;gap:8px;">
+        <input id="card-search-input" class="input-field" style="width:220px;" placeholder="搜尋公司/聯絡人/電話/email..." oninput="renderCardList()" />
+        <button class="btn-primary" onclick="openCardAddFlow()"><i class="fa-solid fa-camera"></i> 新增名片</button>
+      </div>
+    </div>
 
-      <div style="margin-bottom:14px;">
+    <!-- 拍照/OCR/確認 流程（新增或編輯時顯示） -->
+    <div id="card-add-panel" class="filter-panel" style="max-width:640px;margin:0 auto 20px auto;display:none;">
+      <div id="card-step-photo">
+        <div style="font-size:13px;font-weight:600;color:var(--text-h);margin-bottom:4px;" id="card-photo-step-title">拍攝名片正面</div>
+        <div style="font-size:12px;color:var(--text-s);margin-bottom:14px;">AI會自動辨識公司/聯絡人/電話等資訊，確認無誤後再儲存；照片本身不會被保存。</div>
         <input type="file" id="card-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleCardPhotoSelected(event)" />
         <button class="btn-primary" style="width:100%;justify-content:center;" onclick="document.getElementById('card-photo-input').click()" id="card-photo-btn">
-          <i class="fa-solid fa-camera"></i> 拍照或選擇名片照片
+          <i class="fa-solid fa-camera"></i> <span id="card-photo-btn-label">拍照或選擇名片照片</span>
         </button>
         <div id="card-ocr-status" style="font-size:12px;color:var(--text-s);margin-top:8px;display:none;"></div>
+        <div style="text-align:right;margin-top:10px;">
+          <button class="btn-ghost" onclick="closeCardAddFlow()">取消</button>
+        </div>
+      </div>
+
+      <!-- 拍完一面後，先問要不要繼續拍反面 -->
+      <div id="card-step-ask-back" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:14px;color:var(--text-h);margin-bottom:16px;">這張名片還有反面資料要拍嗎？</div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn-ghost" onclick="skipCardBack()">沒有，直接確認</button>
+          <button class="btn-primary" onclick="captureCardBack()"><i class="fa-solid fa-camera"></i> 有，拍反面</button>
+        </div>
       </div>
 
       <div id="card-form-area" style="display:none;">
@@ -410,19 +430,26 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
           <input id="cf-company" class="input-field" placeholder="公司名稱" />
           <div class="filter-label" style="padding-top:9px;">聯絡人</div>
           <input id="cf-contact" class="input-field" placeholder="聯絡人姓名" />
-          <div class="filter-label" style="padding-top:9px;">機型</div>
-          <input id="cf-model" class="input-field" placeholder="機型（如名片上有看到相關代碼）" />
-          <div class="filter-label" style="padding-top:9px;">內容</div>
-          <textarea id="cf-content" class="input-field" rows="3" placeholder="名片上手寫的加註內容"></textarea>
+          <div class="filter-label" style="padding-top:9px;">電話</div>
+          <input id="cf-phone" class="input-field" placeholder="公司市話/總機" />
+          <div class="filter-label" style="padding-top:9px;">手機</div>
+          <input id="cf-mobile" class="input-field" placeholder="手機號碼" />
+          <div class="filter-label" style="padding-top:9px;">email</div>
+          <input id="cf-email" class="input-field" placeholder="電子郵件" />
+          <div class="filter-label" style="padding-top:9px;">地址</div>
+          <input id="cf-address" class="input-field" placeholder="地址" />
           <div class="filter-label" style="padding-top:9px;">備註</div>
-          <textarea id="cf-note" class="input-field" rows="3" placeholder="職稱/電話/email/地址等"></textarea>
+          <textarea id="cf-note" class="input-field" rows="3" placeholder="手寫加註/職稱/其他資訊"></textarea>
         </div>
         <div style="display:flex;gap:8px;margin-top:14px;">
-          <button class="btn-ghost" style="flex:1;justify-content:center;" onclick="resetCardForm()">取消</button>
+          <button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeCardAddFlow()">取消</button>
           <button class="btn-primary" style="flex:1;justify-content:center;" id="card-save-btn" onclick="saveBusinessCard()"><i class="fa-solid fa-check"></i> 儲存</button>
         </div>
       </div>
     </div>
+
+    <!-- 名片清單 -->
+    <div id="card-list-area"></div>
   </div>
 
   <!-- ══ 客戶商務 ══ -->
@@ -1904,7 +1931,7 @@ function switchTab(tab){
   if(tab==='customer') renderUnified();
   else if(tab==='stats') renderStats();
   else if(tab==='users') renderUsersList();
-  else if(tab==='cards') resetCardForm();
+  else if(tab==='cards'){document.getElementById('card-add-panel').style.display='none';renderCardList();}
 }
 
 // ══ 客戶商務：統一渲染（客戶→機型 群組展開）══════════════
@@ -1918,13 +1945,13 @@ function clearUnifiedFilter(){
 // 匯出「客戶商務」目前篩選條件下的完整清單成Excel（不受目前頁面只顯示15筆的限制，符合條件的全部匯出）
 function exportUnifiedExcel(){
   var f=getFilteredUnifiedRows();
-  var rows=buildUnifiedRows(f.fCust,f.fVisit,f.fCard);
+  var rows=buildUnifiedRows(f.fCust,f.fVisit);
   if(!rows.length){alert('目前篩選條件下沒有資料可以匯出，請先確認篩選條件');return;}
   var data=rows.map(function(r){
-    return {'日期':r.date,'業務':r.sales,'公司':r.customer,'聯絡人':r.contact,'機型':r.model,'內容':r.info,'備註':r.other};
+    return {'日期':r.date,'業務':r.sales,'客戶':r.customer,'機型':r.model,'客戶資訊':r.info,'其他':r.other};
   });
   var ws=XLSX.utils.json_to_sheet(data);
-  ws['!cols']=[{wch:11},{wch:10},{wch:16},{wch:12},{wch:12},{wch:60},{wch:30}];
+  ws['!cols']=[{wch:11},{wch:10},{wch:16},{wch:12},{wch:60},{wch:30}];
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'客戶商務');
   var todayStr=new Date().toISOString().split('T')[0];
@@ -1946,13 +1973,11 @@ function formatShortDate(iso){
   if(isNaN(d.getTime())) return '';
   return (d.getMonth()+1)+'/'+d.getDate();
 }
-// 合併微信訊息＋拜訪紀錄＋名片管理成統一的表格列資料
-// （欄位順序：日期/業務/公司/聯絡人/機型/內容/備註；「聯絡人」對名片管理是真實資料，
-// 對微信訊息(如果原本有contact欄位)也會帶出來，拜訪紀錄/CRM沒有這個概念所以會是空的）
-function buildUnifiedRows(fCust,fVisit,fCard){
+// 合併微信訊息＋拜訪紀錄成統一的表格列資料（名片管理已改成獨立頁面/資料庫，不再併入這裡）
+function buildUnifiedRows(fCust,fVisit){
   var rows=[];
   fCust.forEach(function(r){
-    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',contact:r.contact||'',model:r.model||'',info:r.raw||r.note||'',other:r.other||''});
+    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',model:r.model||'',info:r.raw||r.note||'',other:r.other||''});
   });
   fVisit.forEach(function(r){
     var infoParts=[];
@@ -1962,10 +1987,7 @@ function buildUnifiedRows(fCust,fVisit,fCard){
     var otherParts=[];
     if(r.other) otherParts.push(r.other);
     if(r.companion) otherParts.push('【陪同人員】'+r.companion);
-    rows.push({_type:'visit',_id:r.id,_raw:r,date:r.report_date||'',sales:r.sales||'',customer:r.customer||'',contact:'',model:r.model||'',info:infoParts.join('\n\n'),other:otherParts.join('\n\n')});
-  });
-  (fCard||[]).forEach(function(r){
-    rows.push({_type:'card',_id:r.id,_raw:r,date:r.upload_date||'',sales:r.sales||'',customer:r.company||'',contact:r.contact||'',model:r.model||'',info:r.content||'',other:r.note||''});
+    rows.push({_type:'visit',_id:r.id,_raw:r,date:r.report_date||'',sales:r.sales||'',customer:r.customer||'',model:r.model||'',info:infoParts.join('\n\n'),other:otherParts.join('\n\n')});
   });
   rows.sort(function(a,b){return dateSortKey(b.date).localeCompare(dateSortKey(a.date));});
   return rows;
@@ -1974,15 +1996,14 @@ function buildUnifiedTableHtml(pageRows,q){
   var thead='<thead><tr>'
     +'<th class="erp-th erp-sticky-col erp-col-date" style="left:0;">日期</th>'
     +'<th class="erp-th erp-sticky-col erp-col-sales" style="left:84px;">業務</th>'
-    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:148px;">公司</th>'
-    +'<th class="erp-th erp-col-contact">聯絡人</th>'
-    +'<th class="erp-th erp-col-model">機型</th>'
-    +'<th class="erp-th erp-col-info">內容</th>'
-    +'<th class="erp-th erp-col-other">備註</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-customer" style="left:148px;">客戶</th>'
+    +'<th class="erp-th erp-sticky-col erp-col-model" style="left:266px;">機型</th>'
+    +'<th class="erp-th erp-col-info">客戶資訊</th>'
+    +'<th class="erp-th erp-col-other">其他</th>'
     +'<th class="erp-th erp-td-op">操作</th>'
   +'</tr></thead>';
-  var editHandlers={wechat:'openEditWechatMsg',card:'openEditBusinessCard'};
-  var deleteHandlers={wechat:'deleteCustRecord',visit:'deleteVisitRecord',card:'deleteBusinessCard'};
+  var editHandlers={wechat:'openEditWechatMsg'};
+  var deleteHandlers={wechat:'deleteCustRecord',visit:'deleteVisitRecord'};
   var tbody='<tbody>'+pageRows.map(function(r,i){
     var editFn=editHandlers[r._type];
     var editBtn=(editFn&&canEdit(r._raw))?'<button class="erp-op-btn" onclick="'+editFn+'(\''+r._id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
@@ -1993,8 +2014,7 @@ function buildUnifiedTableHtml(pageRows,q){
       +'<td class="erp-td erp-sticky-col erp-col-date" style="left:0;">'+escH(r.date)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-sales" style="left:84px;">'+escH(r.sales)+'</td>'
       +'<td class="erp-td erp-sticky-col erp-col-customer" style="left:148px;">'+hl(r.customer,q)+'</td>'
-      +'<td class="erp-td erp-col-contact">'+(r.contact?hl(r.contact,q):'<span class="erp-empty">—</span>')+'</td>'
-      +'<td class="erp-td erp-col-model">'+escH(r.model)+'</td>'
+      +'<td class="erp-td erp-sticky-col erp-col-model" style="left:266px;">'+escH(r.model)+'</td>'
       +'<td class="erp-td erp-col-info">'+(r.info?hl(r.info,q):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-col-other">'+(r.other?hl(r.other,q):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
@@ -2063,15 +2083,7 @@ function getFilteredUnifiedRows(){
     if(!inDateRange(r.report_date)) return false;
     return true;
   });
-  var fCard=cardData.filter(function(r){
-    if(company&&!matchQ(r.company,company)) return false;
-    if(model&&!matchQ(r.model||'',model)) return false;
-    if(person&&!matchQ([r.sales,r.contact].join(' '),person)) return false;
-    if(keyword&&!matchQ([r.company,r.contact,r.model,r.content,r.note,r.sales].join(' '),keyword)) return false;
-    if(!inDateRange(r.upload_date)) return false;
-    return true;
-  });
-  return {fCust:fCust,fVisit:fVisit,fCard:fCard,filterSummary:{company:company,model:model,person:person,keyword:keyword,dateFrom:dateFrom,dateTo:dateTo}};
+  return {fCust:fCust,fVisit:fVisit,filterSummary:{company:company,model:model,person:person,keyword:keyword,dateFrom:dateFrom,dateTo:dateTo}};
 }
 function renderUnified(){
   var f=getFilteredUnifiedRows();
@@ -2079,7 +2091,7 @@ function renderUnified(){
   var dateFrom=f.filterSummary.dateFrom,dateTo=f.filterSummary.dateTo;
   var q=company||model||person||keyword; // 只用文字類篩選詞做畫面上的黃底標示，日期不適合拿來highlight文字
   var anyFilter=q||dateFrom||dateTo;
-  var fCust=f.fCust,fVisit=f.fVisit,fCard=f.fCard;
+  var fCust=f.fCust,fVisit=f.fVisit;
   // 注意：客戶商務頁籤故意不放CRM資料（crm_records），CRM只在「CRM需求統計」頁籤顯示，
   // 避免同一筆訂單在兩個頁籤都出現、造成重複計算或混淆
 
@@ -2089,13 +2101,12 @@ function renderUnified(){
     statsEl.innerHTML=
       '<span class="stat-pill">微信訊息 <b>'+custData.length+'</b></span>'
       +'<span class="stat-pill">拜訪紀錄 <b>'+visitData.length+'</b></span>'
-      +'<span class="stat-pill">名片 <b>'+cardData.length+'</b></span>'
-      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b> 名片<b>'+fCard.length+'</b></span>':'');
+      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
   }
 
   var el=document.getElementById('unified-records');
   if(!el) return;
-  var rows=buildUnifiedRows(fCust,fVisit,fCard);
+  var rows=buildUnifiedRows(fCust,fVisit);
   if(!rows.length){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合紀錄</div>';
     renderUniPager(0,0);
@@ -2147,6 +2158,7 @@ function canEdit(r){
 
 // ══ 名片管理 ═══════════════════════════════════════════════
 var editingCardId=null;
+var cardFrontResult=null; // 拍正面辨識完的結果，等使用者決定要不要繼續拍反面
 function populateCardSalesDropdown(){
   var sel=document.getElementById('cf-sales');
   if(!sel) return;
@@ -2155,22 +2167,28 @@ function populateCardSalesDropdown(){
   if(mySales && list.indexOf(mySales)===-1) list.unshift(mySales);
   sel.innerHTML=list.map(function(n){return '<option value="'+escH(n)+'"'+(n===mySales?' selected':'')+'>'+escH(n)+'</option>';}).join('');
 }
-function resetCardForm(){
+function openCardAddFlow(){
   editingCardId=null;
-  var fileInput=document.getElementById('card-photo-input');
-  if(fileInput) fileInput.value='';
+  cardFrontResult=null;
+  document.getElementById('card-add-panel').style.display='block';
+  document.getElementById('card-step-photo').style.display='block';
+  document.getElementById('card-step-ask-back').style.display='none';
+  document.getElementById('card-form-area').style.display='none';
+  document.getElementById('card-photo-step-title').textContent='拍攝名片正面';
+  document.getElementById('card-photo-btn-label').textContent='拍照或選擇名片照片';
+  document.getElementById('card-photo-input').value='';
   var statusEl=document.getElementById('card-ocr-status');
-  if(statusEl){statusEl.style.display='none';statusEl.textContent='';}
-  var formArea=document.getElementById('card-form-area');
-  if(formArea) formArea.style.display='none';
-  var photoBtn=document.getElementById('card-photo-btn');
-  if(photoBtn){photoBtn.style.display='';photoBtn.disabled=false;}
-  ['cf-company','cf-contact','cf-model','cf-content','cf-note'].forEach(function(id){
+  statusEl.style.display='none';statusEl.textContent='';
+  ['cf-company','cf-contact','cf-phone','cf-mobile','cf-email','cf-address','cf-note'].forEach(function(id){
     var el=document.getElementById(id);if(el) el.value='';
   });
-  var dateEl=document.getElementById('cf-date');
-  if(dateEl) dateEl.value=new Date().toISOString().split('T')[0];
+  document.getElementById('cf-date').value=new Date().toISOString().split('T')[0];
   populateCardSalesDropdown();
+}
+function closeCardAddFlow(){
+  editingCardId=null;
+  cardFrontResult=null;
+  document.getElementById('card-add-panel').style.display='none';
 }
 function fileToDataUrl(file){
   return new Promise(function(resolve,reject){
@@ -2202,52 +2220,103 @@ function resizeImageForOcr(file,maxDim,quality){
     img.src=url;
   });
 }
+async function runCardOcr(file){
+  var dataUrl;
+  try{
+    dataUrl=await resizeImageForOcr(file,1600,0.82);
+  }catch(resizeErr){
+    dataUrl=await fileToDataUrl(file); // 縮圖萬一失敗，退回原始檔案再試一次
+  }
+  var {data:{session}}=await sb.auth.getSession();
+  var resp=await fetch('/api/business-card-ocr',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?session.access_token:'')},
+    body:JSON.stringify({image:dataUrl}),
+  });
+  var rawText=await resp.text();
+  var result;
+  try{
+    result=JSON.parse(rawText);
+  }catch(parseErr){
+    result={error: resp.status===413?'圖片檔案還是太大，請換一張再試一次':('伺服器回應異常（狀態碼'+resp.status+'）')};
+  }
+  if(!resp.ok) throw new Error(result.error||'辨識失敗');
+  return result;
+}
+// 正反兩面的辨識結果合併：同一欄位優先用正面，正面沒有才用反面補上；備註則兩面都保留、串在一起
+function mergeCardResults(front,back){
+  var merged={};
+  ['record_date','company','contact','phone','mobile','email','address'].forEach(function(k){
+    merged[k]=(front&&front[k])||(back&&back[k])||'';
+  });
+  var noteParts=[];
+  if(front&&front.note) noteParts.push(front.note);
+  if(back&&back.note) noteParts.push(back.note);
+  merged.note=noteParts.join('\n');
+  return merged;
+}
+function fillCardForm(result){
+  if(result.record_date) document.getElementById('cf-date').value=result.record_date;
+  document.getElementById('cf-company').value=result.company||'';
+  document.getElementById('cf-contact').value=result.contact||'';
+  document.getElementById('cf-phone').value=result.phone||'';
+  document.getElementById('cf-mobile').value=result.mobile||'';
+  document.getElementById('cf-email').value=result.email||'';
+  document.getElementById('cf-address').value=result.address||'';
+  document.getElementById('cf-note').value=result.note||'';
+}
+function showCardConfirmForm(){
+  document.getElementById('card-step-photo').style.display='none';
+  document.getElementById('card-step-ask-back').style.display='none';
+  document.getElementById('card-form-area').style.display='block';
+  document.getElementById('cf-date').value||(document.getElementById('cf-date').value=new Date().toISOString().split('T')[0]);
+  populateCardSalesDropdown();
+}
+function skipCardBack(){
+  fillCardForm(cardFrontResult);
+  showCardConfirmForm();
+}
+function captureCardBack(){
+  document.getElementById('card-step-ask-back').style.display='none';
+  document.getElementById('card-step-photo').style.display='block';
+  document.getElementById('card-photo-step-title').textContent='拍攝名片反面';
+  document.getElementById('card-photo-btn-label').textContent='拍照或選擇反面照片';
+  document.getElementById('card-photo-input').value='';
+  var statusEl=document.getElementById('card-ocr-status');
+  statusEl.style.display='none';statusEl.textContent='';
+}
 async function handleCardPhotoSelected(e){
   var file=e.target.files&&e.target.files[0];
   if(!file) return;
+  var isBackStep=!!cardFrontResult;
   var statusEl=document.getElementById('card-ocr-status');
   statusEl.style.display='block';
   statusEl.textContent='辨識中，請稍候…';
   var photoBtn=document.getElementById('card-photo-btn');
   photoBtn.disabled=true;
   try{
-    var dataUrl;
-    try{
-      dataUrl=await resizeImageForOcr(file,1600,0.82);
-    }catch(resizeErr){
-      dataUrl=await fileToDataUrl(file); // 縮圖萬一失敗，退回原始檔案再試一次
-    }
-    var {data:{session}}=await sb.auth.getSession();
-    var resp=await fetch('/api/business-card-ocr',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(session?session.access_token:'')},
-      body:JSON.stringify({image:dataUrl}),
-    });
-    var rawText=await resp.text();
-    var result;
-    try{
-      result=JSON.parse(rawText);
-    }catch(parseErr){
-      result={error: resp.status===413?'圖片檔案還是太大，請換一張再試一次':('伺服器回應異常（狀態碼'+resp.status+'）')};
-    }
-    if(!resp.ok){
-      statusEl.textContent='辨識失敗：'+(result.error||'請直接手動輸入');
+    var result=await runCardOcr(file);
+    photoBtn.disabled=false;
+    if(!isBackStep){
+      // 正面辨識完，問要不要繼續拍反面
+      cardFrontResult=result;
+      document.getElementById('card-step-photo').style.display='none';
+      document.getElementById('card-step-ask-back').style.display='block';
     }else{
-      statusEl.textContent='辨識完成，請確認以下內容再儲存';
-      if(result.record_date) document.getElementById('cf-date').value=result.record_date; // 名片上有看到日期就蓋掉預設的今天
-      document.getElementById('cf-company').value=result.company||'';
-      document.getElementById('cf-contact').value=result.contact||'';
-      document.getElementById('cf-model').value=result.model||'';
-      document.getElementById('cf-content').value=result.content||'';
-      document.getElementById('cf-note').value=result.note||'';
+      // 反面辨識完，跟正面合併後直接進確認表單
+      var merged=mergeCardResults(cardFrontResult,result);
+      fillCardForm(merged);
+      showCardConfirmForm();
     }
   }catch(err){
     statusEl.textContent='辨識失敗：'+err.message+'，可直接手動輸入';
+    photoBtn.disabled=false;
+    if(!isBackStep){
+      // 正面辨識失敗，還是讓使用者能繼續往下手動填，不要卡住
+      cardFrontResult={};
+      skipCardBack();
+    }
   }
-  photoBtn.disabled=false;
-  document.getElementById('cf-date').value=new Date().toISOString().split('T')[0];
-  populateCardSalesDropdown();
-  document.getElementById('card-form-area').style.display='block';
 }
 async function saveBusinessCard(){
   var payload={
@@ -2255,8 +2324,10 @@ async function saveBusinessCard(){
     sales:document.getElementById('cf-sales').value||'',
     company:document.getElementById('cf-company').value.trim(),
     contact:document.getElementById('cf-contact').value.trim(),
-    model:document.getElementById('cf-model').value.trim(),
-    content:document.getElementById('cf-content').value.trim(),
+    phone:document.getElementById('cf-phone').value.trim(),
+    mobile:document.getElementById('cf-mobile').value.trim(),
+    email:document.getElementById('cf-email').value.trim(),
+    address:document.getElementById('cf-address').value.trim(),
     note:document.getElementById('cf-note').value.trim(),
   };
   if(!payload.company&&!payload.contact){
@@ -2276,8 +2347,8 @@ async function saveBusinessCard(){
       if(error) throw error;
       cardData=[data].concat(cardData);
     }
-    resetCardForm();
-    alert('已儲存，可以到「客戶商務」查看');
+    closeCardAddFlow();
+    renderCardList();
   }catch(err){
     alert('儲存失敗：'+err.message);
   }
@@ -2286,24 +2357,73 @@ async function saveBusinessCard(){
 function openEditBusinessCard(id){
   var r=cardData.find(function(x){return x.id===id;});
   if(!r) return;
-  switchTab('cards'); // 會先呼叫 resetCardForm()，所以下面的欄位賦值要放在這行之後
   editingCardId=id;
-  document.getElementById('card-photo-btn').style.display='none';
+  cardFrontResult=null;
+  document.getElementById('card-add-panel').style.display='block';
+  document.getElementById('card-step-photo').style.display='none';
+  document.getElementById('card-step-ask-back').style.display='none';
   document.getElementById('card-form-area').style.display='block';
   document.getElementById('cf-date').value=r.upload_date||'';
+  populateCardSalesDropdown();
   document.getElementById('cf-sales').value=r.sales||'';
   document.getElementById('cf-company').value=r.company||'';
   document.getElementById('cf-contact').value=r.contact||'';
-  document.getElementById('cf-model').value=r.model||'';
-  document.getElementById('cf-content').value=r.content||'';
+  document.getElementById('cf-phone').value=r.phone||'';
+  document.getElementById('cf-mobile').value=r.mobile||'';
+  document.getElementById('cf-email').value=r.email||'';
+  document.getElementById('cf-address').value=r.address||'';
   document.getElementById('cf-note').value=r.note||'';
+  document.getElementById('card-add-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function deleteBusinessCard(id){
   if(!confirm('確定刪除這張名片資料？')) return;
   var {error}=await sb.from('business_cards').delete().eq('id',id);
   if(error){alert('刪除失敗：'+error.message);return;}
   cardData=cardData.filter(function(r){return r.id!==id;});
-  if(currentTab==='customer') renderUnified();
+  renderCardList();
+}
+function renderCardList(){
+  var el=document.getElementById('card-list-area');
+  if(!el) return;
+  var kw=(document.getElementById('card-search-input')||{}).value||'';
+  var rows=cardData.filter(function(r){
+    if(!kw) return true;
+    return matchQ([r.company,r.contact,r.phone,r.mobile,r.email,r.address,r.note,r.sales].join(' '),kw);
+  });
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state"><i class="fa-solid fa-id-card" style="font-size:36px;display:block;margin-bottom:12px;"></i>'+(kw?'查無符合的名片':'目前還沒有任何名片，點右上角「新增名片」開始')+'</div>';
+    return;
+  }
+  var thead='<thead><tr>'
+    +'<th class="erp-th">日期</th>'
+    +'<th class="erp-th">業務</th>'
+    +'<th class="erp-th">公司</th>'
+    +'<th class="erp-th">聯絡人</th>'
+    +'<th class="erp-th">電話</th>'
+    +'<th class="erp-th">手機</th>'
+    +'<th class="erp-th">email</th>'
+    +'<th class="erp-th">地址</th>'
+    +'<th class="erp-th">備註</th>'
+    +'<th class="erp-th erp-td-op">操作</th>'
+  +'</tr></thead>';
+  var tbody='<tbody>'+rows.map(function(r,i){
+    var alt=(i%2===1)?' erp-row-alt':'';
+    var editBtn=canEdit(r)?'<button class="erp-op-btn" onclick="openEditBusinessCard(\''+r.id+'\')" title="編輯"><i class="fa-solid fa-pen"></i></button>':'';
+    var delBtn=canDelete(r)?'<button class="erp-op-btn erp-op-del" onclick="deleteBusinessCard(\''+r.id+'\')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>':'';
+    return '<tr class="erp-tr'+alt+'">'
+      +'<td class="erp-td">'+escH(r.upload_date)+'</td>'
+      +'<td class="erp-td">'+escH(r.sales)+'</td>'
+      +'<td class="erp-td">'+escH(r.company)+'</td>'
+      +'<td class="erp-td">'+escH(r.contact)+'</td>'
+      +'<td class="erp-td">'+escH(r.phone)+'</td>'
+      +'<td class="erp-td">'+escH(r.mobile)+'</td>'
+      +'<td class="erp-td">'+escH(r.email)+'</td>'
+      +'<td class="erp-td">'+escH(r.address)+'</td>'
+      +'<td class="erp-td erp-col-other">'+(r.note?escH(r.note):'<span class="erp-empty">—</span>')+'</td>'
+      +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
+    +'</tr>';
+  }).join('')+'</tbody>';
+  el.innerHTML='<div class="erp-table-wrap"><table class="erp-table">'+thead+tbody+'</table></div>';
 }
 
 async function deleteCustRecord(id){

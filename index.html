@@ -582,7 +582,8 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
   <!-- ══ 帳號管理（僅admin可見） ══ -->
   <div id="tab-users" style="display:none;">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;">
+      <button class="btn-ghost" style="display:none;" id="btn-card-note-repair" onclick="openCardNoteRepair()"><i class="fa-solid fa-wrench"></i> 修復名片備註（暫時工具）</button>
       <button class="btn-primary" onclick="openCreateUser()"><i class="fa-solid fa-user-plus"></i> 新增帳號</button>
     </div>
     <div id="users-list"></div>
@@ -590,6 +591,22 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 
 </main>
 </div><!-- end #app -->
+
+<!-- ══ 修復名片備註 MODAL（暫時工具，清理完舊資料後可以整個拿掉）══ -->
+<div id="card-note-repair-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeCardNoteRepair()">
+  <div class="modal-box slide-in" style="max-width:640px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-wrench" style="color:var(--accent);margin-right:8px;"></i>修復名片備註</div>
+      <button onclick="closeCardNoteRepair()" class="btn-ghost" style="padding:5px 10px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="font-size:12px;color:var(--text-s);margin-bottom:12px;">只會處理「電話/手機/email/地址目前都是空的、但備註有內容」的名片，把備註裡符合格式的行拆到正確欄位。已經填過的名片不會被動到。</div>
+    <div id="card-note-repair-body" style="max-height:400px;overflow-y:auto;font-size:13px;"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn-ghost" style="flex:1;justify-content:center;" onclick="closeCardNoteRepair()">關閉</button>
+      <button class="btn-primary" style="flex:1;justify-content:center;display:none;" id="card-note-repair-apply-btn" onclick="applyCardNoteRepair()"><i class="fa-solid fa-check"></i> 套用並存檔</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══ 新增帳號 MODAL ══ -->
 <div id="create-user-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeCreateUser()">
@@ -1795,6 +1812,9 @@ async function onLogin(user){
   // AI問答「清除紀錄」：只有大總管看得到（資料庫層級DELETE政策也是限admin，這裡只是先把按鈕藏起來）
   var aiqaClearBtn=document.getElementById('aiqa-clear-history-btn');
   if(aiqaClearBtn) aiqaClearBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
+  // 修復名片備註（暫時工具）：只有大總管看得到
+  var cardRepairBtn=document.getElementById('btn-card-note-repair');
+  if(cardRepairBtn) cardRepairBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
   var btn=document.getElementById('login-btn');
   btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> 登入';
   await loadAllData();
@@ -2424,6 +2444,81 @@ function renderCardList(){
     +'</tr>';
   }).join('')+'</tbody>';
   el.innerHTML='<div class="erp-table-wrap"><table class="erp-table">'+thead+tbody+'</table></div>';
+}
+
+// ══ 修復名片備註（暫時工具，清理完舊資料就可以整個拿掉）═══════════════
+// 邏輯跟原本給Michelle在瀏覽器主控台跑的腳本完全一樣，只是包成畫面上的按鈕操作
+var _cardNoteRepairData=null;
+function parseCardNote(note){
+  var lines=(note||'').split('\n');
+  var phone=[],mobile=[],email=[],address=[],rest=[];
+  var PHONE_RE=/^(?:TEL|Tel|tel|電話|电话|辦公室電話|办公室电话)\s*[:：]\s*(.+)$/;
+  var MOBILE_RE=/^(?:Mobile|MOBILE|手機|手机|行動電話|行动电话)\s*[:：]\s*(.+)$/;
+  var EMAIL_RE=/^(?:E-?mail|EMAIL|邮箱|電子郵件|电子邮件)\s*[:：]\s*(.+)$/i;
+  var ADDRESS_RE=/^(?:地址|Address|ADDRESS)\s*[:：]\s*(.+)$/;
+  lines.forEach(function(rawLine){
+    var line=rawLine.trim();
+    if(!line) return;
+    var m;
+    if((m=line.match(PHONE_RE))){phone.push(m[1].trim());return;}
+    if((m=line.match(MOBILE_RE))){mobile.push(m[1].trim());return;}
+    if((m=line.match(EMAIL_RE))){email.push(m[1].trim());return;}
+    if((m=line.match(ADDRESS_RE))){address.push(m[1].trim());return;}
+    rest.push(line);
+  });
+  return {phone:phone.join('\n'),mobile:mobile.join('\n'),email:email.join('\n'),address:address.join('\n'),note:rest.join('\n')};
+}
+async function openCardNoteRepair(){
+  document.getElementById('card-note-repair-modal').style.display='flex';
+  var body=document.getElementById('card-note-repair-body');
+  var applyBtn=document.getElementById('card-note-repair-apply-btn');
+  applyBtn.style.display='none';
+  body.innerHTML='查詢中…';
+  var {data,error}=await sb.from('business_cards').select('id,company,contact,phone,mobile,email,address,note')
+    .is('phone',null).is('mobile',null).is('email',null).is('address',null).not('note','is',null);
+  if(error){body.innerHTML='查詢失敗：'+escH(error.message);return;}
+  if(!data||!data.length){body.innerHTML='<div style="padding:20px 0;text-align:center;color:var(--text-s);">沒有需要處理的名片，備註都已經有結構化資料或本來就是空的。</div>';return;}
+  _cardNoteRepairData=data.map(function(r){return Object.assign({},r,{_parsed:parseCardNote(r.note)});});
+  body.innerHTML='<div style="margin-bottom:8px;color:var(--text-s);">共 '+data.length+' 筆名片需要重新解析，預覽如下：</div>'
+    +_cardNoteRepairData.map(function(r){
+      var p=r._parsed;
+      return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">'
+        +'<div style="font-weight:600;margin-bottom:4px;">'+escH(r.company||'(無公司)')+' / '+escH(r.contact||'(無聯絡人)')+'</div>'
+        +'<div style="font-size:12px;color:var(--text-m);line-height:1.7;">'
+        +'電話：'+(escH(p.phone)||'<span class="erp-empty">—</span>')+'<br>'
+        +'手機：'+(escH(p.mobile)||'<span class="erp-empty">—</span>')+'<br>'
+        +'email：'+(escH(p.email)||'<span class="erp-empty">—</span>')+'<br>'
+        +'地址：'+(escH(p.address)||'<span class="erp-empty">—</span>')+'<br>'
+        +'剩餘備註：'+(escH(p.note)||'<span class="erp-empty">—</span>')
+        +'</div></div>';
+    }).join('');
+  applyBtn.style.display='';
+}
+async function applyCardNoteRepair(){
+  if(!_cardNoteRepairData||!_cardNoteRepairData.length) return;
+  if(!confirm('確定要把預覽結果套用並存檔嗎？此動作無法復原。')) return;
+  var applyBtn=document.getElementById('card-note-repair-apply-btn');
+  applyBtn.disabled=true;
+  var okCount=0,failCount=0;
+  for(var i=0;i<_cardNoteRepairData.length;i++){
+    var r=_cardNoteRepairData[i];
+    var p=r._parsed;
+    var {error}=await sb.from('business_cards').update({
+      phone:p.phone||null,mobile:p.mobile||null,email:p.email||null,address:p.address||null,note:p.note||null
+    }).eq('id',r.id);
+    if(error) failCount++; else okCount++;
+  }
+  applyBtn.disabled=false;
+  alert('完成：成功 '+okCount+' 筆，失敗 '+failCount+' 筆。');
+  closeCardNoteRepair();
+  // 順便刷新已經載入的名片資料跟畫面
+  var {data}=await sb.from('business_cards').select('*').order('created_at',{ascending:false});
+  cardData=data||[];
+  if(currentTab==='cards') renderCardList();
+}
+function closeCardNoteRepair(){
+  document.getElementById('card-note-repair-modal').style.display='none';
+  _cardNoteRepairData=null;
 }
 
 async function deleteCustRecord(id){

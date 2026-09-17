@@ -2201,6 +2201,28 @@ function fileToDataUrl(file){
 // 手機拍照的原始檔案常常有好幾MB，直接轉base64送出容易超過伺服器單次請求大小上限，
 // 這裡先縮圖＋轉成JPEG壓縮再送出，名片本來就是平面文字，縮小到1600px長邊完全不影響辨識效果
 function resizeImageForOcr(file,maxDim,quality){
+  // 優先用瀏覽器內建的createImageBitmap搭配resizeWidth：解碼的同時就直接縮小，
+  // 不用像過去那樣先把手機拍出來的完整大圖(現在動輒2000萬畫素以上)整張攤開讀進記憶體，
+  // 全程只解碼一次，可以大幅降低手機（尤其iPhone）在這一步當機或沒反應的機率。
+  // 只給resizeWidth、不給resizeHeight，瀏覽器會自動照比例算出高度。
+  // 部分較舊瀏覽器不支援這個選項，才退回原本「畫到canvas上」的做法。
+  if(window.createImageBitmap){
+    return (async function(){
+      try{
+        var bitmap=await createImageBitmap(file,{resizeWidth:maxDim,resizeQuality:'medium'});
+        var canvas=document.createElement('canvas');
+        canvas.width=bitmap.width;canvas.height=bitmap.height;
+        canvas.getContext('2d').drawImage(bitmap,0,0);
+        bitmap.close&&bitmap.close();
+        return canvas.toDataURL('image/jpeg',quality);
+      }catch(e){
+        return resizeImageForOcrLegacy(file,maxDim,quality);
+      }
+    })();
+  }
+  return resizeImageForOcrLegacy(file,maxDim,quality);
+}
+function resizeImageForOcrLegacy(file,maxDim,quality){
   return new Promise(function(resolve,reject){
     var url=URL.createObjectURL(file);
     var img=new Image();

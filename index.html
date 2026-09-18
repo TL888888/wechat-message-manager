@@ -143,6 +143,11 @@ mark{background:#ffe085;color:#5a3e00;border-radius:2px;padding:0 2px;}
 .erp-col-status{width:112px;min-width:112px;max-width:112px;white-space:nowrap;}
 .erp-col-qty{width:76px;min-width:76px;max-width:76px;white-space:nowrap;text-align:right;}
 .erp-col-delivery{width:180px;min-width:180px;max-width:180px;white-space:pre-wrap;word-break:break-word;}
+/* 名片管理專用欄位：電話/手機/email/地址都可能是長串沒有空白的英數字，
+   一定要加word-break:break-all，否則瀏覽器找不到空白可以換行，就會整串溢出擠壓到右邊欄位 */
+.erp-col-phone{width:104px;min-width:104px;max-width:104px;white-space:normal;word-break:break-all;}
+.erp-col-email{width:150px;min-width:150px;max-width:150px;white-space:normal;word-break:break-all;}
+.erp-col-address{width:160px;min-width:160px;max-width:160px;white-space:normal;word-break:break-all;}
 .erp-sticky-col{position:sticky;background:#fff;z-index:2;}
 tr.erp-row-alt td.erp-td{background:#f8fafc;}
 tr.erp-tr:hover td.erp-td{background:#eef4fb;}
@@ -173,6 +178,9 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .erp-col-status{width:96px;min-width:96px;max-width:96px;}
   .erp-col-qty{width:60px;min-width:60px;max-width:60px;}
   .erp-col-delivery{width:140px;min-width:140px;max-width:140px;}
+  .erp-col-phone{width:92px;min-width:92px;max-width:92px;}
+  .erp-col-email{width:120px;min-width:120px;max-width:120px;}
+  .erp-col-address{width:130px;min-width:130px;max-width:130px;}
   .erp-pager-btn{min-width:28px;height:28px;font-size:12px;}
 }
 
@@ -2421,10 +2429,10 @@ function renderCardList(){
     +'<th class="erp-th">業務</th>'
     +'<th class="erp-th">公司</th>'
     +'<th class="erp-th">聯絡人</th>'
-    +'<th class="erp-th">電話</th>'
-    +'<th class="erp-th">手機</th>'
-    +'<th class="erp-th">email</th>'
-    +'<th class="erp-th">地址</th>'
+    +'<th class="erp-th erp-col-phone">電話</th>'
+    +'<th class="erp-th erp-col-phone">手機</th>'
+    +'<th class="erp-th erp-col-email">email</th>'
+    +'<th class="erp-th erp-col-address">地址</th>'
     +'<th class="erp-th">備註</th>'
     +'<th class="erp-th erp-td-op">操作</th>'
   +'</tr></thead>';
@@ -2437,10 +2445,10 @@ function renderCardList(){
       +'<td class="erp-td">'+escH(r.sales)+'</td>'
       +'<td class="erp-td">'+escH(r.company)+'</td>'
       +'<td class="erp-td">'+escH(r.contact)+'</td>'
-      +'<td class="erp-td">'+escH(r.phone)+'</td>'
-      +'<td class="erp-td">'+escH(r.mobile)+'</td>'
-      +'<td class="erp-td">'+escH(r.email)+'</td>'
-      +'<td class="erp-td">'+escH(r.address)+'</td>'
+      +'<td class="erp-td erp-col-phone">'+escH(r.phone)+'</td>'
+      +'<td class="erp-td erp-col-phone">'+escH(r.mobile)+'</td>'
+      +'<td class="erp-td erp-col-email">'+escH(r.email)+'</td>'
+      +'<td class="erp-td erp-col-address">'+escH(r.address)+'</td>'
       +'<td class="erp-td erp-col-other">'+(r.note?escH(r.note):'<span class="erp-empty">—</span>')+'</td>'
       +'<td class="erp-td erp-td-op">'+editBtn+delBtn+'</td>'
     +'</tr>';

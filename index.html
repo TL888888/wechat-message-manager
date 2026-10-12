@@ -1878,7 +1878,9 @@ async function onLogin(user){
   document.getElementById('app').style.display='block';
   document.getElementById('nav-user-info').textContent=currentUserProfile.name+' · '+roleLabel(currentUserProfile.role);
   var usersBtn=document.getElementById('tab-users-btn');
-  if(usersBtn) usersBtn.style.display=(currentUserProfile.role==='admin')?'':'none';
+  // 「帳號管理」頁籤暫停使用（Michelle 2026-10-12 決定，經理之後可能會再啟用）：
+  // 程式與資料都保留，只是不顯示頁籤；要重新啟用，把 ACCOUNT_MGMT_ENABLED 改成 true 即可
+  if(usersBtn) usersBtn.style.display=(ACCOUNT_MGMT_ENABLED&&currentUserProfile.role==='admin')?'':'none';
   // CRM需求統計分頁籤：所有角色皆可見(助理權限已比照總監開放)
   var statBtn=document.getElementById('tab-stat-btn');
   if(statBtn) statBtn.style.display='';
@@ -1925,6 +1927,7 @@ window.onload=async function(){
 
 // ══ 載入資料 ════════════════════════════════════════════════
 var usersMap={}; // id -> {name, role}
+var ACCOUNT_MGMT_ENABLED=false; // 帳號管理頁籤開關（暫停中，見 onLogin 註解與 NOTES.md）
 
 // Supabase REST API 預設一次最多回傳1000筆，資料量一大（例如拜訪紀錄破萬筆）就會被截斷，
 // 參考 shipping 系統的做法：不要一次全撈，改成先抓第一批讓畫面快點有東西可看，

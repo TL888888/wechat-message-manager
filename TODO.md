@@ -11,8 +11,8 @@
 - [x] 計分單位:每個客戶廠區算 1 分
 
 ### 上線前要做
-- [ ] 在 Supabase 執行一次 SQL,加 `end_product` 欄位(步驟見 NOTES.md「一次性設定」)
-- [ ] 推上 GitHub 前,先把這個 repo 的 git 身分改成 `tlcs@tlhome.com.tw`(目前是 michelle.chang@tlhome.com.tw,Vercel 會擋部署;見 ACCOUNT_OVERVIEW.md 第 5 點)
+- [x] 在 Supabase 執行一次 SQL,加 `end_product` 欄位(2026-10-12 完成)
+- [x] git 身分改成 `tlcs@tlhome.com.tw` 並推上 GitHub,Vercel 部署成功(2026-10-12)
 - [ ] 上線後,大總管重新匯入一次完整的 CRM Excel,確認頁籤有資料
 
 ### 資料面待追蹤

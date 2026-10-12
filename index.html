@@ -217,6 +217,69 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .tab-btn{padding:7px 9px;font-size:12px;}
 }
 
+/* ══ 終端應用分析 ══════════════════════════════════════════════ */
+.ea-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.ea-title{font-size:17px;font-weight:700;color:var(--text-h);}
+.ea-sub{font-size:12px;color:var(--text-s);margin-top:4px;}
+.ea-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px;}
+.ea-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-width:0;}
+.ea-kpi-label{font-size:12px;color:var(--text-m);}
+.ea-kpi-value{font-size:24px;font-weight:700;color:var(--text-h);margin-top:4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ea-kpi-value small{font-size:13px;font-weight:500;color:var(--text-m);margin-left:3px;}
+.ea-kpi-note{font-size:11.5px;color:var(--text-s);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ea-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.ea-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.ea-card-title{font-size:15px;font-weight:700;color:var(--text-h);}
+.ea-card-desc{font-size:12px;color:var(--text-s);margin-top:2px;}
+.ea-seg{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;}
+.ea-seg button{border:none;background:transparent;padding:6px 14px;border-radius:6px;font-size:13px;color:var(--text-m);cursor:pointer;}
+.ea-seg button.active{background:var(--card);color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,0.08);}
+.ea-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:center;}
+.ea-donut-wrap{display:flex;justify-content:center;}
+.ea-donut-wrap svg{width:100%;max-width:320px;height:auto;overflow:visible;}
+.ea-slice{cursor:pointer;transition:opacity .15s;}
+.ea-slice:hover{opacity:.85;}
+.ea-bars{display:flex;flex-direction:column;gap:9px;}
+.ea-bar-row{display:grid;grid-template-columns:118px minmax(0,1fr) 92px;align-items:center;gap:10px;cursor:pointer;border-radius:6px;padding:2px 4px;}
+.ea-bar-row:hover{background:var(--bg);}
+.ea-bar-name{font-size:13px;color:var(--text-b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ea-bar-track{height:18px;position:relative;}
+.ea-bar-fill{height:100%;border-radius:0 4px 4px 0;min-width:2px;}
+.ea-bar-val{font-size:12.5px;color:var(--text-m);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.ea-rank{display:flex;flex-direction:column;}
+.ea-rank-row{display:grid;grid-template-columns:26px 12px minmax(0,1fr) 54px 56px 52px;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;border-radius:6px;}
+.ea-rank-row:last-child{border-bottom:none;}
+.ea-rank-row:hover,.ea-rank-row.on{background:var(--accent-bg);}
+.ea-rank-head{font-size:11.5px;color:var(--text-s);cursor:default;padding-top:0;}
+.ea-rank-head:hover{background:none;}
+.ea-rank-no{color:var(--text-s);font-variant-numeric:tabular-nums;}
+.ea-swatch{width:10px;height:10px;border-radius:3px;}
+.ea-num{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-b);}
+.ea-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.ea-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border2);background:var(--card);border-radius:20px;padding:5px 12px;font-size:12.5px;color:var(--text-m);cursor:pointer;}
+.ea-pill.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);font-weight:600;}
+.ea-split{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:24px;}
+.ea-sec-label{font-size:12px;color:var(--text-m);font-weight:600;margin-bottom:10px;}
+.ea-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.ea-chip{font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-b);}
+.ea-chip em{font-style:normal;color:var(--text-s);margin-left:4px;}
+.ea-summary{margin:0;padding-left:20px;font-size:14px;line-height:1.9;color:var(--text-b);}
+.ea-summary b{color:var(--text-h);}
+.ea-notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.ea-note{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.75;color:var(--text-b);}
+.ea-note-title{font-weight:700;color:var(--text-h);margin-bottom:4px;font-size:13px;}
+.ea-tip{position:fixed;z-index:300;pointer-events:none;background:#1e293b;color:#fff;font-size:12px;line-height:1.6;padding:7px 10px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,0.18);display:none;max-width:260px;}
+@media (max-width:900px){
+  .ea-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .ea-main,.ea-split,.ea-notes{grid-template-columns:1fr;}
+}
+@media (max-width:640px){
+  .ea-card{padding:14px;}
+  .ea-kpi-value{font-size:20px;}
+  .ea-bar-row{grid-template-columns:88px minmax(0,1fr) 78px;gap:6px;}
+  .ea-rank-row{grid-template-columns:20px 10px minmax(0,1fr) 46px 48px 40px;gap:6px;font-size:12px;}
+}
+
 /* 隱藏瀏覽器內建密碼眼睛，避免跟小猴子重疊 */
 input[type=password]::-ms-reveal,
 input[type=password]::-ms-clear,
@@ -367,6 +430,9 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       </button>
       <button id="tab-stat-btn" class="tab-btn" onclick="switchTab('stats')">
         <i class="fa-solid fa-chart-bar" style="margin-right:5px;font-size:13px;"></i>CRM需求統計
+      </button>
+      <button id="tab-apps-btn" class="tab-btn" onclick="switchTab('apps')">
+        <i class="fa-solid fa-chart-pie" style="margin-right:5px;font-size:13px;"></i>終端應用分析
       </button>
       <button id="tab-users-btn" class="tab-btn" onclick="switchTab('users')" style="display:none;">
         <i class="fa-solid fa-users-gear" style="margin-right:5px;font-size:13px;"></i>帳號管理
@@ -552,6 +618,17 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
     </div>
   </div>
 
+
+  <!-- ══ 終端應用分析（游總需求，2026-10）：看CRM最新一份的「終端產品」欄，統計哪類應用最多、各應用對應哪些機型 ══ -->
+  <div id="tab-apps" style="display:none;">
+    <div class="ea-head">
+      <div>
+        <div class="ea-title"><i class="fa-solid fa-chart-pie" style="color:var(--accent);margin-right:8px;"></i>終端應用分析</div>
+        <div class="ea-sub" id="ea-sub"></div>
+      </div>
+    </div>
+    <div id="ea-body"></div>
+  </div>
 
   <!-- ══ 設備/技術 ══ -->
   <div id="tab-engineer" style="display:none;">
@@ -805,6 +882,10 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
     <div style="margin-bottom:16px;">
       <div class="filter-label" style="margin-bottom:6px;">進度說明（最新一週）</div>
       <textarea id="ecrm-status" class="input-field" style="height:90px;"></textarea>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div class="filter-label" style="margin-bottom:6px;">終端產品（這個客戶的板子用在哪些終端產品，多個用頓號隔開，例：AI伺服板、車載、光模組）</div>
+      <input id="ecrm-end-product" class="input-field" />
     </div>
     <button class="btn-primary" style="width:100%;justify-content:center;" id="ecrm-submit-btn" onclick="submitEditCRM()">儲存</button>
     <div id="ecrm-msg" style="display:none;margin-top:12px;border-radius:8px;padding:10px;font-size:13px;text-align:center;"></div>
@@ -1930,14 +2011,15 @@ function formatCreatedAt(ts){
 // ══ TAB ═════════════════════════════════════════════════════
 function switchTab(tab){
   currentTab=tab;
-  ['customer','stats','users','cards'].forEach(function(t){
+  ['customer','stats','apps','users','cards'].forEach(function(t){
     var panel=document.getElementById('tab-'+t);
     if(panel) panel.style.display=t===tab?'':'none';
-    var btn=document.getElementById('tab-'+(t==='customer'?'cust':t==='stats'?'stat':t==='users'?'users':'cards')+'-btn');
+    var btn=document.getElementById('tab-'+(t==='customer'?'cust':t==='stats'?'stat':t==='users'?'users':t==='apps'?'apps':'cards')+'-btn');
     if(btn) btn.classList.toggle('active',t===tab);
   });
   if(tab==='customer') renderUnified();
   else if(tab==='stats') renderStats();
+  else if(tab==='apps') renderEndApps();
   else if(tab==='users') renderUsersList();
   else if(tab==='cards'){document.getElementById('card-add-panel').style.display='none';renderCardList();}
 }
@@ -2548,6 +2630,7 @@ function openEditCRM(id){
     document.getElementById('ecrm-delivery').value=r.delivery||'';
   }
   document.getElementById('ecrm-status').value=r.status_w2||r.status_w1||'';
+  document.getElementById('ecrm-end-product').value=r.end_product||'';
   document.getElementById('ecrm-msg').style.display='none';
   document.getElementById('edit-crm-modal').style.display='flex';
 }
@@ -2563,6 +2646,7 @@ function openNewCRM(){
   document.getElementById('ecrm-company').value='';
   document.getElementById('ecrm-sales').value='';
   document.getElementById('ecrm-status').value='';
+  document.getElementById('ecrm-end-product').value='';
   document.getElementById('ecrm-multi-rows').innerHTML='';
   addCRMModelRow();
   addCRMModelRow();
@@ -2610,6 +2694,7 @@ async function submitEditCRM(){
   var company=document.getElementById('ecrm-company').value.trim();
   var sales=normalizeSalesName(document.getElementById('ecrm-sales').value.trim());
   var status=document.getElementById('ecrm-status').value.trim();
+  var endProduct=document.getElementById('ecrm-end-product').value.trim();
   var msgEl=document.getElementById('ecrm-msg');
   var btn=document.getElementById('ecrm-submit-btn');
   msgEl.style.display='none';
@@ -2631,7 +2716,7 @@ async function submitEditCRM(){
       toInsert.push({
         customer:company,sales:sales,model:model,qty:qty,delivery:delivery,
         delivery_parsed:parseDeliveryFieldEdits(delivery),
-        week_w2:newWeekLabel,status_w2:status,
+        week_w2:newWeekLabel,status_w2:status,end_product:endProduct,
         import_date:window._latestCrmImportDate||new Date().toISOString().split('T')[0],
         created_by:currentUser.id,updated_at:new Date().toISOString()
       });
@@ -2658,7 +2743,7 @@ async function submitEditCRM(){
   var qty=document.getElementById('ecrm-qty').value.trim();
   var delivery=document.getElementById('ecrm-delivery').value.trim();
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 儲存中...';
-  var patch={customer:company,sales:sales,model:model,qty:qty,delivery:delivery,delivery_parsed:parseDeliveryFieldEdits(delivery),updated_at:new Date().toISOString()};
+  var patch={customer:company,sales:sales,model:model,qty:qty,delivery:delivery,delivery_parsed:parseDeliveryFieldEdits(delivery),end_product:endProduct,updated_at:new Date().toISOString()};
   var r=crmData.find(function(x){return x.id===editCRMTargetId;});
   if(r&&r.week_w2&&r.week_w2!==newWeekLabel){
     // 這次編輯跨到新的一週了：先把原本「本週」的內容搬去「上週」保留起來，不會遺失，再開新的一週
@@ -2898,6 +2983,326 @@ function exportStatsExcel(){
 }
 
 // 查詢結果裡如果有未分類的資料，畫面一渲染完就自動呼叫AI解析，只解析當下畫面上這幾筆，解出來就存回資料庫，之後同一筆不會再問第二次
+// ══ 終端應用分析 ══════════════════════════════════════════════
+// 給之後接手的人（MIS）：計分規則是游總訂的（2026-10），改規則前請先確認
+//  1. 以「客戶廠區」為單位，每個廠區算 1 分（同一廠區有好幾個機型，也只算 1 分）
+//  2. 一個廠區寫了 N 類應用，每類各得 1/N 分（例：伺服板、車載、AI運算 → 各 1/3），全部加總後排名
+//  3. 業務是自由打字，所以用下面的「關鍵字對照表」把各種寫法歸到固定類別；
+//     只寫客戶品牌的（NV、谷歌、特斯拉、華為…）也在這裡換成應用類別
+//  4. HDI / mSAP / FPC / 厚銅板 是「PCB板型/製程」不是終端產品 → 不計分，另外列出
+//  5. 只寫「代工廠」的 → 先不計分，在備註列出
+//  6. 機型台數也照同樣比例分配（一個廠區寫2類應用，它的機型台數兩類各算一半）
+// 要新增關鍵字：在對應類別的 kw 陣列加一個正則即可；要新增類別：在陣列最後加一筆（顏色順序固定，不要插在中間）
+var END_APP_CATEGORIES=[
+  {name:'AI伺服器/伺服器',color:'#2a78d6',kw:[/AI\s*伺服|AI\s*服务|伺服|服务器|server/i,/\bNV\b|NVIDIA|輝達|英伟达/i,/谷歌|google|亚马逊|亞馬遜|amazon|华勤|華勤/i,/HPC|算力/i]},
+  {name:'汽車電子',color:'#eb6834',kw:[/汽车|汽車|车载|車載|车用|車用|车规|車規/,/特斯拉|tesla|比亚迪|比亞迪|博世|博士|automotive|ADAS|BMS/i]},
+  {name:'光模組',color:'#1baf7a',kw:[/光模|中际|中際/,/\bBOC\b|\bMMC\b/]},
+  {name:'消費電子',color:'#eda100',kw:[/消费|消費|笔电|筆電|手機|手机|穿戴|平板|鏡頭|镜头|LED|TFT|LCD|顯示|显示/i,/\bNB\b/,/apple|苹果|蘋果/i]},
+  {name:'IC載板/封裝',color:'#e87ba4',kw:[/(?<![车車類类])[载載]板/,/FC-?BGA|封裝|封装|覆晶|flip\s*chip|PKG|探針|探针|IC測試|IC测试/i]},
+  {name:'通訊/網通',color:'#008300',kw:[/通信|通訊|通讯|5G|6G|基站|交换|交換|路由|网通|網通|射頻|射频|背板|连接器|連接器/i,/华为|華為|华三|華三/]},
+  {name:'工控/醫療/安防',color:'#4a3aa7',kw:[/工控|工業控制|工业控制|工業|医疗|醫療|安防/]},
+  {name:'儲存/記憶體',color:'#e34948',kw:[/存储|儲存|存儲|内存|記憶體/]},
+  {name:'衛星/航太',color:'#7c8594',kw:[/衛星|卫星|航太|航天/]}
+];
+var END_APP_OTHER={name:'其他',color:'#b4b9c2'}; // 有寫但對照表認不出來的，計分但歸「其他」，備註會列出原文方便之後補關鍵字
+var END_APP_BOARD_TYPES=[ // 板型/製程：不計分，另外列出
+  {name:'HDI',re:/HDI/i},
+  {name:'mSAP／類載板',re:/mSAP|SLP|類載板|类载板/i},
+  {name:'FPC軟板',re:/FPC|软板|軟板/i},
+  {name:'厚銅板',re:/厚铜|厚銅/}
+];
+var END_APP_FOUNDRY_RE=/代工/; // 只寫代工廠：先不計分
+
+var eaView=(function(){try{return localStorage.getItem('ea_view')||'pie';}catch(e){return 'pie';}})();
+var eaSelected=null;
+var eaResult=null;
+
+function eaCategoryColor(name){
+  var c=END_APP_CATEGORIES.find(function(x){return x.name===name;});
+  return c?c.color:END_APP_OTHER.color;
+}
+// 一段終端產品文字 → 屬於哪幾類應用 / 提到哪些板型 / 是否只寫代工廠
+function eaClassify(text){
+  var t=String(text||'');
+  var cats=END_APP_CATEGORIES.filter(function(c){return c.kw.some(function(re){return re.test(t);});}).map(function(c){return c.name;});
+  var boards=END_APP_BOARD_TYPES.filter(function(b){return b.re.test(t);}).map(function(b){return b.name;});
+  var foundry=false;
+  if(!cats.length&&t.trim()){
+    if(END_APP_FOUNDRY_RE.test(t)) foundry=true;
+    else if(!boards.length) cats=[END_APP_OTHER.name];
+  }
+  return {cats:cats,boards:boards,foundry:foundry};
+}
+// 機型欄可能一格寫好幾個機型（換行分隔），數量也可能逐行對應；括號裡的(試用)(DEMO)等備註拿掉
+function eaSplitModels(model,qty){
+  var models=String(model||'').replace(/[（(][^）)]*[）)]/g,'').split(/\n/).map(function(s){return s.trim().toUpperCase();}).filter(Boolean);
+  if(!models.length) return [];
+  var qtyLines=String(qty||'').split(/\n/).map(function(s){var m=s.match(/\d+/);return m?parseInt(m[0],10):null;}).filter(function(v){return v!==null;});
+  if(qtyLines.length===models.length) return models.map(function(m,i){return {model:m,qty:qtyLines[i]};});
+  var total=parseQtyText(qty);
+  return models.map(function(m,i){return {model:m,qty:i===0?total:0};});
+}
+function computeEndApps(records){
+  var custMap={},custOrder=[];
+  records.forEach(function(r){
+    var name=String(r.customer||'').replace(/\s+/g,'')||'(未填客戶名稱)';
+    if(!custMap[name]){custMap[name]={name:name,sales:{},texts:[],rows:[]};custOrder.push(name);}
+    var c=custMap[name];
+    if(r.sales) c.sales[r.sales]=true;
+    var ep=String(r.end_product||'').trim();
+    if(ep&&c.texts.indexOf(ep)<0) c.texts.push(ep);
+    c.rows.push(r);
+  });
+  var scores={},catCusts={},catMachines={},machineTotals={},boards={},foundry=[],unfilled=[],otherTexts=[],boardOnly=[],counted=0;
+  custOrder.forEach(function(name){
+    var c=custMap[name];
+    var salesNames=Object.keys(c.sales);
+    if(!c.texts.length){unfilled.push({name:name,sales:salesNames});return;}
+    var cls=eaClassify(c.texts.join(' / '));
+    cls.boards.forEach(function(b){(boards[b]=boards[b]||[]).push(name);});
+    if(cls.foundry){foundry.push({name:name,text:c.texts.join(' / '),sales:salesNames});return;}
+    if(!cls.cats.length){boardOnly.push(name);return;} // 只寫板型：上面已列入板型清單，不計分
+    if(cls.cats.indexOf(END_APP_OTHER.name)>-1) otherTexts.push({name:name,text:c.texts.join(' / ')});
+    counted++;
+    var n=cls.cats.length;
+    cls.cats.forEach(function(cat){
+      scores[cat]=(scores[cat]||0)+1/n;
+      (catCusts[cat]=catCusts[cat]||[]).push({name:name,n:n});
+      catMachines[cat]=catMachines[cat]||{};
+    });
+    c.rows.forEach(function(r){
+      eaSplitModels(r.model,r.qty).forEach(function(mq){
+        cls.cats.forEach(function(cat){
+          var mm=catMachines[cat][mq.model]=catMachines[cat][mq.model]||{units:0,custs:{}};
+          mm.units+=mq.qty/n;mm.custs[name]=true;
+          var mt=machineTotals[mq.model]=machineTotals[mq.model]||{units:0,byCat:{}};
+          mt.units+=mq.qty/n;mt.byCat[cat]=(mt.byCat[cat]||0)+mq.qty/n;
+        });
+      });
+    });
+  });
+  var ranking=Object.keys(scores).map(function(cat){
+    var machines=Object.keys(catMachines[cat]).map(function(m){
+      var v=catMachines[cat][m];return {model:m,units:v.units,custCount:Object.keys(v.custs).length};
+    }).sort(function(a,b){return b.units-a.units||b.custCount-a.custCount;});
+    return {name:cat,score:scores[cat],pct:counted?scores[cat]/counted*100:0,custs:catCusts[cat],machines:machines,color:eaCategoryColor(cat)};
+  }).sort(function(a,b){return b.score-a.score;});
+  return {total:custOrder.length,rowCount:records.length,counted:counted,ranking:ranking,machineTotals:machineTotals,
+    boards:boards,boardOnly:boardOnly,foundry:foundry,unfilled:unfilled,otherTexts:otherTexts};
+}
+
+function eaFmt1(v){return (Math.round(v*10)/10).toFixed(1);}
+function eaFmtUnits(v){if(v>0&&v<1)return '<1';return String(Math.round(v));}
+function eaFrac(n){return n===1?'整家':'1/'+n;}
+
+function renderEndApps(){
+  var body=document.getElementById('ea-body');
+  var sub=document.getElementById('ea-sub');
+  if(!body) return;
+  var importDate=window._latestCrmImportDate||'';
+  var hasEndProduct=crmData.some(function(r){return String(r.end_product||'').trim();});
+  if(!crmData.length||!hasEndProduct){
+    sub.textContent='';
+    body.innerHTML='<div class="ea-card"><div class="empty-state" style="padding:40px 0;">'
+      +'<i class="fa-solid fa-chart-pie" style="font-size:32px;margin-bottom:12px;display:block;color:var(--border2);"></i>'
+      +'<div style="font-size:14px;color:var(--text-m);margin-bottom:6px;">目前這份CRM資料還沒有「終端產品」內容</div>'
+      +'<div style="font-size:12px;">請由大總管用「匯入 Excel」重新匯入一次含「終端產品」欄的CRM客戶需求統計</div></div></div>';
+    return;
+  }
+  var R=eaResult=computeEndApps(crmData);
+  if(!eaSelected||!R.ranking.some(function(x){return x.name===eaSelected;})) eaSelected=R.ranking.length?R.ranking[0].name:null;
+  sub.textContent='資料來源：CRM需求統計 最新一次匯入'+(importDate?'（'+importDate+'）':'')+'　·　共 '+R.total+' 個客戶廠區、'+R.rowCount+' 筆機型需求';
+
+  var top=R.ranking[0],top3=R.ranking.slice(0,3);
+  var top3Pct=top3.reduce(function(s,x){return s+x.pct;},0);
+  var filled=R.total-R.unfilled.length;
+  var notCounted=R.total-R.counted;
+  var kpis='<div class="ea-kpis">'
+    +eaKpi('計入統計的客戶廠區',R.counted+'<small>家</small>',notCounted?('另有 '+notCounted+' 家未填或未計入'):'全部計入')
+    +eaKpi('第一大應用',top?escH(top.name):'—',top?('占 '+eaFmt1(top.pct)+'%（'+eaFmt1(top.score)+' 分）'):'')
+    +eaKpi('前三大應用合計',eaFmt1(top3Pct)+'<small>%</small>',top3.map(function(x){return x.name;}).join('、'))
+    +eaKpi('終端產品填寫率',Math.round(filled/R.total*100)+'<small>%</small>',R.unfilled.length+' 家客戶廠區尚未填寫')
+    +'</div>';
+
+  var rankCard='<div class="ea-card">'
+    +'<div class="ea-card-head"><div><div class="ea-card-title">應用排名</div>'
+    +'<div class="ea-card-desc">每個客戶廠區算 1 分，寫了幾類應用就平分（例：3 類各得 1/3 分）。點選任一類別可看下方對應機型。</div></div>'
+    +'<div class="ea-seg"><button class="'+(eaView==='pie'?'active':'')+'" onclick="setEaView(\'pie\')"><i class="fa-solid fa-chart-pie" style="margin-right:5px;"></i>圓餅圖</button>'
+    +'<button class="'+(eaView==='bar'?'active':'')+'" onclick="setEaView(\'bar\')"><i class="fa-solid fa-chart-bar" style="margin-right:5px;"></i>柱狀圖</button></div></div>'
+    +(eaView==='pie'
+      ?'<div class="ea-main"><div class="ea-donut-wrap">'+eaDonutSvg(R)+'</div>'+eaRankTable(R)+'</div>'
+      :eaBarChart(R))
+    +'</div>';
+
+  body.innerHTML=kpis+rankCard+eaMachineCard(R)+eaSummaryCard(R)+eaNotesCard(R);
+  eaBindTooltip();
+}
+function eaKpi(label,value,note){
+  return '<div class="ea-kpi"><div class="ea-kpi-label">'+label+'</div><div class="ea-kpi-value">'+value+'</div><div class="ea-kpi-note" title="'+escH(note)+'">'+escH(note)+'</div></div>';
+}
+function eaTip(x){
+  return escH(x.name)+'<br>分數 '+eaFmt1(x.score)+'　占比 '+eaFmt1(x.pct)+'%<br>相關客戶廠區 '+x.custs.length+' 家';
+}
+function eaDonutSvg(R){
+  var Ro=140,Ri=88,a0=-Math.PI/2,total=R.ranking.reduce(function(s,x){return s+x.score;},0)||1;
+  var sel=R.ranking.find(function(x){return x.name===eaSelected;});
+  var paths='',labels='';
+  R.ranking.forEach(function(x){
+    var a1=a0+x.score/total*Math.PI*2;
+    var large=(a1-a0)>Math.PI?1:0;
+    function pt(r,a){return (r*Math.cos(a)).toFixed(2)+' '+(r*Math.sin(a)).toFixed(2);}
+    var d;
+    if(R.ranking.length===1){ // 只有一類時畫完整圓環
+      d='M '+pt(Ro,-Math.PI/2)+' A '+Ro+' '+Ro+' 0 1 1 '+pt(Ro,Math.PI*1.5-0.0001)+' L '+pt(Ri,Math.PI*1.5-0.0001)+' A '+Ri+' '+Ri+' 0 1 0 '+pt(Ri,-Math.PI/2)+' Z';
+    } else {
+      d='M '+pt(Ro,a0)+' A '+Ro+' '+Ro+' 0 '+large+' 1 '+pt(Ro,a1)+' L '+pt(Ri,a1)+' A '+Ri+' '+Ri+' 0 '+large+' 0 '+pt(Ri,a0)+' Z';
+    }
+    var pop=(x.name===eaSelected&&R.ranking.length>1)?' transform="translate('+(8*Math.cos((a0+a1)/2)).toFixed(1)+' '+(8*Math.sin((a0+a1)/2)).toFixed(1)+')"':'';
+    paths+='<path class="ea-slice'+(x.name===eaSelected?' on':'')+'"'+pop+' d="'+d+'" fill="'+x.color+'" stroke="#fff" stroke-width="2" stroke-linejoin="round" data-tip="'+escH(eaTip(x))+'" onclick="selectEaCategory(\''+escH(x.name)+'\')"></path>';
+    if(x.pct>=6){ // 夠大的扇形直接標百分比；淺色扇形用深色字，確保看得清楚
+      var mid=(a0+a1)/2,lr=(Ro+Ri)/2;
+      var dark=['#1baf7a','#eda100','#e87ba4','#b4b9c2'].indexOf(x.color)>-1;
+      labels+='<text'+pop+' x="'+(lr*Math.cos(mid)).toFixed(1)+'" y="'+(lr*Math.sin(mid)+4).toFixed(1)+'" text-anchor="middle" font-size="13" font-weight="700" fill="'+(dark?'#1e293b':'#fff')+'" pointer-events="none">'+Math.round(x.pct)+'%</text>';
+    }
+    a0=a1;
+  });
+  var center=sel
+    ?'<text y="-14" text-anchor="middle" font-size="12" fill="#64748b">'+escH(sel.name)+'</text>'
+      +'<text y="20" text-anchor="middle" font-size="30" font-weight="700" fill="#1e293b">'+eaFmt1(sel.pct)+'%</text>'
+      +'<text y="42" text-anchor="middle" font-size="11.5" fill="#94a3b8">'+eaFmt1(sel.score)+' 分</text>'
+    :'';
+  return '<svg viewBox="-160 -160 320 320" role="img" aria-label="終端應用占比圓餅圖" >'+paths+labels+center+'</svg>';
+}
+function eaRankTable(R){
+  var h='<div class="ea-rank"><div class="ea-rank-row ea-rank-head"><span>#</span><span></span><span>應用類別</span><span class="ea-num">分數</span><span class="ea-num">占比</span><span class="ea-num">家數</span></div>';
+  R.ranking.forEach(function(x,i){
+    h+='<div class="ea-rank-row'+(x.name===eaSelected?' on':'')+'" onclick="selectEaCategory(\''+escH(x.name)+'\')">'
+      +'<span class="ea-rank-no">'+(i+1)+'</span><span class="ea-swatch" style="background:'+x.color+'"></span>'
+      +'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+(x.name===eaSelected?'font-weight:700;color:var(--text-h);':'')+'">'+escH(x.name)+'</span>'
+      +'<span class="ea-num">'+eaFmt1(x.score)+'</span><span class="ea-num">'+eaFmt1(x.pct)+'%</span><span class="ea-num" style="color:var(--text-m);">'+x.custs.length+'</span></div>';
+  });
+  return h+'</div>';
+}
+function eaBarChart(R){
+  var max=R.ranking.length?R.ranking[0].score:1;
+  var h='<div class="ea-bars">';
+  R.ranking.forEach(function(x){
+    h+='<div class="ea-bar-row" onclick="selectEaCategory(\''+escH(x.name)+'\')" data-tip="'+escH(eaTip(x))+'">'
+      +'<div class="ea-bar-name" style="'+(x.name===eaSelected?'font-weight:700;color:var(--text-h);':'')+'">'+escH(x.name)+'</div>'
+      +'<div class="ea-bar-track"><div class="ea-bar-fill" style="width:'+(x.score/max*100).toFixed(1)+'%;background:'+x.color+';"></div></div>'
+      +'<div class="ea-bar-val"><b style="color:var(--text-h);">'+eaFmt1(x.pct)+'%</b>　'+eaFmt1(x.score)+' 分</div></div>';
+  });
+  return h+'</div>';
+}
+function eaMachineCard(R){
+  var sel=R.ranking.find(function(x){return x.name===eaSelected;});
+  var pills='<div class="ea-pills">'+R.ranking.map(function(x){
+    return '<span class="ea-pill'+(x.name===eaSelected?' on':'')+'" onclick="selectEaCategory(\''+escH(x.name)+'\')"><span class="ea-swatch" style="background:'+x.color+'"></span>'+escH(x.name)+'</span>';
+  }).join('')+'</div>';
+  if(!sel) return '';
+  var list=sel.machines.slice(0,10);
+  var max=list.length?Math.max(list[0].units,1):1;
+  var bars='<div class="ea-bars">'+list.map(function(m){
+    return '<div class="ea-bar-row" style="cursor:default;" data-tip="'+escH(m.model+'<br>約 '+eaFmtUnits(m.units)+' 台・'+m.custCount+' 家客戶廠區')+'">'
+      +'<div class="ea-bar-name" style="font-weight:600;">'+escH(m.model)+'</div>'
+      +'<div class="ea-bar-track"><div class="ea-bar-fill" style="width:'+(m.units/max*100).toFixed(1)+'%;background:'+sel.color+';"></div></div>'
+      +'<div class="ea-bar-val">約 <b style="color:var(--text-h);">'+eaFmtUnits(m.units)+'</b> 台・'+m.custCount+' 家</div></div>';
+  }).join('')+'</div>'
+    +(sel.machines.length>10?'<div style="font-size:12px;color:var(--text-s);margin-top:8px;">另有 '+(sel.machines.length-10)+' 個機型需求量較小，未列出</div>':'');
+  var custs=sel.custs.slice().sort(function(a,b){return a.n-b.n;});
+  var chips='<div class="ea-chips">'+custs.map(function(c){
+    return '<span class="ea-chip">'+escH(c.name)+'<em>'+eaFrac(c.n)+'</em></span>';
+  }).join('')+'</div>';
+  return '<div class="ea-card"><div class="ea-card-head"><div><div class="ea-card-title">各應用對應機型</div>'
+    +'<div class="ea-card-desc">台數依同樣比例分配：例如某廠區寫了 2 類應用，它的機型台數兩類各算一半，所以會出現「約」。</div></div></div>'
+    +pills
+    +'<div class="ea-split"><div><div class="ea-sec-label">「'+escH(sel.name)+'」主要機型（依需求台數）</div>'+bars+'</div>'
+    +'<div><div class="ea-sec-label">相關客戶廠區（'+custs.length+' 家，灰字為該廠區分到這類的比例）</div>'+chips+'</div></div></div>';
+}
+function eaSummaryCard(R){
+  var rk=R.ranking,items=[];
+  if(rk.length){
+    var s='「<b>'+escH(rk[0].name)+'</b>」是目前最大的終端應用，占 <b>'+eaFmt1(rk[0].pct)+'%</b>';
+    if(rk[1]) s+='；其次是「'+escH(rk[1].name)+'」'+eaFmt1(rk[1].pct)+'%';
+    if(rk[2]) s+='、「'+escH(rk[2].name)+'」'+eaFmt1(rk[2].pct)+'%';
+    items.push(s+'。');
+    var t3=rk.slice(0,3).reduce(function(a,x){return a+x.pct;},0);
+    items.push('前三大應用合計占 <b>'+eaFmt1(t3)+'%</b>，'+(t3>=60?'需求集中度高，可優先針對這幾類應用規劃行銷與備機。':'應用分布相對分散。'));
+    var mainModels=rk.slice(0,3).filter(function(x){return x.machines.length;}).map(function(x){
+      return '「'+escH(x.name)+'」→ '+x.machines.slice(0,3).map(function(m){return '<b>'+escH(m.model)+'</b>';}).join('、');
+    });
+    if(mainModels.length) items.push('各大應用的主力機型：'+mainModels.join('；')+'。');
+  }
+  var mt=R.machineTotals,topModel=Object.keys(mt).sort(function(a,b){return mt[b].units-mt[a].units;})[0];
+  if(topModel&&mt[topModel].units>0){
+    var byCat=mt[topModel].byCat,cats=Object.keys(byCat).sort(function(a,b){return byCat[b]-byCat[a];}).slice(0,3);
+    items.push('需求台數最多的機型是 <b>'+escH(topModel)+'</b>（約 '+eaFmtUnits(mt[topModel].units)+' 台），主要用在 '
+      +cats.map(function(c){return '「'+escH(c)+'」'+Math.round(byCat[c]/mt[topModel].units*100)+'%';}).join('、')+'。');
+  }
+  if(R.unfilled.length){
+    var bySales={};
+    R.unfilled.forEach(function(u){(u.sales.length?u.sales:['(未知)']).forEach(function(s){bySales[s]=(bySales[s]||0)+1;});});
+    var worst=Object.keys(bySales).sort(function(a,b){return bySales[b]-bySales[a];}).slice(0,3);
+    items.push('資料完整度：有 <b>'+R.unfilled.length+'</b> 個客戶廠區還沒填終端產品（較多在 '+worst.map(function(s){return escH(s)+' '+bySales[s]+' 家';}).join('、')+'），補填後重新匯入，數字會更準確。');
+  }
+  return '<div class="ea-card"><div class="ea-card-head"><div class="ea-card-title"><i class="fa-regular fa-lightbulb" style="color:var(--amber);margin-right:6px;"></i>簡要說明</div></div>'
+    +'<ul class="ea-summary">'+items.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></div>';
+}
+function eaNotesCard(R){
+  var boardNames=Object.keys(R.boards);
+  var boardHtml=boardNames.length
+    ?boardNames.map(function(b){return '<div><b>'+escH(b)+'</b>：'+R.boards[b].length+' 家（'+R.boards[b].map(escH).join('、')+'）</div>';}).join('')
+    :'<div style="color:var(--text-s);">這份資料沒有提到板型/製程</div>';
+  var foundryHtml=R.foundry.length
+    ?R.foundry.map(function(f){return '<div>'+escH(f.name)+'：<span style="color:var(--text-m);">'+escH(f.text)+'</span></div>';}).join('')
+    :'<div style="color:var(--text-s);">無</div>';
+  var bySales={};
+  R.unfilled.forEach(function(u){(u.sales.length?u.sales:['(未知)']).forEach(function(s){(bySales[s]=bySales[s]||[]).push(u.name);});});
+  var unfilledHtml=Object.keys(bySales).length
+    ?Object.keys(bySales).sort(function(a,b){return bySales[b].length-bySales[a].length;}).map(function(s){return '<div><b>'+escH(s)+'</b>（'+bySales[s].length+' 家）：'+bySales[s].map(escH).join('、')+'</div>';}).join('')
+    :'<div style="color:var(--text-s);">全部都有填</div>';
+  var otherHtml=R.otherTexts.length
+    ?R.otherTexts.map(function(o){return '<div>'+escH(o.name)+'：<span style="color:var(--text-m);">'+escH(o.text)+'</span></div>';}).join('')
+    :'<div style="color:var(--text-s);">無</div>';
+  return '<div class="ea-card"><div class="ea-card-head"><div class="ea-card-title"><i class="fa-solid fa-circle-info" style="color:var(--text-m);margin-right:6px;"></i>計分方式與資料備註</div></div>'
+    +'<div class="ea-notes">'
+    +'<div class="ea-note"><div class="ea-note-title">計分方式</div>每個客戶廠區算 1 分，寫了 N 類應用就每類各得 1/N 分，全部加總後排名；占比＝該類分數 ÷ 計入的廠區數。'
+      +'業務的寫法會自動歸類，例如「Server、服务器、NV、谷歌」都歸到「AI伺服器/伺服器」，「特斯拉、車載」歸到「汽車電子」。</div>'
+    +'<div class="ea-note"><div class="ea-note-title">板型／製程（另列，不計分）</div><div style="color:var(--text-m);margin-bottom:4px;">HDI、mSAP 等是 PCB 板子的做法，不是終端產品</div>'+boardHtml+(R.boardOnly.length?'<div style="color:var(--amber);margin-top:4px;">其中 '+R.boardOnly.length+' 家只寫板型、沒寫應用，未計入排名：'+R.boardOnly.map(escH).join('、')+'</div>':'')+'</div>'
+    +'<div class="ea-note"><div class="ea-note-title">未計入：只寫「代工廠」（'+R.foundry.length+' 家）</div>'+foundryHtml+'</div>'
+    +'<div class="ea-note"><div class="ea-note-title">未計入：尚未填寫終端產品（'+R.unfilled.length+' 家）</div>'+unfilledHtml+'</div>'
+    +(R.otherTexts.length?'<div class="ea-note" style="grid-column:1/-1;"><div class="ea-note-title">歸到「其他」的寫法（對照表認不出來，可再補關鍵字）</div>'+otherHtml+'</div>':'')
+    +'</div></div>';
+}
+function setEaView(v){
+  eaView=v;
+  try{localStorage.setItem('ea_view',v);}catch(e){}
+  renderEndApps();
+}
+function selectEaCategory(name){
+  eaSelected=name;
+  renderEndApps();
+}
+// 滑鼠移到圖表上顯示數字小提示（手機點一下也會出現）
+function eaBindTooltip(){
+  var tip=document.getElementById('ea-tip');
+  if(!tip){tip=document.createElement('div');tip.id='ea-tip';tip.className='ea-tip';document.body.appendChild(tip);}
+  var body=document.getElementById('ea-body');
+  if(body._eaTipBound) return;
+  body._eaTipBound=true;
+  body.addEventListener('mousemove',function(e){
+    var el=e.target.closest?e.target.closest('[data-tip]'):null;
+    if(!el){tip.style.display='none';return;}
+    tip.innerHTML=el.getAttribute('data-tip');
+    tip.style.display='block';
+    var x=e.clientX+14,y=e.clientY+14;
+    if(x+tip.offsetWidth>window.innerWidth-8) x=e.clientX-tip.offsetWidth-14;
+    if(y+tip.offsetHeight>window.innerHeight-8) y=e.clientY-tip.offsetHeight-14;
+    tip.style.left=x+'px';tip.style.top=y+'px';
+  });
+  body.addEventListener('mouseleave',function(){tip.style.display='none';});
+}
+
 async function resolveUnclassified(){
   var ids=window._statsUnresolvedIds||[];
   if(!ids.length) return;
@@ -3476,6 +3881,7 @@ function handleExcelFile(e){
   resultEl.innerHTML='<div style="background:var(--accent-bg);border:1px solid #b8d4f4;border-radius:10px;padding:12px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;"><span class="spinner"></span> 正在匯入 '+files.length+' 個 Excel 檔案（僅用規則解析交期，不呼叫AI，速度很快）...</div>';
 
   var importDate=new Date().toISOString().split('T')[0];
+  window._endProductColumnMissing=false;
   var totalSheets=0,totalRows=0,totalVisitRows=0,totalReportRows=0,filesDone=0;
   var allUnrecognizedSheets=[];
   // 這次匯入（可能包含多個檔案）視為一份完整的「CRM需求統計」最新快照，
@@ -3671,10 +4077,28 @@ function handleExcelFile(e){
           // 舊格式：機型/數量/需求時間 固定在最前面幾欄，週次欄位只用來記錄狀態文字
           var isDualBlockFormat=weekCols.length>=2;
 
+          // 「終端產品」欄（2026-10 新增，給「終端應用分析」頁籤用）：
+          // 各業務分頁的欄位位置不一樣（黃榮傑分頁三週並排在第15欄，其他人在第11欄），
+          // 所以一律用表頭文字去找，不寫死欄位位置；找不到就當作這個分頁沒有這欄
+          var endProductCol=-1;
+          for(var epi=0;epi<Math.min(rows.length,10);epi++){
+            var epRow=rows[epi]||[];
+            for(var epc=0;epc<epRow.length;epc++){
+              var epText=String(epRow[epc]||'').replace(/\s/g,'');
+              if(epText==='終端產品'||epText==='终端产品'){endProductCol=epc;}
+            }
+            if(endProductCol>-1) break;
+          }
+          // 同一個客戶有好幾個機型時，業務常常只在第一列填客戶名稱、終端產品，下面幾列留白，
+          // 這裡「往下沿用」上一列的客戶名稱與終端產品，避免這些列在統計時變成「沒有客戶/沒填」
+          var lastCustomer='',lastEndProduct='';
+
           rows.forEach(function(row,idx){
             if(idx<dataStartRow) return;
             var sales=String(row[0]||'').trim();
             var customer=String(row[1]||'').trim();
+            var endProduct=endProductCol>-1?String(row[endProductCol]||'').trim():'';
+            if(endProduct==='終端產品'||endProduct==='终端产品') endProduct='';
 
             var model,qty,delivery;
             if(isDualBlockFormat&&w2){
@@ -3689,6 +4113,9 @@ function handleExcelFile(e){
             }
             if(!model) return;
             if(model==='機種/機型'||model==='機型') return;
+            if(!customer) customer=lastCustomer; // 客戶欄空白但有機型＝延續上一個客戶
+            if(customer!==lastCustomer){lastCustomer=customer;lastEndProduct='';}
+            if(endProduct) lastEndProduct=endProduct; else endProduct=lastEndProduct;
 
             var deliveryStr=delivery;
             if(!isNaN(delivery)&&delivery!==''){
@@ -3703,6 +4130,7 @@ function handleExcelFile(e){
               sales:normalizeSalesName(sales||sheetName),customer:customer,model:model,qty:qty,
               delivery:deliveryStr,status_w1:status1,week_w1:w1?w1.label:'',
               status_w2:status2,week_w2:w2?w2.label:'',
+              end_product:endProduct,
               sheet:sheetName,import_date:importDate,created_by:currentUser.id
             });
           });
@@ -3726,6 +4154,14 @@ function handleExcelFile(e){
         for(var bi=0;bi<parsed.length;bi+=batchSize){
           var batch=parsed.slice(bi,bi+batchSize);
           var {error:bErr}=await sb.from('crm_records').insert(batch);
+          // 保險：資料庫還沒加 end_product 欄位時（沒先執行 NOTES.md 裡的SQL），整批匯入會失敗。
+          // 這裡退一步：拿掉終端產品再存一次，至少其他CRM資料照常匯入，並在完成訊息提醒
+          if(bErr&&/end_product/.test(bErr.message||'')){
+            window._endProductColumnMissing=true;
+            batch=batch.map(function(p){var c=Object.assign({},p);delete c.end_product;return c;});
+            var retry=await sb.from('crm_records').insert(batch);
+            bErr=retry.error;
+          }
           if(bErr) throw new Error(bErr.message);
         }
         for(var vbi=0;vbi<parsedVisit.length;vbi+=batchSize){
@@ -3763,6 +4199,7 @@ function handleExcelFile(e){
           +'<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>全部匯入成功！</div>'
           +'<div style="font-size:13px;color:var(--text-m);">匯入日期：<b>'+importDate+'</b>｜<b>'+files.length+'</b> 個檔案｜<b>'+totalSheets+'</b> 位業務｜CRM需求統計 <b>'+totalRows+'</b> 筆'+(totalVisitRows>0?'｜拜訪紀錄 <b>'+totalVisitRows+'</b> 筆':'')+(totalReportRows>0?'｜工作日報 <b>'+totalReportRows+'</b> 筆':'')+'</div>'
           +'<div style="font-size:12px;color:var(--text-s);margin-top:4px;">CRM需求統計每次匯入會自動切換至最新一份，舊資料保留備查；拜訪紀錄則是以「單號」判斷，同一張單號重複匯入會直接覆蓋更新，不會重複累加；工作日報會逐筆新增進客戶商務。CRM資料只會顯示在「CRM需求統計」頁籤，不會出現在「客戶商務」。</div>'
+          +(window._endProductColumnMissing?'<div style="font-size:12px;color:var(--amber);margin-top:6px;background:var(--amber-bg);border-radius:6px;padding:6px 10px;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>資料庫還沒有「終端產品」欄位，這次CRM資料已照常匯入，但終端產品沒有存進去，「終端應用分析」會是空的。請先依 NOTES.md 的步驟在 Supabase 執行一次SQL，再重新匯入。</div>':'')
           +(allUnrecognizedSheets.length?'<div style="font-size:12px;color:var(--amber);margin-top:6px;background:var(--amber-bg);border-radius:6px;padding:6px 10px;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>以下分頁看不懂格式，已自動略過、沒有動到任何既有資料：'+allUnrecognizedSheets.map(escH).join('、')+'</div>':'')
           +'<div style="display:flex;gap:8px;margin-top:10px;">'
           +(totalRows>0?'<button class="btn-primary" style="flex:1;justify-content:center;" onclick="closeExcelImport();switchTab(\'stats\')"><i class="fa-solid fa-chart-line"></i> 前往CRM需求統計查看</button>':'')
@@ -3770,6 +4207,7 @@ function handleExcelFile(e){
           +'</div></div>';
         if(currentTab==='customer') renderUnified();
         if(currentTab==='stats') renderStats();
+        if(currentTab==='apps') renderEndApps();
       }
     };
     reader.readAsArrayBuffer(file);

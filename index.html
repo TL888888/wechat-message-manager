@@ -218,67 +218,73 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
 }
 
 /* ══ 終端應用分析 ══════════════════════════════════════════════ */
-.ea-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
-.ea-title{font-size:17px;font-weight:700;color:var(--text-h);}
-.ea-sub{font-size:12px;color:var(--text-s);margin-top:4px;}
-.ea-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px;}
-.ea-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-width:0;}
-.ea-kpi-label{font-size:12px;color:var(--text-m);}
-.ea-kpi-value{font-size:24px;font-weight:700;color:var(--text-h);margin-top:4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ea-kpi-value small{font-size:13px;font-weight:500;color:var(--text-m);margin-left:3px;}
-.ea-kpi-note{font-size:11.5px;color:var(--text-s);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ea-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
-.ea-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
-.ea-card-title{font-size:15px;font-weight:700;color:var(--text-h);}
-.ea-card-desc{font-size:12px;color:var(--text-s);margin-top:2px;}
+.ea-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.ea-title{font-size:20px;font-weight:700;color:var(--text-h);}
+.ea-sub{font-size:13px;color:var(--text-s);margin-top:4px;}
+.ea-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px;}
+.ea-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;box-shadow:0 1px 2px rgba(0,0,0,0.04);min-width:0;}
+.ea-kpi-label{font-size:14px;color:var(--text-m);}
+.ea-kpi-value{font-size:30px;font-weight:700;color:var(--text-h);margin-top:6px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ea-kpi-value small{font-size:15px;font-weight:500;color:var(--text-m);margin-left:3px;}
+.ea-kpi-note{font-size:13px;color:var(--text-s);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ea-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px 26px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.ea-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.ea-card-title{font-size:18px;font-weight:700;color:var(--text-h);}
+.ea-card-desc{font-size:13.5px;color:var(--text-s);margin-top:4px;}
 .ea-seg{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;}
-.ea-seg button{border:none;background:transparent;padding:6px 14px;border-radius:6px;font-size:13px;color:var(--text-m);cursor:pointer;}
+.ea-seg button{border:none;background:transparent;padding:7px 16px;border-radius:6px;font-size:14px;color:var(--text-m);cursor:pointer;}
 .ea-seg button.active{background:var(--card);color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,0.08);}
-/* 圓餅圖＋排名表限制寬度並置中，大螢幕上數字欄才不會被拉到最右邊、跟類別名稱離太遠 */
-.ea-main{display:grid;grid-template-columns:minmax(0,340px) minmax(0,560px);justify-content:center;gap:64px;align-items:center;}
-.ea-donut-wrap{display:flex;justify-content:center;}
-.ea-donut-wrap svg{width:100%;max-width:320px;height:auto;overflow:visible;}
+/* 應用排名：左圓餅、右表格各占一半寬度，表格撐滿右半邊，右緣剛好跟上方「圓餅圖/柱狀圖」切換鈕對齊；
+   數字欄平均分配寬度、置中，大螢幕上不會全擠到最右邊；圓餅圖放大到跟表格差不多高，上下對齊 */
+.ea-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:48px;align-items:center;}
+.ea-donut-wrap{display:flex;justify-content:center;align-items:center;}
+.ea-donut-wrap svg{width:100%;max-width:460px;height:auto;overflow:visible;}
 .ea-slice{cursor:pointer;transition:opacity .15s;}
 .ea-slice:hover{opacity:.85;}
-.ea-bars{display:flex;flex-direction:column;gap:9px;}
-.ea-bar-row{display:grid;grid-template-columns:118px minmax(0,1fr) 92px;align-items:center;gap:10px;cursor:pointer;border-radius:6px;padding:2px 4px;}
+.ea-bars{display:flex;flex-direction:column;gap:12px;}
+.ea-bar-row{display:grid;grid-template-columns:160px minmax(0,1fr) 150px;align-items:center;gap:14px;cursor:pointer;border-radius:6px;padding:3px 6px;}
 .ea-bar-row:hover{background:var(--bg);}
-.ea-bar-name{font-size:13px;color:var(--text-b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ea-bar-track{height:18px;position:relative;}
+.ea-bar-name{font-size:15px;color:var(--text-b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ea-bar-track{height:24px;position:relative;}
 .ea-bar-fill{height:100%;border-radius:0 4px 4px 0;min-width:2px;}
-.ea-bar-val{font-size:12.5px;color:var(--text-m);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.ea-bar-val{font-size:14.5px;color:var(--text-m);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .ea-rank{display:flex;flex-direction:column;}
-.ea-rank-row{display:grid;grid-template-columns:26px 12px minmax(0,1fr) 54px 56px 52px;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;border-radius:6px;}
+.ea-rank-row{display:grid;grid-template-columns:34px 16px minmax(130px,1.8fr) repeat(3,minmax(60px,1fr));align-items:center;gap:10px;padding:12px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:16px;border-radius:6px;}
 .ea-rank-row:last-child{border-bottom:none;}
 .ea-rank-row:hover,.ea-rank-row.on{background:var(--accent-bg);}
-.ea-rank-head{font-size:11.5px;color:var(--text-s);cursor:default;padding-top:0;}
+.ea-rank-head{font-size:14px;font-weight:600;color:var(--text-m);cursor:default;padding-top:0;border-bottom:2px solid var(--border);border-radius:0;}
 .ea-rank-head:hover{background:none;}
-.ea-rank-no{color:var(--text-s);font-variant-numeric:tabular-nums;}
-.ea-swatch{width:10px;height:10px;border-radius:3px;}
-.ea-num{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-b);}
-.ea-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
-.ea-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border2);background:var(--card);border-radius:20px;padding:5px 12px;font-size:12.5px;color:var(--text-m);cursor:pointer;}
+.ea-rank-no{color:var(--text-s);font-variant-numeric:tabular-nums;text-align:center;}
+.ea-swatch{width:12px;height:12px;border-radius:3px;}
+.ea-num{text-align:center;font-variant-numeric:tabular-nums;color:var(--text-b);}
+.ea-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+.ea-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border2);background:var(--card);border-radius:20px;padding:7px 15px;font-size:14px;color:var(--text-m);cursor:pointer;}
 .ea-pill.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);font-weight:600;}
-.ea-split{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:24px;}
-.ea-sec-label{font-size:12px;color:var(--text-m);font-weight:600;margin-bottom:10px;}
-.ea-chips{display:flex;flex-wrap:wrap;gap:6px;}
-.ea-chip{font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-b);}
-.ea-chip em{font-style:normal;color:var(--text-s);margin-left:4px;}
-.ea-summary{margin:0;padding-left:20px;font-size:14px;line-height:1.9;color:var(--text-b);}
+.ea-split{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:32px;}
+.ea-sec-label{font-size:14px;color:var(--text-m);font-weight:600;margin-bottom:12px;}
+.ea-chips{display:flex;flex-wrap:wrap;gap:7px;}
+.ea-chip{font-size:13.5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text-b);}
+.ea-chip em{font-style:normal;color:var(--text-s);margin-left:5px;}
+.ea-summary{margin:0;padding-left:22px;font-size:16px;line-height:2;color:var(--text-b);}
 .ea-summary b{color:var(--text-h);}
-.ea-notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
-.ea-note{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.75;color:var(--text-b);}
-.ea-note-title{font-weight:700;color:var(--text-h);margin-bottom:4px;font-size:13px;}
-.ea-tip{position:fixed;z-index:300;pointer-events:none;background:#1e293b;color:#fff;font-size:12px;line-height:1.6;padding:7px 10px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,0.18);display:none;max-width:260px;}
+.ea-notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+.ea-note{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:14px;line-height:1.8;color:var(--text-b);}
+.ea-note-title{font-weight:700;color:var(--text-h);margin-bottom:6px;font-size:15px;}
+.ea-tip{position:fixed;z-index:300;pointer-events:none;background:#1e293b;color:#fff;font-size:13.5px;line-height:1.6;padding:8px 12px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,0.18);display:none;max-width:280px;}
 @media (max-width:900px){
   .ea-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
   .ea-main,.ea-split,.ea-notes{grid-template-columns:1fr;}
 }
 @media (max-width:640px){
   .ea-card{padding:14px;}
-  .ea-kpi-value{font-size:20px;}
-  .ea-bar-row{grid-template-columns:88px minmax(0,1fr) 78px;gap:6px;}
-  .ea-rank-row{grid-template-columns:20px 10px minmax(0,1fr) 46px 48px 40px;gap:6px;font-size:12px;}
+  .ea-kpi{padding:12px 14px;}
+  .ea-kpi-value{font-size:22px;}
+  .ea-donut-wrap svg{max-width:300px;}
+  .ea-bar-row{grid-template-columns:92px minmax(0,1fr) 104px;gap:6px;}
+  .ea-bar-name{font-size:13.5px;}
+  .ea-bar-val{font-size:12.5px;}
+  .ea-rank-row{grid-template-columns:22px 10px minmax(0,1fr) 44px 52px 34px;gap:6px;font-size:14px;padding:10px 4px;}
+  .ea-rank-head{font-size:12.5px;}
 }
 
 /* 隱藏瀏覽器內建密碼眼睛，避免跟小猴子重疊 */

@@ -306,6 +306,18 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <div style="font-size:20px;font-weight:700;color:var(--text-h);">訊息管理系統</div>
       <div style="font-size:12px;color:var(--text-s);margin-top:4px;">請登入以繼續</div>
     </div>
+    <!-- 公司首頁免密碼登入（2026-10-12 起的正式登入方式）：權限一律依人資系統，詳見 api/tl-sso.js -->
+    <div id="sso-login-area">
+      <div id="sso-login-status" style="font-size:14px;color:var(--text-m);text-align:center;margin-bottom:16px;line-height:1.7;">
+        <span class="spinner" style="margin-right:6px;"></span>正在前往公司首頁確認登入身分...
+      </div>
+      <a href="https://tl-home.com/?goto=wechat" class="btn-primary" style="width:100%;justify-content:center;text-decoration:none;">
+        <i class="fa-solid fa-house"></i> 用公司首頁帳號登入
+      </a>
+      <div style="font-size:12px;color:var(--text-s);text-align:center;margin-top:10px;">權限由人資系統開通，不需要另外的帳號密碼</div>
+    </div>
+    <!-- email+密碼登入：暫停使用（保留程式，網址加 ?pwlogin=1 才會出現，給緊急狀況用；LOGIN_FORM_ENABLED 改 true 可恢復） -->
+    <div id="pw-login-area" style="display:none;">
     <form id="login-form" autocomplete="on" onsubmit="event.preventDefault();doLogin();">
       <div style="margin-bottom:14px;">
         <div class="filter-label" style="margin-bottom:6px;">Email</div>
@@ -372,6 +384,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
     </form>
     <div style="text-align:center;margin-top:14px;">
       <a href="javascript:void(0)" onclick="toggleForgotPw(true)" style="font-size:12px;color:var(--accent);text-decoration:underline;">忘記密碼？</a>
+    </div>
     </div>
     <div id="login-error" style="display:none;margin-top:12px;background:var(--red-bg);border:1px solid #f0b8b8;border-radius:8px;padding:10px;font-size:13px;color:var(--red);text-align:center;"></div>
   </div>
@@ -449,7 +462,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openExcelImport()" id="btn-excel-import">
         <i class="fa-solid fa-file-excel" style="font-size:11px;color:#1a7a4a;"></i> <span class="btn-label-full">匯入 Excel</span>
       </button>
-      <button class="btn-ghost" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openImport()">
+      <button class="btn-ghost rw-only" style="font-size:13px;padding:7px 14px;display:flex;align-items:center;gap:6px;" onclick="openImport()">
         <i class="fa-solid fa-plus" style="font-size:11px;"></i> <span class="btn-label-full">匯入訊息</span>
       </button>
       <button class="btn-ghost" style="font-size:13px;padding:6px 10px;display:none;" onclick="openAiUsage()" title="AI用量統計" id="btn-ai-usage">
@@ -473,7 +486,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <div style="font-size:15px;font-weight:700;color:var(--text-h);"><i class="fa-solid fa-id-card" style="color:var(--accent);margin-right:8px;"></i>名片管理</div>
       <div style="display:flex;gap:8px;">
         <input id="card-search-input" class="input-field" style="width:220px;" placeholder="搜尋公司/聯絡人/電話/email..." oninput="renderCardList()" />
-        <button class="btn-primary" onclick="openCardAddFlow()"><i class="fa-solid fa-camera"></i> 新增名片</button>
+        <button class="btn-primary rw-only" onclick="openCardAddFlow()"><i class="fa-solid fa-camera"></i> 新增名片</button>
       </div>
     </div>
 
@@ -613,7 +626,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         <button class="btn-ghost" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="exportStatsExcel()" title="把目前篩選條件下的資料匯出成Excel">
           <i class="fa-solid fa-file-export" style="font-size:11px;margin-right:3px;color:#1a7a4a;"></i><span>匯出Excel</span>
         </button>
-        <button class="btn-primary" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="openNewCRM()">
+        <button class="btn-primary rw-only" style="font-size:13px;padding:7px 14px;white-space:nowrap;" onclick="openNewCRM()">
           <i class="fa-solid fa-plus" style="font-size:11px;margin-right:3px;"></i><span>新增</span>
         </button>
       </div>
@@ -1876,7 +1889,9 @@ async function onLogin(user){
   }
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('nav-user-info').textContent=currentUserProfile.name+' · '+roleLabel(currentUserProfile.role);
+  document.getElementById('nav-user-info').textContent=currentUserProfile.name+' · '+roleLabel(currentUserProfile.role)+(isReadOnlyUser()?'（唯讀）':'');
+  // 人資權限「僅讀取」：藏起所有新增/匯入按鈕（表格裡的編輯/刪除按鈕由 canEdit/canDelete 控制）
+  if(isReadOnlyUser()) document.querySelectorAll('.rw-only').forEach(function(el){el.style.display='none';});
   var usersBtn=document.getElementById('tab-users-btn');
   // 「帳號管理」頁籤暫停使用（Michelle 2026-10-12 決定，經理之後可能會再啟用）：
   // 程式與資料都保留，只是不顯示頁籤；要重新啟用，把 ACCOUNT_MGMT_ENABLED 改成 true 即可
@@ -1899,6 +1914,30 @@ async function onLogin(user){
   renderUnified();
   loadVisitRemainingInBackground(); // 不等它，背景繼續把剩下的拜訪紀錄陸續補進來
 }
+// 首頁卡片免密碼登入：把首頁憑證交給 api/tl-sso.js 確認人資權限，拿回一次性登入碼後直接登入
+// 成功回傳 true；失敗就在登入畫面顯示原因，使用者仍可改用 email+密碼登入
+async function loginWithTlSso(tlToken){
+  try{
+    var resp=await fetch('/api/tl-sso',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tlToken})});
+    var j=await resp.json().catch(function(){return {};});
+    if(!resp.ok||!j.token_hash) throw new Error(j.error||('HTTP '+resp.status));
+    var {data,error}=await sb.auth.verifyOtp({token_hash:j.token_hash,type:'magiclink'});
+    if(error||!data||!data.session) throw new Error(error?error.message:'登入失敗');
+    await onLogin(data.session.user);
+    return true;
+  }catch(e){
+    setSsoStatus('<i class="fa-solid fa-circle-exclamation" style="color:var(--red);margin-right:6px;"></i>'+escH(e.message));
+    return false;
+  }
+}
+function setSsoStatus(html){
+  var el=document.getElementById('sso-login-status');
+  if(el) el.innerHTML=html;
+}
+// 人資權限「僅讀取(瀏覽員)」→ 畫面唯讀：不顯示新增/編輯/刪除（權限記在帳號的 app_metadata，由 api/tl-sso.js 設定）
+function isReadOnlyUser(){
+  return !!(currentUser&&currentUser.app_metadata&&currentUser.app_metadata.tl_wechat_role==='viewer');
+}
 function roleLabel(r){return r==='admin'?'大總管':r==='director'?'總監':r==='sales'?'業務':r==='assistant'?'助理':r;}
 async function doLogout(){
   await sb.auth.signOut();
@@ -1906,6 +1945,7 @@ async function doLogout(){
   custData=[];crmData=[];engData=[];cardData=[];
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
+  setSsoStatus('您已登出。要再進來，請按下方按鈕或從公司首頁點「營業商務訊息」卡片。'); // 登出後不自動跳轉，否則會馬上又被自動登入
 }
 // 頁面載入時檢查登入狀態
 window.onload=async function(){
@@ -1921,9 +1961,35 @@ window.onload=async function(){
     // 從重設密碼信連結進來，交給 onAuthStateChange 的 PASSWORD_RECOVERY 事件處理，這裡不自動登入
     return;
   }
+  // 從 TL_technology 首頁卡片點進來（網址 # 後面帶著首頁登入憑證）→ 依人資權限免密碼登入，詳見 api/tl-sso.js
+  var ssoMatch=window.location.hash.match(/tl_sso=([^&]+)/);
+  if(ssoMatch){
+    history.replaceState(null,'',window.location.pathname+window.location.search); // 立刻把憑證從網址列拿掉
+    await loginWithTlSso(decodeURIComponent(ssoMatch[1]));
+    return; // 成功就進系統；失敗會停在登入畫面顯示原因，不再自動跳轉，避免來回跳個不停
+  }
+  var pwMode=LOGIN_FORM_ENABLED||/[?&]pwlogin=1/.test(window.location.search);
   var {data:{session}}=await sb.auth.getSession();
-  if(session){await onLogin(session.user);}
+  if(session&&(pwMode||isFreshTlSso(session.user))){await onLogin(session.user);return;}
+  if(pwMode){showPasswordLogin();return;}
+  // 沒登入、或不是透過人資權限登入的、或距離上次跟人資系統確認已超過時效 → 自動回公司首頁重新確認
+  if(session) await sb.auth.signOut();
+  goToTlHomeForLogin();
 };
+// email+密碼登入開關（暫停中）：平常一律透過公司首頁＋人資權限登入；網址加 ?pwlogin=1 可臨時開啟（緊急用）
+var LOGIN_FORM_ENABLED=false;
+var TL_SSO_MAX_AGE_MS=12*60*60*1000; // 每 12 小時重新跟人資系統確認一次權限（首頁有登入的話是自動的，使用者感覺不到）
+function isFreshTlSso(user){
+  var m=user&&user.app_metadata;
+  return !!(m&&m.tl_wechat_role&&m.tl_sso_at&&(Date.now()-m.tl_sso_at)<TL_SSO_MAX_AGE_MS);
+}
+function goToTlHomeForLogin(){
+  window.location.href='https://tl-home.com/?goto=wechat';
+}
+function showPasswordLogin(){
+  document.getElementById('sso-login-area').style.display='none';
+  document.getElementById('pw-login-area').style.display='';
+}
 
 // ══ 載入資料 ════════════════════════════════════════════════
 var usersMap={}; // id -> {name, role}
@@ -2249,11 +2315,11 @@ window.addEventListener('resize',function(){
 // 就代表這個人本來就有權限動它，真正的防線在資料庫RLS端。
 function canDelete(r){
   if(!currentUserProfile) return false;
-  return true;
+  return !isReadOnlyUser();
 }
 function canEdit(r){
   if(!currentUserProfile) return false;
-  return true;
+  return !isReadOnlyUser();
 }
 
 // ══ 名片管理 ═══════════════════════════════════════════════

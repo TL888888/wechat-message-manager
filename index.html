@@ -1945,7 +1945,9 @@ async function doLogout(){
   custData=[];crmData=[];engData=[];cardData=[];
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
-  setSsoStatus('您已登出。要再進來，請按下方按鈕或從公司首頁點「營業商務訊息」卡片。'); // 登出後不自動跳轉，否則會馬上又被自動登入
+  // 登出後直接回公司首頁（不帶 ?goto=wechat，所以不會被自動登入回來）；緊急密碼登入模式則留在登入畫面
+  if(LOGIN_FORM_ENABLED||/[?&]pwlogin=1/.test(window.location.search)) showPasswordLogin();
+  else window.location.href='https://tl-home.com/';
 }
 // 頁面載入時檢查登入狀態
 window.onload=async function(){

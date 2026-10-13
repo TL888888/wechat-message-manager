@@ -12,7 +12,8 @@
 // 人資權限 → 本系統角色（角色決定資料庫看得到哪些資料，規則見 NOTES.md）：
 //   完整(admin)  → admin   大總管：全部功能
 //   讀寫(editor) → director 總監：看得到全部資料、可新增修改刪除
-//   僅讀取(viewer)→ director 總監＋前端唯讀：畫面上鎖住新增/修改/刪除
+//   僅讀取(reader)→ director 總監＋前端唯讀：畫面上鎖住新增/修改/刪除
+//     （注意：人資下拉選單「僅讀取」存的值是 reader，不是 viewer；2026-10-13 曾因寫錯導致瀏覽員進不去）
 //     （資料庫層級沒有「唯讀總監」這種角色，唯讀目前只做在畫面上，見 NOTES.md）
 //   無權限(none) → 拒絕
 // 每次從首頁點進來都會依「當下」人資權限更新角色，所以人資那邊改了，下次點進來就生效。
@@ -26,7 +27,8 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY_WECHAT;
 // 也可以在 Vercel 設環境變數 TL_TECH_SUPABASE_URL / TL_TECH_SUPABASE_KEY 覆蓋
 const TL_ENV_URL = 'https://tl-home.com/api/env';
 
-const ROLE_MAP = { admin: 'admin', editor: 'director', viewer: 'director' };
+// key = TL_technology HR_manager.html 下拉選單的 option value（none / reader / editor / admin）
+const ROLE_MAP = { admin: 'admin', editor: 'director', reader: 'director', viewer: 'director' };
 
 async function getTlTechConfig() {
   if (process.env.TL_TECH_SUPABASE_URL && process.env.TL_TECH_SUPABASE_KEY) {
@@ -67,7 +69,8 @@ module.exports = async function handler(req, res) {
     }
     const tlUser = ud.user;
     const email = tlUser.email.trim().toLowerCase();
-    const { data: member } = await tl.from('members').select('*').eq('id', tlUser.id).maybeSingle();
+    const { data: member, error: me } = await tl.from('members').select('*').eq('id', tlUser.id).maybeSingle();
+    if (me) throw new Error('讀取人資權限失敗：' + me.message);
     const hrRole = member && member.wechat_role;
     if (!hrRole || !ROLE_MAP[hrRole]) {
       res.status(403).json({ error: '人資系統尚未開通您的「營業商務訊息」權限，請洽人資或管理員' });

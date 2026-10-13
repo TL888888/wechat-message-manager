@@ -1950,7 +1950,8 @@ function setSsoStatus(html){
 }
 // 人資權限「僅讀取(瀏覽員)」→ 畫面唯讀：不顯示新增/編輯/刪除（權限記在帳號的 app_metadata，由 api/tl-sso.js 設定）
 function isReadOnlyUser(){
-  return !!(currentUser&&currentUser.app_metadata&&currentUser.app_metadata.tl_wechat_role==='viewer');
+  var r=currentUser&&currentUser.app_metadata&&currentUser.app_metadata.tl_wechat_role;
+  return r==='reader'||r==='viewer'; // 人資「僅讀取」存的值是 reader
 }
 function roleLabel(r){return r==='admin'?'大總管':r==='director'?'總監':r==='sales'?'業務':r==='assistant'?'助理':r;}
 async function doLogout(){

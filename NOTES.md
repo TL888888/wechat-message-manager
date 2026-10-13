@@ -38,7 +38,7 @@ alter table crm_records add column if not exists end_product text;
 - **不再有自己的帳號密碼登入畫面**。權限由 TL_technology 人資系統(HR_manager)的「營業商務訊息」欄位決定。
 - 流程:首頁點卡片 → 首頁把登入憑證放在網址 # 後面帶來 → `api/tl-sso.js` 向 TL_technology 確認身分與 `members.wechat_role` → 自動登入(本系統沒帳號會自動建立)。
   直接打開 wechat.tl-home.com 的人會被帶到 `tl-home.com/?goto=wechat`,首頁確認後自動轉回來。
-- 人資權限 → 本系統角色:完整(管理員)→ 大總管 admin;讀寫(編輯員)→ 總監 director;僅讀取(瀏覽員)→ 總監 + 畫面唯讀(看不到新增/編輯/刪除按鈕)。
+- 人資權限 → 本系統角色:完整(管理員)→ 大總管 admin;讀寫(編輯員)→ 總監 director;僅讀取(瀏覽員,人資存的值是 reader)→ 總監 + 畫面唯讀(看不到新增/編輯/刪除按鈕)。
   **為什麼不用「助理」**:資料庫規則(RLS)裡助理只能看自己地區、且完全看不到 CRM 需求統計;總監才看得到全部。
 - 每次從首頁進來都會依「當下」人資權限更新角色;超過 12 小時會自動回首頁重新確認(人資取消權限,最晚 12 小時內失效)。
 - ⚠️ Michelle 自己在人資系統的權限要設「完整(管理員)」,否則會變成總監,看不到「匯入 Excel」。

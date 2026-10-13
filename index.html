@@ -296,8 +296,14 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 </head>
 <body>
 
+<!-- ══ 開啟時的轉圈畫面：自動登入（向人資系統確認權限）期間顯示，避免先閃出登入框讓人以為要打帳密 ══ -->
+<div id="boot-screen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px;">
+  <span class="spinner" style="width:28px;height:28px;border-width:3px;"></span>
+  <div id="boot-msg" style="font-size:14px;color:var(--text-m);">正在登入營業商務系統...</div>
+</div>
+
 <!-- ══ LOGIN ══ -->
-<div id="login-screen">
+<div id="login-screen" style="display:none;">
   <div class="login-box">
     <div style="text-align:center;margin-bottom:28px;">
       <div style="background:var(--accent-bg);border-radius:12px;padding:12px;display:inline-block;margin-bottom:12px;">
@@ -1074,6 +1080,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 sb.auth.onAuthStateChange(function(event,session){
   if(event==='PASSWORD_RECOVERY'){
+    document.getElementById('boot-screen').style.display='none';
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='none';
     document.getElementById('new-pw-screen').style.display='flex';
@@ -1887,6 +1894,7 @@ async function onLogin(user){
   } else {
     currentUserProfile=data||{id:user.id, email:user.email, name:user.email, role:'admin'};
   }
+  document.getElementById('boot-screen').style.display='none';
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('nav-user-info').textContent=currentUserProfile.name+' · '+roleLabel(currentUserProfile.role)+(isReadOnlyUser()?'（唯讀）':'');
@@ -1926,9 +1934,15 @@ async function loginWithTlSso(tlToken){
     await onLogin(data.session.user);
     return true;
   }catch(e){
+    showLoginScreen();
     setSsoStatus('<i class="fa-solid fa-circle-exclamation" style="color:var(--red);margin-right:6px;"></i>'+escH(e.message));
     return false;
   }
+}
+// 只有「需要使用者處理」時才把轉圈畫面換成登入畫面（自動登入失敗、緊急密碼登入模式）
+function showLoginScreen(){
+  document.getElementById('boot-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
 }
 function setSsoStatus(html){
   var el=document.getElementById('sso-login-status');
@@ -1944,7 +1958,8 @@ async function doLogout(){
   currentUser=null;currentUserProfile=null;
   custData=[];crmData=[];engData=[];cardData=[];
   document.getElementById('app').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('boot-screen').style.display='flex';
+  document.getElementById('boot-msg').textContent='已登出，正在回到公司首頁...';
   // 登出後直接回公司首頁（不帶 ?goto=wechat，所以不會被自動登入回來）；緊急密碼登入模式則留在登入畫面
   if(LOGIN_FORM_ENABLED||/[?&]pwlogin=1/.test(window.location.search)) showPasswordLogin();
   else window.location.href='https://tl-home.com/';
@@ -1986,9 +2001,11 @@ function isFreshTlSso(user){
   return !!(m&&m.tl_wechat_role&&m.tl_sso_at&&(Date.now()-m.tl_sso_at)<TL_SSO_MAX_AGE_MS);
 }
 function goToTlHomeForLogin(){
+  document.getElementById('boot-msg').textContent='正在前往公司首頁確認登入身分...';
   window.location.href='https://tl-home.com/?goto=wechat';
 }
 function showPasswordLogin(){
+  showLoginScreen();
   document.getElementById('sso-login-area').style.display='none';
   document.getElementById('pw-login-area').style.display='';
 }

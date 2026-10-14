@@ -49,4 +49,5 @@ alter table crm_records add column if not exists end_product text;
 ## 問問AI：等待時的翻書小女生 — 2026-10-14
 - 送出問題後，原本泡泡顯示「思考中...」，改成翻書的小女生 + 每 2.5 秒換一句（翻翻商務訊息… → 對照 CRM… → 看看拜訪紀錄跟名片…）。
 - 圖和動畫在根目錄 `ai-mascot.js`，**這個檔案是從 TL_technology 複製過來的**（TL 那邊出貨、BOM 等系統也用同一個），改一邊要記得複製到另一邊。
+- ⚠️ Michelle 決定小女生的圖和顏色都不要動（綠色制服），只改句子。
 - 程式位置：`index.html` 搜尋 `submitAiQuestion`。檔案沒載入成功時會自動退回原本的「思考中...」。

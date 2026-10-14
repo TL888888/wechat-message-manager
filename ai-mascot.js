@@ -6,7 +6,7 @@
  *
  *   - 'girl'：翻書的小女生（最早做在 orders.html 已接未出訂單，2026-10-13），給業務類系統用：
  *             出貨實績、已接未出訂單、行動秘書、營業商務訊息（wechat 那個 repo 有複製一份這個檔案）
- *   - 'boy' ：戴眼鏡、會推眼鏡（鏡片會反光）的工程師小男生，給技術類系統用：
+ *   - 'boy' ：戴眼鏡、會推眼鏡（鏡片會反光）的工程師小男生（拿平板），給技術類系統用：
  *             服務部技術論壇、BOM、品保（文件問答 + EIP 異常問答）、市場產業資訊
  *
  * 這是一般 JavaScript（不是 JSX），所以 React 頁面和不用 React 的頁面（例如營業商務訊息）都能用：
@@ -40,24 +40,27 @@
     '@keyframes rgHandL{0%,30%{transform:translate(0,0)}50%,72%{transform:translate(28px,0)}92%,100%{transform:translate(0,0)}}',
     '@keyframes rgHandR{0%,30%{transform:translate(0,0)}50%,72%{transform:translate(-28px,0)}92%,100%{transform:translate(0,0)}}',
     '@keyframes rgSpark{0%,100%{opacity:0;transform:scale(.5)}50%{opacity:1;transform:scale(1)}}',
-    /* ---- 戴眼鏡小男生：一邊看筆電，每 3 秒舉手推一下眼鏡，鏡片閃一道光 ---- */
-    '.gb-bob{animation:gbBob 3s ease-in-out infinite;transform-box:view-box;transform-origin:60px 80px}',
+    /* ---- 戴眼鏡小男生（2026-10-14 第二版：Michelle 說第一版太醜、豎起來的手指像比中指 →
+         改成跟小女生同一個畫風；手只畫圓圓的拳頭，不畫手指）。拿著平板，螢幕上的長條圖會跳動，
+         每 3 秒舉手碰一下眼鏡、鏡片閃一道光 ---- */
+    '.gb-bob{animation:gbBob 3s ease-in-out infinite;transform-box:view-box;transform-origin:60px 76px}',
     '.gb-eyes{animation:rgBlink 4s infinite;transform-box:fill-box;transform-origin:center}',
     '.gb-glasses{animation:gbPush 3s ease-in-out infinite}',
     '.gb-hand{animation:gbHand 3s ease-in-out infinite}',
     '.gb-glint{animation:gbGlint 3s ease-in-out infinite}',
-    '.gb-cursor{animation:gbCursor 1s steps(1) infinite}',
+    '.gb-bar{animation:gbBar 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}',
+    '.gb-bar.b2{animation-delay:.3s}.gb-bar.b3{animation-delay:.6s}.gb-bar.b4{animation-delay:.9s}',
     '.gb-spark{animation:rgSpark 1.8s ease-in-out infinite}',
     '.gb-spark.s2{animation-delay:.9s}',
-    '@keyframes gbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}',
-    /* 手：平常放在筆電上 → 舉到眼鏡中間 → 推一下 → 放回去 */
-    '@keyframes gbHand{0%,35%{transform:translate(0,0)}50%{transform:translate(-30px,-43px)}56%{transform:translate(-30px,-46.5px)}68%{transform:translate(-30px,-46.5px)}85%,100%{transform:translate(0,0)}}',
-    /* 眼鏡：被推的那一下往上移一點，之後慢慢滑回原位 */
-    '@keyframes gbPush{0%,50%{transform:translateY(0)}56%,70%{transform:translateY(-2.5px)}90%,100%{transform:translateY(0)}}',
+    '@keyframes gbBob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-2px) rotate(2deg)}}',
+    /* 右手：平常扶著平板 → 舉到眼鏡中間 → 往上碰一下 → 放回去 */
+    '@keyframes gbHand{0%,35%{transform:translate(0,0)}50%{transform:translate(-36px,-46px)}56%,68%{transform:translate(-36px,-49.5px)}85%,100%{transform:translate(0,0)}}',
+    /* 眼鏡：被碰的那一下往上移一點，之後慢慢滑回原位 */
+    '@keyframes gbPush{0%,52%{transform:translateY(0)}57%,70%{transform:translateY(-2.5px)}90%,100%{transform:translateY(0)}}',
     /* 鏡片反光：推完眼鏡那一刻閃一下 */
-    '@keyframes gbGlint{0%,55%{opacity:0}60%,72%{opacity:1}80%,100%{opacity:0}}',
-    '@keyframes gbCursor{0%{opacity:1}50%{opacity:0}}',
-    '@media (prefers-reduced-motion: reduce){.rg-bob,.rg-eyes,.rg-book,.rg-hand-l,.rg-hand-r,.rg-spark,.gb-bob,.gb-eyes,.gb-glasses,.gb-hand,.gb-glint,.gb-cursor,.gb-spark{animation:none}.rg-cover,.gb-glint{opacity:0}}'
+    '@keyframes gbGlint{0%,56%{opacity:0}61%,74%{opacity:1}82%,100%{opacity:0}}',
+    '@keyframes gbBar{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.45)}}',
+    '@media (prefers-reduced-motion: reduce){.rg-bob,.rg-eyes,.rg-book,.rg-hand-l,.rg-hand-r,.rg-spark,.gb-bob,.gb-eyes,.gb-glasses,.gb-hand,.gb-glint,.gb-bar,.gb-spark{animation:none}.rg-cover,.gb-glint{opacity:0}}'
   ].join('\n');
 
   function injectCss() {
@@ -111,52 +114,56 @@
       + '</g></svg>';
   }
 
-  // 戴眼鏡的工程師小男生：翹一撮呆毛（看起來比較愛玩）、圓框眼鏡、連帽衣，坐在筆電後面
+  // 戴眼鏡的工程師小男生（第二版，跟小女生同一個畫風：大眼睛、腮紅、圓潤的頭髮）
+  //   黑色旁分短髮、頭頂翹一根毛、白襯衫配彩色領子、細框圓眼鏡、張嘴笑（照 Michelle 給的參考圖風格）；雙手拿平板，右手會舉起來碰一下眼鏡。
+  //   ⚠️ 手只畫圓圓的拳頭，不要畫豎起來的手指（第一版被看成比中指）。
   function boySvg(color) {
     return '<svg viewBox="0 0 120 112" width="96" height="90" aria-hidden="true">'
-      // 旁邊飄的小符號：齒輪感的小星星 + 程式碼括號
-      + '<path class="gb-spark" d="M101 16 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#38bdf8"/>'
-      + '<text class="gb-spark s2" x="9" y="36" font-size="11" font-weight="700" font-family="monospace" fill="#a78bfa">&lt;/&gt;</text>'
+      + '<path class="gb-spark" d="M100 18 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#38bdf8"/>'
+      + '<path class="gb-spark s2" d="M16 30 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z" fill="#a5b4fc"/>'
       + '<g class="gb-bob">'
-      // 連帽衣（帽子在脖子後面）+ 脖子
-      + '<path d="M40 80 Q60 70 80 80 L80 86 L40 86 Z" fill="' + color + '" opacity=".75"/>'
-      + '<rect x="55" y="66" width="10" height="14" rx="3" fill="#f7d4bd"/>'
-      + '<path d="M34 112 Q34 79 52 75 Q60 80 68 75 Q86 79 86 112 Z" fill="' + color + '"/>'
-      + '<path d="M56 79 L55 92 M64 79 L65 92" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>'
-      + '<circle cx="55" cy="93" r="1.3" fill="#fff"/><circle cx="65" cy="93" r="1.3" fill="#fff"/>'
-      // 臉
-      + '<ellipse cx="60" cy="52" rx="20" ry="19" fill="#ffe4d1"/>'
-      + '<ellipse cx="40" cy="54" rx="3" ry="4" fill="#ffe4d1"/><ellipse cx="80" cy="54" rx="3" ry="4" fill="#ffe4d1"/>'
-      // 短髮（刺刺的瀏海）+ 頭頂一撮呆毛
-      + '<path d="M39 52 C36 30 46 20 60 20 C75 20 85 30 81 52 Q79 42 74 41 L72 46 L68 39 L64 45 L60 38 L56 45 L52 39 L48 46 L46 41 Q41 42 39 52 Z" fill="#2f2a33"/>'
-      + '<path d="M60 21 Q57 10 66 8 Q61 13 63 21 Z" fill="#2f2a33"/>'
-      + '<path d="M47 27 Q55 22 64 24" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".25"/>'
-      // 眼睛（會眨）
-      + '<g class="gb-eyes"><circle cx="52" cy="54" r="2.6" fill="#2b2b2b"/><circle cx="68" cy="54" r="2.6" fill="#2b2b2b"/>'
-      + '<circle cx="53" cy="53" r=".9" fill="#fff"/><circle cx="69" cy="53" r=".9" fill="#fff"/></g>'
-      // 有點得意的歪嘴笑 + 淡淡腮紅
-      + '<path d="M55 63 Q60 66 66 61.5" stroke="#9f3a2a" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
-      + '<ellipse cx="45" cy="60" rx="3.2" ry="1.8" fill="#fda4af" opacity=".55"/><ellipse cx="75" cy="60" rx="3.2" ry="1.8" fill="#fda4af" opacity=".55"/>'
-      // 圓框眼鏡（被推的時候整副往上移）+ 鏡片反光
+      // 脖子（只露一點點）+ 白襯衫，領子用各系統的主色（2026-10-14 Michelle 給的參考圖：白襯衫配彩色領子）
+      + '<rect x="55" y="66" width="10" height="16" rx="3" fill="#f7d4bd"/>'
+      + '<path d="M36 112 Q36 77 53 73.5 L60 81 L67 73.5 Q84 77 84 112 Z" fill="#fff" stroke="#cbd5e1" stroke-width="1"/>'
+      + '<path d="M60 81 L60 112" stroke="#e2e8f0" stroke-width="1"/><circle cx="60" cy="91" r="1" fill="#cbd5e1"/><circle cx="60" cy="100" r="1" fill="#cbd5e1"/>'
+      + '<path d="M51.5 72 L60 81 L52 84.5 L47.5 76 Z M68.5 72 L60 81 L68 84.5 L72.5 76 Z" fill="' + color + '" stroke="#0f172a" stroke-opacity=".25" stroke-width=".7" stroke-linejoin="round"/>'
+      // 臉（跟小女生一樣大小）
+      + '<ellipse cx="60" cy="53" rx="21" ry="19" fill="#ffe4d1"/>'
+      // 黑色短髮：圓圓包住頭頂、旁分（左邊一道分線），瀏海往右撥，頭頂翹一根毛
+      + '<path d="M38 55 C34 28 46 16 61 16 C77 16 87 28 82 55 Q81 44 76 40 Q66 37 58 39 Q52 40 49 36 Q44 42 42 47 Q40 50 38 55 Z" fill="#1f1f24"/>'
+      + '<path d="M49 36 Q50 26 55 20" stroke="#3f3f46" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
+      + '<path d="M62 17 Q61 9 66 7" stroke="#1f1f24" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
+      + '<path d="M62 22 Q71 21 77 27" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".25"/>'
+      // 圓眼睛：白眼球 + 黑眼珠 + 反光點（會眨）
+      + '<g class="gb-eyes">'
+      + '<ellipse cx="51" cy="54.5" rx="4.4" ry="5.2" fill="#fff" stroke="#3b2a20" stroke-width=".9"/><ellipse cx="69" cy="54.5" rx="4.4" ry="5.2" fill="#fff" stroke="#3b2a20" stroke-width=".9"/>'
+      + '<ellipse cx="51.8" cy="55.5" rx="2.4" ry="3" fill="#2b1d16"/><ellipse cx="68.2" cy="55.5" rx="2.4" ry="3" fill="#2b1d16"/>'
+      + '<circle cx="52.6" cy="54.4" r=".9" fill="#fff"/><circle cx="69" cy="54.4" r=".9" fill="#fff"/>'
+      + '</g>'
+      // 淡淡腮紅、張大嘴開心笑（看得到粉紅舌頭）
+      + '<ellipse cx="43" cy="62.5" rx="3.6" ry="2" fill="#fda4af" opacity=".55"/><ellipse cx="77" cy="62.5" rx="3.6" ry="2" fill="#fda4af" opacity=".55"/>'
+      + '<path d="M54.5 62.5 Q60 63.5 65.5 62.5 Q64.5 69.5 60 69.5 Q55.5 69.5 54.5 62.5 Z" fill="#9f1239" stroke="#3b2a20" stroke-width=".8" stroke-linejoin="round"/>'
+      + '<path d="M56.5 67.3 Q60 65.3 63.5 67.3 Q62 69.3 60 69.3 Q58 69.3 56.5 67.3 Z" fill="#fb7185"/>'
+      // 細框圓眼鏡（被碰的時候整副往上移）+ 鏡片反光
       + '<g class="gb-glasses">'
-      + '<circle cx="52" cy="54" r="7" fill="#e0f2fe" fill-opacity=".35" stroke="#334155" stroke-width="2"/>'
-      + '<circle cx="68" cy="54" r="7" fill="#e0f2fe" fill-opacity=".35" stroke="#334155" stroke-width="2"/>'
-      + '<path d="M59 53 Q60 51.5 61 53" stroke="#334155" stroke-width="2" fill="none"/>'
-      + '<path d="M45 52 L41 50 M75 52 L79 50" stroke="#334155" stroke-width="1.6"/>'
-      + '<g class="gb-glint"><path d="M48 57 L54 49 M64 57 L70 49" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></g>'
+      + '<circle cx="51" cy="54.5" r="7.6" fill="#fff" fill-opacity=".15" stroke="#475569" stroke-width="1.4"/>'
+      + '<circle cx="69" cy="54.5" r="7.6" fill="#fff" fill-opacity=".15" stroke="#475569" stroke-width="1.4"/>'
+      + '<path d="M58.6 53.5 Q60 52.2 61.4 53.5" stroke="#475569" stroke-width="1.4" fill="none"/>'
+      + '<g class="gb-glint"><path d="M47 58.5 L52.5 51 M65 58.5 L70.5 51" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>'
       + '</g>'
       + '</g>'
-      // 筆電（從背面看，銀色機身 + 貼紙），螢幕光照在下巴
-      + '<g transform="translate(0 80)">'
-      + '<path d="M30 2 L90 2 L94 30 L26 30 Z" fill="#cbd5e1" stroke="#94a3b8" stroke-width="1.2"/>'
-      + '<circle cx="60" cy="15" r="5" fill="#f8fafc" stroke="#94a3b8" stroke-width=".8"/>'
-      + '<path d="M57.5 15 h5" stroke="' + color + '" stroke-width="1.6" stroke-linecap="round"/>'
-      + '<rect class="gb-cursor" x="62.6" y="13.2" width="1.6" height="3.6" fill="' + color + '"/>'
-      + '<rect x="22" y="29" width="76" height="4" rx="2" fill="#94a3b8"/>'
-      // 左手放在筆電上；右手會舉起來推眼鏡（手的顏色比臉深一點、加外框，推到臉前面時才看得出來）
-      + '<circle cx="31" cy="26" r="4.5" fill="#fbd3b8" stroke="#c98463" stroke-width="1"/>'
-      + '<g class="gb-hand"><circle cx="90" cy="26" r="4.5" fill="#fbd3b8" stroke="#c98463" stroke-width="1"/>'
-      + '<rect x="88.6" y="17.5" width="2.8" height="7" rx="1.4" fill="#fbd3b8" stroke="#c98463" stroke-width="1"/></g>'
+      // 平板（螢幕上的長條圖會一直跳，表示正在算資料）
+      + '<g transform="translate(0 78)">'
+      + '<rect x="25" y="4" width="70" height="30" rx="4" fill="#475569"/>'
+      + '<rect x="29" y="7.5" width="62" height="23" rx="2" fill="#f8fafc"/>'
+      + '<rect class="gb-bar" x="36" y="17" width="7" height="11" rx="1" fill="' + color + '" opacity=".55"/>'
+      + '<rect class="gb-bar b2" x="47" y="12" width="7" height="16" rx="1" fill="' + color + '"/>'
+      + '<rect class="gb-bar b3" x="58" y="19" width="7" height="9" rx="1" fill="' + color + '" opacity=".55"/>'
+      + '<rect class="gb-bar b4" x="69" y="14" width="7" height="14" rx="1" fill="' + color + '"/>'
+      + '<path d="M33 28.5 h54" stroke="#cbd5e1" stroke-width="1"/>'
+      // 左手扶著平板；右手會舉起來碰眼鏡（圓圓的拳頭，顏色比臉深一點、有外框，舉到臉前面才看得出來）
+      + '<circle cx="24" cy="22" r="4.5" fill="#fbd3b8" stroke="#c98463" stroke-width="1"/>'
+      + '<circle class="gb-hand" cx="96" cy="22" r="4.5" fill="#fbd3b8" stroke="#c98463" stroke-width="1"/>'
       + '</g></svg>';
   }
 

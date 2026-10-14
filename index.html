@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/ai-mascot.js"></script>
 <style>
 *{font-family:'Noto Sans TC',sans-serif;box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -4526,6 +4527,18 @@ async function submitAiQuestion(){
   input.value='';
   appendAiQaBubble('user',question);
   var loadingBubble=appendAiQaBubble('ai','思考中...');
+  // 等待中換成翻書的小女生(共用檔 ai-mascot.js,TL_technology 也有一份,改一邊要複製到另一邊;2026-10-14)
+  // 答案回來時下面會用 textContent 把整個泡泡內容換掉,小女生自然就消失;stopMascot 停止換句子。
+  var stopMascot=function(){};
+  if(window.AiMascot){
+    var mBox=loadingBubble.querySelector('div');
+    mBox.style.cssText+=';padding:0;border:none;background:none;';
+    stopMascot=AiMascot.mount(mBox,{kind:'girl',color:'#2563eb',bg:'#eff6ff',text:'#1e3a8a',
+      lines:['翻翻商務訊息…','對照 CRM 客戶資料…','看看拜訪紀錄跟名片…','把重點挑出來…','整理成好讀的樣子…','快好了,再等我一下~']});
+    var wrapEl=document.getElementById('aiqa-conversation');wrapEl.scrollTop=wrapEl.scrollHeight;
+  }
+  // 答案(或錯誤)回來時:停止小女生、把泡泡恢復成原本的對話樣式
+  var showAnswer=function(text){stopMascot();var d=loadingBubble.querySelector('div');d.style.padding='9px 13px';d.style.border='1px solid var(--border)';d.style.background='var(--bg)';d.textContent=text;};
   btn.disabled=true;
   try{
     var {data:{session}}=await sb.auth.getSession();
@@ -4536,12 +4549,12 @@ async function submitAiQuestion(){
     });
     var result=await resp.json().catch(function(){return {error:'伺服器回應格式異常'};});
     if(!resp.ok||result.error){
-      loadingBubble.querySelector('div').textContent='查詢失敗：'+(result.error||'未知錯誤');
+      showAnswer('查詢失敗：'+(result.error||'未知錯誤'));
     }else{
-      loadingBubble.querySelector('div').textContent=result.answer||'（AI沒有回傳內容）';
+      showAnswer(result.answer||'（AI沒有回傳內容）');
     }
   }catch(err){
-    loadingBubble.querySelector('div').textContent='查詢失敗：'+err.message;
+    showAnswer('查詢失敗：'+err.message);
   }
   btn.disabled=false;
 }

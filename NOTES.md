@@ -45,3 +45,8 @@ alter table crm_records add column if not exists end_product text;
 - 緊急備援:網址加 `?pwlogin=1`(例:wechat.tl-home.com/?pwlogin=1)會出現舊的 email+密碼登入框。要永久恢復,把 index.html 的 `LOGIN_FORM_ENABLED` 改 true。
 - 「帳號管理」頁籤也暫停(`ACCOUNT_MGMT_ENABLED=false`),程式保留,經理要啟用時改 true。
 - 已知限制:瀏覽員的唯讀只做在畫面上,資料庫層級沒有擋(要擋需新增 viewer 角色並改 RLS)。
+
+## 問問AI：等待時的翻書小女生 — 2026-10-14
+- 送出問題後，原本泡泡顯示「思考中...」，改成翻書的小女生 + 每 2.5 秒換一句（翻翻商務訊息… → 對照 CRM… → 看看拜訪紀錄跟名片…）。
+- 圖和動畫在根目錄 `ai-mascot.js`，**這個檔案是從 TL_technology 複製過來的**（TL 那邊出貨、BOM 等系統也用同一個），改一邊要記得複製到另一邊。
+- 程式位置：`index.html` 搜尋 `submitAiQuestion`。檔案沒載入成功時會自動退回原本的「思考中...」。

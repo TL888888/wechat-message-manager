@@ -272,6 +272,38 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
 .ea-note{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:14px;line-height:1.8;color:var(--text-b);}
 .ea-note-title{font-weight:700;color:var(--text-h);margin-bottom:6px;font-size:15px;}
 .ea-tip{position:fixed;z-index:300;pointer-events:none;background:#1e293b;color:#fff;font-size:13.5px;line-height:1.6;padding:8px 12px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,0.18);display:none;max-width:280px;}
+/* 第二/三層：機型列可點開，展開客戶明細；最下方合計 */
+.ea-mlist{display:flex;flex-direction:column;gap:4px;}
+.ea-mrow{display:grid;grid-template-columns:160px minmax(0,1fr) 170px 18px;align-items:center;gap:14px;padding:6px 8px;border-radius:8px;cursor:pointer;}
+.ea-mrow:hover{background:var(--bg);}
+.ea-mrow.on{background:var(--accent-bg);}
+.ea-chev{font-size:12px;color:var(--text-s);}
+.ea-drill{margin:4px 0 10px 0;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;}
+.ea-drill-title{font-size:13.5px;font-weight:600;color:var(--text-m);margin-bottom:6px;}
+.ea-drow{display:grid;grid-template-columns:minmax(0,280px) minmax(0,200px) 110px 90px 120px;justify-content:start;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:14.5px;align-items:center;}
+.ea-drow:last-child{border-bottom:none;}
+.ea-drow-head,.ea-crow-head,.ea-mdrow-head{font-size:13px;font-weight:600;color:var(--text-m);}
+.ea-mtotal{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding:12px 8px 0;border-top:2px solid var(--border);font-size:15.5px;color:var(--text-b);}
+.ea-mtotal b{font-size:18px;color:var(--text-h);}
+.ea-link{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:600;}
+.ea-link:hover{text-decoration:underline;}
+.ea-muted{color:var(--text-m);}
+/* 依客戶查看 */
+.ea-search{position:relative;flex:0 1 320px;min-width:200px;}
+.ea-search i{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-s);font-size:13px;}
+.ea-search input{padding-left:32px;font-size:14px;}
+.ea-crow{display:grid;grid-template-columns:minmax(0,280px) minmax(0,160px) minmax(0,1fr) 80px 110px;gap:12px;padding:10px 8px;border-bottom:1px solid var(--border);font-size:14.5px;align-items:center;cursor:pointer;border-radius:6px;}
+.ea-crow:hover:not(.ea-crow-head){background:var(--accent-bg);}
+.ea-crow-head{cursor:default;border-bottom:2px solid var(--border);}
+.ea-tags{display:flex;flex-wrap:wrap;gap:5px;}
+.ea-tag{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:2px 9px;color:var(--text-b);white-space:nowrap;}
+.ea-tag em{font-style:normal;color:var(--text-s);margin-left:2px;}
+.ea-tag-gray{color:var(--text-s);background:var(--bg);}
+.ea-tag .ea-swatch{width:9px;height:9px;}
+/* 第四層：客戶需求彈出視窗 */
+.ea-cust-box{max-width:900px !important;}
+.ea-mdrow{display:grid;grid-template-columns:minmax(0,1.1fr) 70px minmax(0,1.3fr) minmax(0,2fr) 110px;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);font-size:14px;align-items:start;}
+.ea-mdrow-head{border-bottom:2px solid var(--border);}
 @media (max-width:900px){
   .ea-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
   .ea-main,.ea-split,.ea-notes{grid-template-columns:1fr;}
@@ -286,6 +318,20 @@ tr.erp-tr:hover td.erp-td{background:#eef4fb;}
   .ea-bar-val{font-size:12.5px;}
   .ea-rank-row{grid-template-columns:22px 10px minmax(0,1fr) 44px 52px 34px;gap:6px;font-size:14px;padding:10px 4px;}
   .ea-rank-head{font-size:12.5px;}
+  /* 手機：機型列/客戶列省略次要欄位，只留名稱與台數 */
+  .ea-mrow{grid-template-columns:84px minmax(0,1fr) 100px 12px;gap:6px;padding:6px 4px;}
+  .ea-drill{padding:10px;}
+  .ea-drow{grid-template-columns:minmax(0,1fr) 92px;font-size:13.5px;}
+  .ea-drow>span:nth-child(2),.ea-drow>span:nth-child(3),.ea-drow>span:nth-child(4){display:none;}
+  .ea-search{flex:1 1 100%;}
+  .ea-crow{grid-template-columns:minmax(0,1fr) 80px;font-size:13.5px;gap:6px 8px;}
+  .ea-crow>span:nth-child(2),.ea-crow>span:nth-child(4){display:none;}
+  .ea-crow>span:nth-child(3){grid-column:1/-1;order:3;}
+  .ea-crow-head>span:nth-child(3){display:none;}
+  .ea-mdrow{grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr);font-size:13px;}
+  .ea-mdrow>span:nth-child(4){grid-column:1/-1;}
+  .ea-mdrow>span:nth-child(5){grid-column:1/-1;text-align:left;}
+  .ea-mdrow-head>span:nth-child(4),.ea-mdrow-head>span:nth-child(5){display:none;}
 }
 
 /* 隱藏瀏覽器內建密碼眼睛，避免跟小猴子重疊 */
@@ -3081,14 +3127,17 @@ function exportStatsExcel(){
 
 // 查詢結果裡如果有未分類的資料，畫面一渲染完就自動呼叫AI解析，只解析當下畫面上這幾筆，解出來就存回資料庫，之後同一筆不會再問第二次
 // ══ 終端應用分析 ══════════════════════════════════════════════
-// 給之後接手的人（MIS）：計分規則是游總訂的（2026-10），改規則前請先確認
-//  1. 以「客戶廠區」為單位，每個廠區算 1 分（同一廠區有好幾個機型，也只算 1 分）
-//  2. 一個廠區寫了 N 類應用，每類各得 1/N 分（例：伺服板、車載、AI運算 → 各 1/3），全部加總後排名
+// 給之後接手的人（MIS）：計算規則是游總訂的（2026-10-15 改版：從「每家1分」改成「以台數為主」），改規則前請先確認
+//  1. 以「需求台數」為主軸：每個客戶廠區的每一筆機型需求台數，依該廠區寫了幾類應用平分
+//     例：A廠 RU6M2 100台，終端產品寫「光模組、AI伺服、車載」→ 三類各算 100/3 台
+//     （業務若對同一客戶不同廠別分別寫應用，各廠別各自分配）
+//  2. 各類台數加總後排名；占比＝該類台數 ÷ 計入的總台數。「家數」＝有提到該應用的客戶廠區數，僅供參考
 //  3. 業務是自由打字，所以用下面的「關鍵字對照表」把各種寫法歸到固定類別；
 //     只寫客戶品牌的（NV、谷歌、特斯拉、華為…）也在這裡換成應用類別
-//  4. HDI / mSAP / FPC / 厚銅板 是「PCB板型/製程」不是終端產品 → 不計分，另外列出
-//  5. 只寫「代工廠」的 → 先不計分，在備註列出
-//  6. 機型台數也照同樣比例分配（一個廠區寫2類應用，它的機型台數兩類各算一半）
+//  4. HDI / mSAP / FPC / 厚銅板 是「PCB板型/製程」不是終端產品 → 不計入，另外列出
+//  5. 只寫「代工廠」的 → 先不計入，在備註列出
+//  6. 數量寫「確認中」或空白、讀不出數字的 → 台數算 0（家數仍會算到）
+// 頁面分層：應用排名 → 點應用看機型（含合計）→ 點機型展開看客戶 → 點客戶看該客戶全部需求（彈出視窗）
 // 要新增關鍵字：在對應類別的 kw 陣列加一個正則即可；要新增類別：在陣列最後加一筆（顏色順序固定，不要插在中間）
 var END_APP_CATEGORIES=[
   {name:'AI伺服器/伺服器',color:'#2a78d6',kw:[/AI\s*伺服|AI\s*服务|伺服|服务器|server/i,/\bNV\b|NVIDIA|輝達|英伟达/i,/谷歌|google|亚马逊|亞馬遜|amazon|华勤|華勤/i,/HPC|算力/i]},
@@ -3101,17 +3150,21 @@ var END_APP_CATEGORIES=[
   {name:'儲存/記憶體',color:'#e34948',kw:[/存储|儲存|存儲|内存|記憶體/]},
   {name:'衛星/航太',color:'#7c8594',kw:[/衛星|卫星|航太|航天/]}
 ];
-var END_APP_OTHER={name:'其他',color:'#b4b9c2'}; // 有寫但對照表認不出來的，計分但歸「其他」，備註會列出原文方便之後補關鍵字
-var END_APP_BOARD_TYPES=[ // 板型/製程：不計分，另外列出
+var END_APP_OTHER={name:'其他',color:'#b4b9c2'}; // 有寫但對照表認不出來的，計入但歸「其他」，備註會列出原文方便之後補關鍵字
+var END_APP_BOARD_TYPES=[ // 板型/製程：不計入，另外列出
   {name:'HDI',re:/HDI/i},
   {name:'mSAP／類載板',re:/mSAP|SLP|類載板|类载板/i},
   {name:'FPC軟板',re:/FPC|软板|軟板/i},
   {name:'厚銅板',re:/厚铜|厚銅/}
 ];
-var END_APP_FOUNDRY_RE=/代工/; // 只寫代工廠：先不計分
+var END_APP_FOUNDRY_RE=/代工/; // 只寫代工廠：先不計入
 
 var eaView=(function(){try{return localStorage.getItem('ea_view')||'pie';}catch(e){return 'pie';}})();
-var eaSelected=null;
+var eaSelected=null;      // 目前選的應用類別
+var eaExpandedModel=null; // 「各應用對應機型」裡目前展開的機型
+var eaShowAllModels=false;
+var eaCustQuery='';       // 「依客戶查看」的搜尋字
+var eaShowAllCusts=false;
 var eaResult=null;
 
 function eaCategoryColor(name){
@@ -3140,56 +3193,81 @@ function eaSplitModels(model,qty){
   return models.map(function(m,i){return {model:m,qty:i===0?total:0};});
 }
 function computeEndApps(records){
-  var custMap={},custOrder=[];
+  var custMap={},customers=[];
   records.forEach(function(r){
     var name=String(r.customer||'').replace(/\s+/g,'')||'(未填客戶名稱)';
-    if(!custMap[name]){custMap[name]={name:name,sales:{},texts:[],rows:[]};custOrder.push(name);}
+    if(!custMap[name]){custMap[name]={name:name,salesSet:{},texts:[],rows:[]};customers.push(custMap[name]);}
     var c=custMap[name];
-    if(r.sales) c.sales[r.sales]=true;
+    if(r.sales) c.salesSet[r.sales]=true;
     var ep=String(r.end_product||'').trim();
     if(ep&&c.texts.indexOf(ep)<0) c.texts.push(ep);
-    c.rows.push(r);
+    var items=eaSplitModels(r.model,r.qty);
+    c.rows.push({r:r,items:items,text:ep,units:items.reduce(function(a,it){return a+it.qty;},0)});
   });
-  var scores={},catCusts={},catMachines={},machineTotals={},boards={},foundry=[],unfilled=[],otherTexts=[],boardOnly=[],counted=0;
-  custOrder.forEach(function(name){
-    var c=custMap[name];
-    var salesNames=Object.keys(c.sales);
-    if(!c.texts.length){unfilled.push({name:name,sales:salesNames});return;}
-    var cls=eaClassify(c.texts.join(' / '));
-    cls.boards.forEach(function(b){(boards[b]=boards[b]||[]).push(name);});
-    if(cls.foundry){foundry.push({name:name,text:c.texts.join(' / '),sales:salesNames});return;}
-    if(!cls.cats.length){boardOnly.push(name);return;} // 只寫板型：上面已列入板型清單，不計分
-    if(cls.cats.indexOf(END_APP_OTHER.name)>-1) otherTexts.push({name:name,text:c.texts.join(' / ')});
-    counted++;
-    var n=cls.cats.length;
-    cls.cats.forEach(function(cat){
-      scores[cat]=(scores[cat]||0)+1/n;
-      (catCusts[cat]=catCusts[cat]||[]).push({name:name,n:n});
-      catMachines[cat]=catMachines[cat]||{};
-    });
-    c.rows.forEach(function(r){
-      eaSplitModels(r.model,r.qty).forEach(function(mq){
-        cls.cats.forEach(function(cat){
-          var mm=catMachines[cat][mq.model]=catMachines[cat][mq.model]||{units:0,custs:{}};
-          mm.units+=mq.qty/n;mm.custs[name]=true;
-          var mt=machineTotals[mq.model]=machineTotals[mq.model]||{units:0,byCat:{}};
-          mt.units+=mq.qty/n;mt.byCat[cat]=(mt.byCat[cat]||0)+mq.qty/n;
+  // 逐筆（每一列機型需求）各自依「該列」的終端產品分配：業務有時對同一客戶的不同機型寫不同應用（例：慶鼎淮安），
+  // 不能把整家客戶的應用合在一起套到每個機型上（2026-10-15 游總比對後修正）
+  var cat={},machineTotals={},boards={},foundry=[],unfilled=[],otherTexts=[],boardOnly=[],zeroQty=[],partialRows=[],counted=0,totalUnits=0;
+  customers.forEach(function(c,ci){
+    c.idx=ci;
+    c.sales=Object.keys(c.salesSet);
+    c.text=c.texts.join(' / ');
+    c.units=c.rows.reduce(function(s,x){return s+x.units;},0);
+    c.cats=[];c.countedUnits=0;
+    var boardSet={},anyFilled=false,anyCounted=false,anyFoundry=false,isOther=false;
+    c.rows.forEach(function(x){
+      x.cats=[];
+      if(!x.text){x.status='unfilled';return;}
+      anyFilled=true;
+      var cls=eaClassify(x.text);
+      cls.boards.forEach(function(b){boardSet[b]=true;});
+      if(cls.foundry){x.status='foundry';anyFoundry=true;return;}
+      if(!cls.cats.length){x.status='board';return;} // 只寫板型：列入板型清單，不計入
+      x.status='counted';x.cats=cls.cats;anyCounted=true;
+      if(cls.cats.indexOf(END_APP_OTHER.name)>-1) isOther=true;
+      cls.cats.forEach(function(k){if(c.cats.indexOf(k)<0)c.cats.push(k);});
+      c.countedUnits+=x.units;
+      var n=cls.cats.length;
+      cls.cats.forEach(function(k){
+        var C=cat[k]=cat[k]||{units:0,custs:{},machines:{}};
+        C.custs[c.name]=true;
+        x.items.forEach(function(it){
+          var share=it.qty/n;
+          C.units+=share;
+          var M=C.machines[it.model]=C.machines[it.model]||{units:0,custs:{}};
+          M.units+=share;
+          var mc=M.custs[c.name]=M.custs[c.name]||{ci:ci,name:c.name,sales:c.sales,qty:0,share:0,ns:[]};
+          mc.qty+=it.qty;mc.share+=share;if(mc.ns.indexOf(n)<0)mc.ns.push(n);
+          var mt=machineTotals[it.model]=machineTotals[it.model]||{units:0,byCat:{}};
+          mt.units+=share;mt.byCat[k]=(mt.byCat[k]||0)+share;
         });
       });
     });
+    Object.keys(boardSet).forEach(function(b){(boards[b]=boards[b]||[]).push(c.name);});
+    if(anyCounted){
+      c.status='counted';counted++;totalUnits+=c.countedUnits;
+      if(c.countedUnits===0) zeroQty.push(c);
+      if(isOther) otherTexts.push(c);
+      c.rows.forEach(function(x){if(x.status==='unfilled')partialRows.push({c:c,x:x});});
+    }
+    else if(!anyFilled){c.status='unfilled';unfilled.push(c);}
+    else if(anyFoundry){c.status='foundry';foundry.push(c);}
+    else {c.status='board';boardOnly.push(c);}
   });
-  var ranking=Object.keys(scores).map(function(cat){
-    var machines=Object.keys(catMachines[cat]).map(function(m){
-      var v=catMachines[cat][m];return {model:m,units:v.units,custCount:Object.keys(v.custs).length};
-    }).sort(function(a,b){return b.units-a.units||b.custCount-a.custCount;});
-    return {name:cat,score:scores[cat],pct:counted?scores[cat]/counted*100:0,custs:catCusts[cat],machines:machines,color:eaCategoryColor(cat)};
-  }).sort(function(a,b){return b.score-a.score;});
-  return {total:custOrder.length,rowCount:records.length,counted:counted,ranking:ranking,machineTotals:machineTotals,
-    boards:boards,boardOnly:boardOnly,foundry:foundry,unfilled:unfilled,otherTexts:otherTexts};
+  var ranking=Object.keys(cat).map(function(k){
+    var C=cat[k];
+    var machines=Object.keys(C.machines).map(function(m){
+      var M=C.machines[m];
+      var custs=Object.keys(M.custs).map(function(n){return M.custs[n];}).sort(function(a,b){return b.share-a.share;});
+      return {model:m,units:M.units,custs:custs};
+    }).sort(function(a,b){return b.units-a.units||b.custs.length-a.custs.length;});
+    return {name:k,units:C.units,pct:totalUnits?C.units/totalUnits*100:0,custCount:Object.keys(C.custs).length,machines:machines,color:eaCategoryColor(k)};
+  }).sort(function(a,b){return b.units-a.units||b.custCount-a.custCount;});
+  return {total:customers.length,rowCount:records.length,counted:counted,totalUnits:totalUnits,ranking:ranking,customers:customers,
+    machineTotals:machineTotals,boards:boards,boardOnly:boardOnly,foundry:foundry,unfilled:unfilled,otherTexts:otherTexts,zeroQty:zeroQty,partialRows:partialRows};
 }
 
 function eaFmt1(v){return (Math.round(v*10)/10).toFixed(1);}
-function eaFmtUnits(v){if(v>0&&v<1)return '<1';return String(Math.round(v));}
+function eaFmtUnits(v){if(v>0&&v<1)return '<1';return Math.round(v).toLocaleString('en-US');}
 function eaFrac(n){return n===1?'整家':'1/'+n;}
 
 function renderEndApps(){
@@ -3215,46 +3293,49 @@ function renderEndApps(){
   var filled=R.total-R.unfilled.length;
   var notCounted=R.total-R.counted;
   var kpis='<div class="ea-kpis">'
-    +eaKpi('計入統計的客戶廠區',R.counted+'<small>家</small>',notCounted?('另有 '+notCounted+' 家未填或未計入'):'全部計入')
-    +eaKpi('第一大應用',top?escH(top.name):'—',top?('占 '+eaFmt1(top.pct)+'%（'+eaFmt1(top.score)+' 分）'):'')
+    +eaKpi('計入統計的需求台數',eaFmtUnits(R.totalUnits)+'<small>台</small>','來自 '+R.counted+' 個客戶廠區'+(notCounted?('（另有 '+notCounted+' 家未填或未計入）'):''))
+    +eaKpi('第一大應用',top?escH(top.name):'—',top?('占 '+eaFmt1(top.pct)+'%（約 '+eaFmtUnits(top.units)+' 台）'):'')
     +eaKpi('前三大應用合計',eaFmt1(top3Pct)+'<small>%</small>',top3.map(function(x){return x.name;}).join('、'))
     +eaKpi('終端產品填寫率',Math.round(filled/R.total*100)+'<small>%</small>',R.unfilled.length+' 家客戶廠區尚未填寫')
     +'</div>';
 
   var rankCard='<div class="ea-card">'
-    +'<div class="ea-card-head"><div><div class="ea-card-title">應用排名</div>'
-    +'<div class="ea-card-desc">每個客戶廠區算 1 分，寫了幾類應用就平分（例：3 類各得 1/3 分）。點選任一類別可看下方對應機型。</div></div>'
+    +'<div class="ea-card-head"><div><div class="ea-card-title">應用排名（依需求台數）</div>'
+    +'<div class="ea-card-desc">每筆機型需求台數，依該客戶廠區寫的應用類數平分（例：100 台、寫 3 類應用 → 各約 33 台）。點選任一類別可看下方對應機型。</div></div>'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn-ghost" style="font-size:14px;padding:8px 14px;" onclick="exportEndAppsDetail()" title="每一列機型需求如何分配到各應用，方便逐筆核對"><i class="fa-solid fa-file-export" style="margin-right:5px;color:#1a7a4a;"></i>匯出計算明細</button>'
     +'<div class="ea-seg"><button class="'+(eaView==='pie'?'active':'')+'" onclick="setEaView(\'pie\')"><i class="fa-solid fa-chart-pie" style="margin-right:5px;"></i>圓餅圖</button>'
-    +'<button class="'+(eaView==='bar'?'active':'')+'" onclick="setEaView(\'bar\')"><i class="fa-solid fa-chart-bar" style="margin-right:5px;"></i>柱狀圖</button></div></div>'
+    +'<button class="'+(eaView==='bar'?'active':'')+'" onclick="setEaView(\'bar\')"><i class="fa-solid fa-chart-bar" style="margin-right:5px;"></i>柱狀圖</button></div></div></div>'
     +(eaView==='pie'
       ?'<div class="ea-main"><div class="ea-donut-wrap">'+eaDonutSvg(R)+'</div>'+eaRankTable(R)+'</div>'
       :eaBarChart(R))
     +'</div>';
 
-  body.innerHTML=kpis+rankCard+eaMachineCard(R)+eaSummaryCard(R)+eaNotesCard(R);
+  body.innerHTML=kpis+rankCard+eaMachineCard(R)+eaCustomerCard(R)+eaSummaryCard(R)+eaNotesCard(R);
+  eaRenderCustList();
   eaBindTooltip();
 }
 function eaKpi(label,value,note){
-  return '<div class="ea-kpi"><div class="ea-kpi-label">'+label+'</div><div class="ea-kpi-value">'+value+'</div><div class="ea-kpi-note" title="'+escH(note)+'">'+escH(note)+'</div></div>';
+  return '<div class="ea-kpi"><div class="ea-kpi-label">'+label+'</div><div class="ea-kpi-value">'+value+'</div><div class="ea-kpi-note">'+escH(note)+'</div></div>';
 }
 function eaTip(x){
-  return escH(x.name)+'<br>分數 '+eaFmt1(x.score)+'　占比 '+eaFmt1(x.pct)+'%<br>相關客戶廠區 '+x.custs.length+' 家';
+  return escH(x.name)+'<br>約 '+eaFmtUnits(x.units)+' 台　占比 '+eaFmt1(x.pct)+'%<br>相關客戶廠區 '+x.custCount+' 家';
 }
 function eaDonutSvg(R){
-  var Ro=140,Ri=88,a0=-Math.PI/2,total=R.ranking.reduce(function(s,x){return s+x.score;},0)||1;
+  var Ro=140,Ri=88,a0=-Math.PI/2,total=R.ranking.reduce(function(s,x){return s+x.units;},0)||1;
   var sel=R.ranking.find(function(x){return x.name===eaSelected;});
   var paths='',labels='';
-  R.ranking.forEach(function(x){
-    var a1=a0+x.score/total*Math.PI*2;
+  var drawn=R.ranking.filter(function(x){return x.units>0;});
+  drawn.forEach(function(x){
+    var a1=a0+x.units/total*Math.PI*2;
     var large=(a1-a0)>Math.PI?1:0;
     function pt(r,a){return (r*Math.cos(a)).toFixed(2)+' '+(r*Math.sin(a)).toFixed(2);}
     var d;
-    if(R.ranking.length===1){ // 只有一類時畫完整圓環
+    if(drawn.length===1){ // 只有一類時畫完整圓環
       d='M '+pt(Ro,-Math.PI/2)+' A '+Ro+' '+Ro+' 0 1 1 '+pt(Ro,Math.PI*1.5-0.0001)+' L '+pt(Ri,Math.PI*1.5-0.0001)+' A '+Ri+' '+Ri+' 0 1 0 '+pt(Ri,-Math.PI/2)+' Z';
     } else {
       d='M '+pt(Ro,a0)+' A '+Ro+' '+Ro+' 0 '+large+' 1 '+pt(Ro,a1)+' L '+pt(Ri,a1)+' A '+Ri+' '+Ri+' 0 '+large+' 0 '+pt(Ri,a0)+' Z';
     }
-    var pop=(x.name===eaSelected&&R.ranking.length>1)?' transform="translate('+(8*Math.cos((a0+a1)/2)).toFixed(1)+' '+(8*Math.sin((a0+a1)/2)).toFixed(1)+')"':'';
+    var pop=(x.name===eaSelected&&drawn.length>1)?' transform="translate('+(8*Math.cos((a0+a1)/2)).toFixed(1)+' '+(8*Math.sin((a0+a1)/2)).toFixed(1)+')"':'';
     paths+='<path class="ea-slice'+(x.name===eaSelected?' on':'')+'"'+pop+' d="'+d+'" fill="'+x.color+'" stroke="#fff" stroke-width="2" stroke-linejoin="round" data-tip="'+escH(eaTip(x))+'" onclick="selectEaCategory(\''+escH(x.name)+'\')"></path>';
     if(x.pct>=6){ // 夠大的扇形直接標百分比；淺色扇形用深色字，確保看得清楚
       var mid=(a0+a1)/2,lr=(Ro+Ri)/2;
@@ -3266,60 +3347,146 @@ function eaDonutSvg(R){
   var center=sel
     ?'<text y="-14" text-anchor="middle" font-size="12" fill="#64748b">'+escH(sel.name)+'</text>'
       +'<text y="20" text-anchor="middle" font-size="30" font-weight="700" fill="#1e293b">'+eaFmt1(sel.pct)+'%</text>'
-      +'<text y="42" text-anchor="middle" font-size="11.5" fill="#94a3b8">'+eaFmt1(sel.score)+' 分</text>'
+      +'<text y="42" text-anchor="middle" font-size="11.5" fill="#94a3b8">約 '+eaFmtUnits(sel.units)+' 台</text>'
     :'';
-  return '<svg viewBox="-160 -160 320 320" role="img" aria-label="終端應用占比圓餅圖" >'+paths+labels+center+'</svg>';
+  return '<svg viewBox="-160 -160 320 320" role="img" aria-label="終端應用台數占比圓餅圖">'+paths+labels+center+'</svg>';
 }
 function eaRankTable(R){
-  var h='<div class="ea-rank"><div class="ea-rank-row ea-rank-head"><span>#</span><span></span><span>應用類別</span><span class="ea-num">分數</span><span class="ea-num">占比</span><span class="ea-num">家數</span></div>';
+  var h='<div class="ea-rank"><div class="ea-rank-row ea-rank-head"><span>#</span><span></span><span>應用類別</span><span class="ea-num">台數(約)</span><span class="ea-num">占比</span><span class="ea-num">家數</span></div>';
   R.ranking.forEach(function(x,i){
     h+='<div class="ea-rank-row'+(x.name===eaSelected?' on':'')+'" onclick="selectEaCategory(\''+escH(x.name)+'\')">'
       +'<span class="ea-rank-no">'+(i+1)+'</span><span class="ea-swatch" style="background:'+x.color+'"></span>'
       +'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+(x.name===eaSelected?'font-weight:700;color:var(--text-h);':'')+'">'+escH(x.name)+'</span>'
-      +'<span class="ea-num">'+eaFmt1(x.score)+'</span><span class="ea-num">'+eaFmt1(x.pct)+'%</span><span class="ea-num" style="color:var(--text-m);">'+x.custs.length+'</span></div>';
+      +'<span class="ea-num">'+eaFmtUnits(x.units)+'</span><span class="ea-num">'+eaFmt1(x.pct)+'%</span><span class="ea-num" style="color:var(--text-m);">'+x.custCount+'</span></div>';
   });
   return h+'</div>';
 }
 function eaBarChart(R){
-  var max=R.ranking.length?R.ranking[0].score:1;
+  var max=R.ranking.length?Math.max(R.ranking[0].units,1):1;
   var h='<div class="ea-bars">';
   R.ranking.forEach(function(x){
     h+='<div class="ea-bar-row" onclick="selectEaCategory(\''+escH(x.name)+'\')" data-tip="'+escH(eaTip(x))+'">'
       +'<div class="ea-bar-name" style="'+(x.name===eaSelected?'font-weight:700;color:var(--text-h);':'')+'">'+escH(x.name)+'</div>'
-      +'<div class="ea-bar-track"><div class="ea-bar-fill" style="width:'+(x.score/max*100).toFixed(1)+'%;background:'+x.color+';"></div></div>'
-      +'<div class="ea-bar-val"><b style="color:var(--text-h);">'+eaFmt1(x.pct)+'%</b>　'+eaFmt1(x.score)+' 分</div></div>';
+      +'<div class="ea-bar-track"><div class="ea-bar-fill" style="width:'+(x.units/max*100).toFixed(1)+'%;background:'+x.color+';"></div></div>'
+      +'<div class="ea-bar-val"><b style="color:var(--text-h);">'+eaFmt1(x.pct)+'%</b>　約 '+eaFmtUnits(x.units)+' 台</div></div>';
   });
   return h+'</div>';
 }
+// 第二層：選定應用的各機型台數（最下方合計）；點機型展開第三層：是哪些客戶
 function eaMachineCard(R){
   var sel=R.ranking.find(function(x){return x.name===eaSelected;});
   var pills='<div class="ea-pills">'+R.ranking.map(function(x){
     return '<span class="ea-pill'+(x.name===eaSelected?' on':'')+'" onclick="selectEaCategory(\''+escH(x.name)+'\')"><span class="ea-swatch" style="background:'+x.color+'"></span>'+escH(x.name)+'</span>';
   }).join('')+'</div>';
   if(!sel) return '';
-  var list=sel.machines.slice(0,10);
-  var max=list.length?Math.max(list[0].units,1):1;
-  var bars='<div class="ea-bars">'+list.map(function(m){
-    return '<div class="ea-bar-row" style="cursor:default;" data-tip="'+escH(m.model+'<br>約 '+eaFmtUnits(m.units)+' 台・'+m.custCount+' 家客戶廠區')+'">'
+  var LIMIT=10;
+  var list=eaShowAllModels?sel.machines:sel.machines.slice(0,LIMIT);
+  var max=sel.machines.length?Math.max(sel.machines[0].units,1):1;
+  var rows=list.map(function(m){
+    var open=(m.model===eaExpandedModel);
+    var h='<div class="ea-mrow'+(open?' on':'')+'" data-m="'+escH(m.model)+'" onclick="toggleEaModel(this.dataset.m)">'
       +'<div class="ea-bar-name" style="font-weight:600;">'+escH(m.model)+'</div>'
       +'<div class="ea-bar-track"><div class="ea-bar-fill" style="width:'+(m.units/max*100).toFixed(1)+'%;background:'+sel.color+';"></div></div>'
-      +'<div class="ea-bar-val">約 <b style="color:var(--text-h);">'+eaFmtUnits(m.units)+'</b> 台・'+m.custCount+' 家</div></div>';
-  }).join('')+'</div>'
-    +(sel.machines.length>10?'<div style="font-size:12px;color:var(--text-s);margin-top:8px;">另有 '+(sel.machines.length-10)+' 個機型需求量較小，未列出</div>':'');
-  var custs=sel.custs.slice().sort(function(a,b){return a.n-b.n;});
-  var chips='<div class="ea-chips">'+custs.map(function(c){
-    return '<span class="ea-chip">'+escH(c.name)+'<em>'+eaFrac(c.n)+'</em></span>';
-  }).join('')+'</div>';
+      +'<div class="ea-bar-val">約 <b style="color:var(--text-h);">'+eaFmtUnits(m.units)+'</b> 台・'+m.custs.length+' 家</div>'
+      +'<i class="fa-solid fa-chevron-'+(open?'up':'down')+' ea-chev"></i></div>';
+    if(open){
+      h+='<div class="ea-drill"><div class="ea-drill-title">「'+escH(sel.name)+'」× '+escH(m.model)+' 的客戶（點客戶名稱看該客戶全部需求）</div>'
+        +'<div class="ea-drow ea-drow-head"><span>客戶廠區</span><span>業務</span><span class="ea-num">此機型需求</span><span class="ea-num">應用類數</span><span class="ea-num">分到此應用</span></div>'
+        +m.custs.map(function(c){
+          return '<div class="ea-drow"><span><a class="ea-link" onclick="openEaCustomer('+c.ci+')">'+escH(c.name)+'</a></span>'
+            +'<span class="ea-muted">'+escH(c.sales.join('、'))+'</span>'
+            +'<span class="ea-num">'+c.qty+' 台</span><span class="ea-num">'+c.ns.join('/')+' 類</span>'
+            +'<span class="ea-num"><b>約 '+eaFmtUnits(c.share)+' 台</b></span></div>';
+        }).join('')+'</div>';
+    }
+    return h;
+  }).join('');
+  var more=sel.machines.length>LIMIT
+    ?'<div style="margin-top:10px;"><button class="btn-ghost" onclick="toggleEaShowAllModels()">'
+      +(eaShowAllModels?'<i class="fa-solid fa-chevron-up" style="margin-right:5px;"></i>只看前 '+LIMIT+' 個機型':'<i class="fa-solid fa-chevron-down" style="margin-right:5px;"></i>顯示全部 '+sel.machines.length+' 個機型')+'</button></div>'
+    :'';
+  var total='<div class="ea-mtotal"><span>「'+escH(sel.name)+'」全部 '+sel.machines.length+' 個機型合計</span><b>約 '+eaFmtUnits(sel.units)+' 台</b></div>';
   return '<div class="ea-card"><div class="ea-card-head"><div><div class="ea-card-title">各應用對應機型</div>'
-    +'<div class="ea-card-desc">台數依同樣比例分配：例如某廠區寫了 2 類應用，它的機型台數兩類各算一半，所以會出現「約」。</div></div></div>'
+    +'<div class="ea-card-desc">點機型可展開看是哪些客戶；台數依應用類數平分，所以會出現「約」。最下方合計＝上方排名表中這類應用的台數。</div></div></div>'
     +pills
-    +'<div class="ea-split"><div><div class="ea-sec-label">「'+escH(sel.name)+'」主要機型（依需求台數）</div>'+bars+'</div>'
-    +'<div><div class="ea-sec-label">相關客戶廠區（'+custs.length+' 家，灰字為該廠區分到這類的比例）</div>'+chips+'</div></div></div>';
+    +'<div class="ea-sec-label">「'+escH(sel.name)+'」各機型需求台數</div>'
+    +'<div class="ea-mlist">'+rows+'</div>'+total+more+'</div>';
+}
+// 依客戶查看（以客戶為主軸）：可搜尋的客戶清單，點名稱看該客戶全部機型/數量/應用
+function eaCustomerCard(R){
+  return '<div class="ea-card"><div class="ea-card-head"><div><div class="ea-card-title">依客戶查看需求</div>'
+    +'<div class="ea-card-desc">點客戶名稱，可看該客戶所有機型、數量、需求時間與應用。</div></div>'
+    +'<div class="ea-search"><i class="fa-solid fa-magnifying-glass"></i><input class="filter-input" placeholder="搜尋客戶、業務、機型或應用" value="'+escH(eaCustQuery)+'" oninput="eaCustQuery=this.value;eaRenderCustList()" /></div></div>'
+    +'<div id="ea-cust-list"></div></div>';
+}
+function eaStatusTag(c){
+  if(c.status==='counted') return c.cats.map(function(k){return '<span class="ea-tag"><span class="ea-swatch" style="background:'+eaCategoryColor(k)+'"></span>'+escH(k)+'</span>';}).join('');
+  var label={unfilled:'未填終端產品',foundry:'代工廠（未計入）',board:'只寫板型（未計入）'}[c.status]||'';
+  return '<span class="ea-tag ea-tag-gray">'+label+'</span>';
+}
+function eaRenderCustList(){
+  var el=document.getElementById('ea-cust-list');
+  if(!el||!eaResult) return;
+  var q=eaCustQuery.trim();
+  var list=eaResult.customers.filter(function(c){
+    if(!q) return true;
+    var hay=c.name+' '+c.sales.join(' ')+' '+c.cats.join(' ')+' '+c.text+' '+c.rows.map(function(x){return x.r.model;}).join(' ');
+    return matchQ(hay,q);
+  }).sort(function(a,b){return b.units-a.units;});
+  var LIMIT=20;
+  var shown=(eaShowAllCusts||q)?list:list.slice(0,LIMIT);
+  var h='<div class="ea-crow ea-crow-head"><span>客戶廠區</span><span>業務</span><span>終端應用</span><span class="ea-num">機型筆數</span><span class="ea-num">需求台數</span></div>';
+  h+=shown.map(function(c){
+    return '<div class="ea-crow" onclick="openEaCustomer('+c.idx+')"><span><a class="ea-link">'+escH(c.name)+'</a></span>'
+      +'<span class="ea-muted">'+escH(c.sales.join('、'))+'</span>'
+      +'<span class="ea-tags">'+eaStatusTag(c)+'</span>'
+      +'<span class="ea-num">'+c.rows.length+'</span><span class="ea-num"><b>'+eaFmtUnits(c.units)+'</b> 台</span></div>';
+  }).join('');
+  if(!list.length) h+='<div class="empty-state" style="padding:24px 0;">找不到符合的客戶</div>';
+  if(!q&&list.length>LIMIT){
+    h+='<div style="margin-top:10px;"><button class="btn-ghost" onclick="eaShowAllCusts=!eaShowAllCusts;eaRenderCustList()">'
+      +(eaShowAllCusts?'<i class="fa-solid fa-chevron-up" style="margin-right:5px;"></i>只看需求最多的前 '+LIMIT+' 家':'<i class="fa-solid fa-chevron-down" style="margin-right:5px;"></i>顯示全部 '+list.length+' 家')+'</button></div>';
+  }
+  el.innerHTML=h;
+}
+// 第四層：單一客戶的全部需求（彈出視窗）
+function openEaCustomer(ci){
+  var c=eaResult&&eaResult.customers[ci];
+  if(!c) return;
+  var appsHtml=eaStatusTag(c);
+  var rowLabel={unfilled:'該列未填，未計入',foundry:'代工廠，未計入',board:'只寫板型，未計入'};
+  var rows=c.rows.map(function(x){
+    var r=x.r;
+    var delivery=(Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length)
+      ?r.delivery_parsed.map(function(d){return d.month+'*'+d.qty;}).join('\n'):String(r.delivery||'');
+    var n=x.cats.length;
+    var share=x.status==='counted'
+      ?x.cats.map(function(k){return '<span class="ea-tag"><span class="ea-swatch" style="background:'+eaCategoryColor(k)+'"></span>'+escH(k)+'</span>';}).join('')
+        +'<div class="ea-muted" style="margin-top:3px;">'+(n>1?'各約 '+eaFmtUnits(x.units/n)+' 台':x.units+' 台')+'</div>'
+      :'<span class="ea-muted">'+rowLabel[x.status]+'</span>';
+    return '<div class="ea-mdrow"><span style="font-weight:600;white-space:pre-line;">'+escH(r.model||'')+'</span>'
+      +'<span class="ea-num">'+escH(r.qty||'')+'</span>'
+      +'<span style="white-space:pre-line;">'+escH(delivery)+'</span>'
+      +'<span style="white-space:pre-line;" class="ea-muted">'+escH(r.status_w2||r.status_w1||'')+'</span>'
+      +'<span><div class="ea-tags">'+share+'</div></span></div>';
+  }).join('');
+  var box=document.getElementById('ea-cust-modal');
+  if(!box){box=document.createElement('div');box.id='ea-cust-modal';box.className='modal-overlay';box.onclick=function(e){if(e.target===box)box.style.display='none';};document.body.appendChild(box);}
+  box.innerHTML='<div class="modal-box ea-cust-box">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">'
+    +'<div><div style="font-size:19px;font-weight:700;color:var(--text-h);">'+escH(c.name)+'</div>'
+    +'<div style="font-size:13px;color:var(--text-m);margin-top:3px;">業務：'+escH(c.sales.join('、')||'—')+'　·　需求合計 <b style="color:var(--text-h);">'+eaFmtUnits(c.units)+'</b> 台</div></div>'
+    +'<button class="btn-ghost" style="padding:5px 10px;" onclick="document.getElementById(\'ea-cust-modal\').style.display=\'none\'"><i class="fa-solid fa-xmark"></i></button></div>'
+    +'<div class="ea-sec-label" style="margin-bottom:6px;">終端應用（每一列機型依該列寫的應用平分台數）</div><div class="ea-tags" style="margin-bottom:8px;">'+appsHtml+'</div>'
+    +(c.text?'<div class="ea-note" style="margin-bottom:14px;"><span class="ea-muted">業務原文：</span>'+escH(c.text)+'</div>':'')
+    +'<div class="ea-mdrow ea-mdrow-head"><span>機型</span><span class="ea-num">數量</span><span>需求時間</span><span>最新進度</span><span>應用／分配台數</span></div>'
+    +rows+'</div>';
+  box.style.display='flex';
 }
 function eaSummaryCard(R){
   var rk=R.ranking,items=[];
   if(rk.length){
-    var s='「<b>'+escH(rk[0].name)+'</b>」是目前最大的終端應用，占 <b>'+eaFmt1(rk[0].pct)+'%</b>';
+    var s='依需求台數，「<b>'+escH(rk[0].name)+'</b>」是最大的終端應用，占 <b>'+eaFmt1(rk[0].pct)+'%</b>（約 '+eaFmtUnits(rk[0].units)+' 台）';
     if(rk[1]) s+='；其次是「'+escH(rk[1].name)+'」'+eaFmt1(rk[1].pct)+'%';
     if(rk[2]) s+='、「'+escH(rk[2].name)+'」'+eaFmt1(rk[2].pct)+'%';
     items.push(s+'。');
@@ -3346,9 +3513,10 @@ function eaSummaryCard(R){
     +'<ul class="ea-summary">'+items.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></div>';
 }
 function eaNotesCard(R){
+  var names=function(arr){return arr.map(function(c){return escH(c.name||c);}).join('、');};
   var boardNames=Object.keys(R.boards);
   var boardHtml=boardNames.length
-    ?boardNames.map(function(b){return '<div><b>'+escH(b)+'</b>：'+R.boards[b].length+' 家（'+R.boards[b].map(escH).join('、')+'）</div>';}).join('')
+    ?boardNames.map(function(b){return '<div><b>'+escH(b)+'</b>：'+R.boards[b].length+' 家（'+names(R.boards[b])+'）</div>';}).join('')
     :'<div style="color:var(--text-s);">這份資料沒有提到板型/製程</div>';
   var foundryHtml=R.foundry.length
     ?R.foundry.map(function(f){return '<div>'+escH(f.name)+'：<span style="color:var(--text-m);">'+escH(f.text)+'</span></div>';}).join('')
@@ -3361,15 +3529,41 @@ function eaNotesCard(R){
   var otherHtml=R.otherTexts.length
     ?R.otherTexts.map(function(o){return '<div>'+escH(o.name)+'：<span style="color:var(--text-m);">'+escH(o.text)+'</span></div>';}).join('')
     :'<div style="color:var(--text-s);">無</div>';
-  return '<div class="ea-card"><div class="ea-card-head"><div class="ea-card-title"><i class="fa-solid fa-circle-info" style="color:var(--text-m);margin-right:6px;"></i>計分方式與資料備註</div></div>'
+  return '<div class="ea-card"><div class="ea-card-head"><div class="ea-card-title"><i class="fa-solid fa-circle-info" style="color:var(--text-m);margin-right:6px;"></i>計算方式與資料備註</div></div>'
     +'<div class="ea-notes">'
-    +'<div class="ea-note"><div class="ea-note-title">計分方式</div>每個客戶廠區算 1 分，寫了 N 類應用就每類各得 1/N 分，全部加總後排名；占比＝該類分數 ÷ 計入的廠區數。'
-      +'業務的寫法會自動歸類，例如「Server、服务器、NV、谷歌」都歸到「AI伺服器/伺服器」，「特斯拉、車載」歸到「汽車電子」。</div>'
-    +'<div class="ea-note"><div class="ea-note-title">板型／製程（另列，不計分）</div><div style="color:var(--text-m);margin-bottom:4px;">HDI、mSAP 等是 PCB 板子的做法，不是終端產品</div>'+boardHtml+(R.boardOnly.length?'<div style="color:var(--amber);margin-top:4px;">其中 '+R.boardOnly.length+' 家只寫板型、沒寫應用，未計入排名：'+R.boardOnly.map(escH).join('、')+'</div>':'')+'</div>'
+    +'<div class="ea-note"><div class="ea-note-title">計算方式（以需求台數為主）</div>每一列機型需求的台數，依「該列」寫的應用類數平分'
+      +'（例：RU6M2 100 台、寫了光模組／AI伺服／車載 → 三類各約 33.3 台），全部加總後排名；占比＝該類台數 ÷ 計入的總台數。「家數」是有提到該應用的客戶廠區數，僅供參考。'
+      +'業務的寫法會自動歸類，例如「Server、服务器、NV、谷歌」都歸到「AI伺服器/伺服器」，「特斯拉、車載」歸到「汽車電子」。'
+      +(R.partialRows.length?'<div style="color:var(--amber);margin-top:4px;">另有 '+R.partialRows.length+' 列機型需求（約 '+eaFmtUnits(R.partialRows.reduce(function(a,p){return a+p.x.units;},0))+' 台）該列沒填終端產品，未計入：'+R.partialRows.map(function(p){return escH(p.c.name)+' '+escH(String(p.x.r.model||'').split(/\n/)[0]);}).join('、')+'</div>':'')
+      +(R.zeroQty.length?'<div style="color:var(--amber);margin-top:4px;">有 '+R.zeroQty.length+' 家數量寫「確認中」或讀不出數字，台數算 0（家數仍有算到）：'+names(R.zeroQty)+'</div>':'')+'</div>'
+    +'<div class="ea-note"><div class="ea-note-title">板型／製程（另列，不計入）</div><div style="color:var(--text-m);margin-bottom:4px;">HDI、mSAP 等是 PCB 板子的做法，不是終端產品</div>'+boardHtml+(R.boardOnly.length?'<div style="color:var(--amber);margin-top:4px;">其中 '+R.boardOnly.length+' 家只寫板型、沒寫應用，未計入排名：'+names(R.boardOnly)+'</div>':'')+'</div>'
     +'<div class="ea-note"><div class="ea-note-title">未計入：只寫「代工廠」（'+R.foundry.length+' 家）</div>'+foundryHtml+'</div>'
     +'<div class="ea-note"><div class="ea-note-title">未計入：尚未填寫終端產品（'+R.unfilled.length+' 家）</div>'+unfilledHtml+'</div>'
     +(R.otherTexts.length?'<div class="ea-note" style="grid-column:1/-1;"><div class="ea-note-title">歸到「其他」的寫法（對照表認不出來，可再補關鍵字）</div>'+otherHtml+'</div>':'')
     +'</div></div>';
+}
+// 匯出計算明細：每一列機型需求 → 歸到哪些應用、各分到幾台，讓游總可以跟自己的算法逐筆比對
+function exportEndAppsDetail(){
+  var R=eaResult;
+  if(!R) return;
+  var catNames=R.ranking.map(function(x){return x.name;});
+  var statusLabel={counted:'計入',unfilled:'未填終端產品',foundry:'代工廠(未計入)',board:'只寫板型(未計入)'};
+  var data=[];
+  R.customers.forEach(function(c){
+    c.rows.forEach(function(x){
+      var row={'業務':c.sales.join('、'),'客戶廠區':c.name,'機型':String(x.r.model||''),'數量原文':String(x.r.qty||''),'台數':x.units,
+        '終端產品(業務原文)':x.text,'歸類結果':x.status==='counted'?x.cats.join('、'):statusLabel[x.status],'應用類數':x.cats.length||''};
+      catNames.forEach(function(k){row[k]=(x.status==='counted'&&x.cats.indexOf(k)>-1)?Math.round(x.units/x.cats.length*10)/10:'';});
+      data.push(row);
+    });
+  });
+  var total={'業務':'','客戶廠區':'合計','機型':'','數量原文':'','台數':R.totalUnits,'終端產品(業務原文)':'','歸類結果':'（只加總「計入」的列）','應用類數':''};
+  R.ranking.forEach(function(x){total[x.name]=Math.round(x.units*10)/10;});
+  data.push(total);
+  var ws=XLSX.utils.json_to_sheet(data);
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'計算明細');
+  XLSX.writeFile(wb,'終端應用計算明細_'+(window._latestCrmImportDate||new Date().toISOString().split('T')[0])+'.xlsx');
 }
 function setEaView(v){
   eaView=v;
@@ -3377,8 +3571,21 @@ function setEaView(v){
   renderEndApps();
 }
 function selectEaCategory(name){
+  if(eaSelected!==name){eaExpandedModel=null;eaShowAllModels=false;}
   eaSelected=name;
   renderEndApps();
+}
+function toggleEaModel(model){
+  eaExpandedModel=(eaExpandedModel===model)?null:model;
+  var y=window.scrollY;
+  renderEndApps();
+  window.scrollTo(0,y); // 重畫後維持原本捲動位置，不會跳回頁首
+}
+function toggleEaShowAllModels(){
+  eaShowAllModels=!eaShowAllModels;
+  var y=window.scrollY;
+  renderEndApps();
+  window.scrollTo(0,y);
 }
 // 滑鼠移到圖表上顯示數字小提示（手機點一下也會出現）
 function eaBindTooltip(){

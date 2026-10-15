@@ -54,3 +54,7 @@ alter table crm_records add column if not exists end_product text;
 - 圖和動畫在根目錄 `ai-mascot.js`，**這個檔案是從 TL_technology 複製過來的**（TL 那邊出貨、BOM 等系統也用同一個），改一邊要記得複製到另一邊。
 - ⚠️ Michelle 決定小女生的圖和顏色都不要動（綠色制服），只改句子。
 - 程式位置：`index.html` 搜尋 `submitAiQuestion`。檔案沒載入成功時會自動退回原本的「思考中...」。
+- 機型等級(高階/一般/其他):來自 TL_technology 出貨實績的 `stk_category_mapping` 表,2026-10-15 讀出快照放在 index.html 的 `EA_MODEL_TIERS`。
+  出貨實績那邊改了分類要同步:到 TL_technology 的 SQL Editor 執行 `select category_name, stk_no from stk_category_mapping` 後更新。
+  CRM 裡的 RU5M 不在出貨實績清單中(顯示「未分類」),要請出貨實績那邊補分類。
+- 「應用 × 機型等級」交叉表:點格子看該組合的機型×台數;最下面一列「全部應用合計」= 不分應用看高階/一般各有哪些機型。

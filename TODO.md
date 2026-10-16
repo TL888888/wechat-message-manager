@@ -67,7 +67,7 @@
       若要恢復業務只看自己的:要在人資權限多一種「業務」,或在本系統另記每人的業務姓名＋角色;會改 api/tl-sso.js(先不要動)。
 - [ ] ② 名片表 business_cards 有兩條 interview_access 舊規則(董事長訪談資料庫留下的):名單上的人可看/改/刪所有名片,不看角色。
       已準備:sql/2026-10-17a_readonly_business_cards_access_check.sql(只讀,列出規則與名單,先貼)
-              sql/2026-10-17b_drop_business_cards_interview_access_policies.sql(刪除兩條舊規則,等 Michelle 看完名單決定才貼)
+              sql/2026-10-17b_drop_business_cards_interview_access_policies.sql → **不需要,不貼**(名片功能 2026-10-16 拿掉,刪表時規則會一起消失)
 
 ## 權限一致性檢查(2026-10-17,只讀檢查結果,待 Michelle 決定)
 結論:從首頁正常進來的人(admin/director)每張表都看得到全部;但有兩個「沒人資權限也進得來」的漏洞。
@@ -79,3 +79,8 @@
 - [ ] F.(保留不動)RLS 裡 sales/assistant 分支是舊分層殘留,目前無害。
 - [ ] G.(暫不做)「僅讀取」只擋畫面、資料庫沒擋;要擋需新增 viewer 角色並改約 6 張表規則＋api/tl-sso.js,約半天。
 - 備註:visit_records 的「修改」規則對 director 只限同地區,SSO 帳號沒有地區 → director 不能改拜訪紀錄;但網頁本來就沒有編輯拜訪紀錄的按鈕,無實際影響。
+
+## 名片管理移到行動秘書(2026-10-16,Michelle 同意)
+- [x] 拿掉名片管理頁籤、拍照辨識 api、card-note-repair、AI 問答查名片(DEEPINFRA_API_KEY_SALES 保留)
+- [ ] 6 筆名片交給林麗君:總管排隊貼 sql/2026-10-17c_readonly_export_business_cards_for_secretary.sql(TL_projects,只讀)→ CSV 給 Claude 轉 .xlsx → 林麗君在行動秘書「匯入 Excel」
+- [ ] 觀察幾天沒人反映後,刪除 business_cards 整張表(Claude 寫 SQL,含先備份的選項)。刪之前要確認 interview-records(董事長訪談資料庫,已暫停)不再需要這張表

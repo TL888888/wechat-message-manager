@@ -130,3 +130,15 @@ alter table crm_records add column if not exists end_product text;
   總監和大總管在資料庫規則裡都是「看全部」。
 - 資料庫 RLS 裡仍保留舊的 sales(業務只看自己)/assistant(助理看自己地區)分支,是早期「後台分層管理」的殘留;
   目前正常登入不會再有人被設成 sales/assistant。殘留項目與清理建議見 TODO.md「權限一致性檢查」。
+
+## 名片管理已移到行動秘書(2026-10-16)
+- Michelle 決定:「這個名片系統應該拿掉,因為我們有做一個行動祕書了」。名片統一用行動秘書(TL_technology 的 secretary.html,
+  資料表在 TL_technology 專案的 secretary_cards,每張名片綁名片主人 owner_id)。
+- 本系統拿掉的東西:「名片管理」頁籤(清單、搜尋、新增、拍照辨識、編輯、刪除)、api/business-card-ocr.js(拍照辨識)、
+  api/card-note-repair.js(一次性資料修補腳本)、登入時載入名片、AI 問答查名片的部分。程式都在 git 歷史可查。
+- AI 問答拿掉名片後:問「某聯絡人電話/email」「某公司有哪些聯絡人」這類問題會找不到;客戶、機型、業務相關問題照常。
+  查聯絡人請用行動秘書的 AI 秘書。
+- 環境變數 DEEPINFRA_API_KEY_SALES **不要刪**:AI 問答(api/wechat-ask.js)還在用。
+- 補充:拿掉前的名片拍照辨識用 DeepInfra 的 Qwen 視覺模型,DeepInfra 2026-09-18 已下架該模型,所以這功能很可能早就不能用了。
+- 資料:business_cards 表與 6 筆名片(林麗君 9/15~9/16 建的)**先保留**,用 sql/2026-10-17c_readonly_export_business_cards_for_secretary.sql
+  匯出成行動秘書匯入格式,轉 Excel 給林麗君自己匯入行動秘書。觀察幾天沒問題後再刪表(見 TODO.md)。

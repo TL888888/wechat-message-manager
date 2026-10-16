@@ -106,3 +106,18 @@ alter table crm_records add column if not exists end_product text;
 - 修正 2:`sql/2026-10-16c_rls_select_policy_speedup.sql`:visit_records / wechat_messages 的「讀取」規則改成 (select current_user_role()) 寫法
   (Supabase 官方建議),每次查詢只算一次角色。2026-10-16 已貼:拜訪紀錄單純計數從約 2.9 秒降到 0.14 秒。**權限規則不變**,已用測試資料驗證五種角色看得到的資料前後完全相同。
 - 其他資料表(crm_records、business_cards 等)的規則也是同樣寫法,資料量變大時可比照修改(見 TODO.md)。
+
+## 機型等級:營業商務訊息只分「高階／一般」(2026-10-16 Michelle 決定)
+- 規則:出貨實績對照表(stk_category_mapping)是「高階」的算高階;其他(一般、其他、對照表沒有的機型)全部算「一般」。
+  程式:index.html 的 `eaModelTier()`。對照表三分類原樣保留在 `EA_MODEL_TIERS`,方便跟出貨實績對照。
+- ⚠ 共用表 stk_category_mapping 不可改內容、不可改三分類:出貨管理系統、已接未出訂單仍使用「高階／一般／其他」。
+- AI 問答(api/wechat-ask.js)目前沒有用到機型等級,所以不用同步改。
+- **高階怎麼判斷(Michelle 口述,交接用)**:高階主要是「有 CCD」的機型。
+  - 成型機(RU 開頭)型號是「RU + 數字 + H」→ H 代表有 CCD,例如 RU6H、RU6HM、RU2HL。
+  - 鑽孔機(DG 開頭)型號是「DG + 數字 + Z」→ Z 代表有 CCD,例如 DG6ZM、DG2ZL。
+  - 另外 DG1D 也有 CCD(Michelle 說「標準有點不容易記住」)。
+  - 規則跟對照表的差異(2026-10-16 比對 218 個機型,203 個一致):
+    - 對照表是高階、但規則抓不到:DG1AF、DG1S-BC、DG6AF、DGGZM、NTL-DG2L、RU6AF、RU6AFL、TM2、TM2-A、TM3、TM3-A、TM4
+    - 規則說高階、但對照表是一般:DG1D、DG1D2、DG1DX2630(跟 Michelle 說 DG1D 有 CCD 不一致,待確認)
+  - 所以目前以對照表為準;規則只能當「對照表沒有的新機型」的參考。
+- 單位:「應用 × 機型等級」表的數字是 CRM 需求的機型台數。各應用那列依應用類數平分(約略值);最下面「全部應用合計」是實際台數。

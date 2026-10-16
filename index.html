@@ -3125,17 +3125,20 @@ var EA_MODEL_TIERS={
   '一般':'DG1AF2;DG1AF3;DG1AF3-2;DG1AF4;DG1AF5;DG1D;DG1D2;DG1DX2630;DG1H;DG1H-GC;DG1H2;DG1M;DG1S;DG1S2;DG1XL;DG2H;DG2L;DG2M;DG2S;DG5H;DG5S;DG6A2;DG6BQ;DG6H;DG6L;DG6L2;DG6M;DG6M2;DG6M3;DG6M3-H;DG6M3-HA;DG6M3-MES;DG6ML;DG6N;DG6N2;DG6S;DG6S-BQ;DG7H;DR1;DR2A;DR2L;DR6;NTL-DG1H;NTL-DG2H;NTL-DG2S;NTL-DG6H;NTL-DG6L;NTL-DG6S;NTL-GPR1B;NTL-RU2B;NTL-RU2L;NTL-RU4B;NTL-RU4BII-F;NTL-RU4G;NTL-RU5E;NTL-RU6E;NTL-RU6E2;NTL-RU6EL;NTL-RU6G;NTL-RU6L;RU1A;RU1A-BC;RU1A-CBD;RU2B;RU2D;RU2GL;RU2GM;RU2L;RU2M;RU2ML;RU2XL;RU4B;RU4BII;RU4D;RU4G;RU4M;RU5E;RU5G;RU5ML;RU6B;RU6D;RU6E;RU6E3;RU6EL;RU6G;RU6G-CCD;RU6GL;RU6GM;RU6GM-HA;RU6GML;RU6L;RU6M;RU6M2;RU6ML;RU6ML2;RU6N;RU6N2;RU6N3;RU6XL;TL-2404;TL-DG6S;TL-RU4BII;TL-RU6E',
   '其他':'3SVF;AF1GEP1;AF1M;AF1M-S;AXI1A;BST1;BST1-1;BST1-2;BST1-3;DG1P;DPR;DPR1B;DPR1C;DPR1D;DPR1E;DPR1F;DPR1G;DPR1L;DPR1S;DPR1Z;DPRX;FVI-360;GEP;GEP1A;GEP1F;GEP1G;GEP1L;GEP1M;GEP3-Q;GEP3-SA;GEP4A;GPR1A;GPR1A-DG;GPR1A-PA;GPR1A-VM;GPR1A3;GPR1A5;GPR1B;GPR1BL;GPR1C;GPR1D;GPR1E;GPR2A;GPR2B;GPR6B;GPRT1;GPRT2;HI01;HI01-A;KAT1A;LGP1A;LGP2A;LM-GO;NTL-DR2A;NTL-GPR1A;NTL-LGP1A;NTL-RP1A;NTL-SVF2;R455LWS;SGC1U;SLR700T;SLR700TGIIIS;SV1A;SV4B;SVF2;SVF3;SVF3B;SVF3C;SVP2;TL-DPR;TL-MAG;TSM1B'
 };
-var EA_TIER_ORDER=['高階','一般','其他','未分類'];
-var EA_TIER_COLOR={'高階':'#2a78d6','一般':'#1baf7a','其他':'#94a3b8','未分類':'#cbd5e1'};
+// ⚠ 營業商務訊息「只分高階/一般兩種」（Michelle 2026-10-16 決定）：對照表是「高階」的算高階，
+//   其他（一般、其他、對照表沒有的機型）全部算「一般」。上面保留三分類原樣，只是方便跟出貨實績對照；
+//   出貨實績、已接未出訂單仍使用高階/一般/其他三分類，共用表 stk_category_mapping 不可改。
+var EA_TIER_ORDER=['高階','一般'];
+var EA_TIER_COLOR={'高階':'#2a78d6','一般':'#1baf7a'};
 var _eaTierMap={},_eaTierKeys=[];
 Object.keys(EA_MODEL_TIERS).forEach(function(t){EA_MODEL_TIERS[t].split(';').forEach(function(m){_eaTierMap[m]=t;});});
 _eaTierKeys=Object.keys(_eaTierMap).sort(function(a,b){return b.length-a.length;});
 function eaModelTier(model){
   var m=String(model||'').replace(/[（(][^）)]*[）)]/g,'').replace(/\s+/g,'').toUpperCase();
-  if(!m) return '未分類';
-  if(_eaTierMap[m]) return _eaTierMap[m];
-  for(var i=0;i<_eaTierKeys.length;i++){if(m.indexOf(_eaTierKeys[i])===0) return _eaTierMap[_eaTierKeys[i]];}
-  return '未分類';
+  var t=null;
+  if(m&&_eaTierMap[m]) t=_eaTierMap[m];
+  else if(m){for(var i=0;i<_eaTierKeys.length;i++){if(m.indexOf(_eaTierKeys[i])===0){t=_eaTierMap[_eaTierKeys[i]];break;}}}
+  return t==='高階'?'高階':'一般';
 }
 var eaTier=''; // 「各應用對應機型」目前篩選的機型等級（''＝全部）
 
@@ -3396,12 +3399,13 @@ function eaCrossCard(R){
       +tiers.map(function(t){return cell(x,t,false);}).join('')+cell(x,'',false);
   });
   var A=R.allApps;
-  h+='<div class="ea-xname ea-xtotal">全部應用合計</div>'
+  h+='<div class="ea-xname ea-xtotal">全部應用合計（實際台數）</div>'
     +tiers.map(function(t){return '<div class="ea-xtotal-wrap">'+cell(A,t,true)+'</div>';}).join('')
     +'<div class="ea-xtotal-wrap">'+cell(A,'',true)+'</div>';
   h+='</div>';
-  return '<div class="ea-card"><div class="ea-card-head"><div><div class="ea-card-title">應用 × 機型等級（台數）</div>'
-    +'<div class="ea-card-desc">高階／一般／其他依「出貨實績」的機型分類。點任一格，下方會列出該組合的機型 × 台數；點最下面一列可不分應用，直接看高階、一般各是哪些機型。百分比＝占該列合計。</div></div></div>'
+  return '<div class="ea-card"><div class="ea-card-head"><div><div class="ea-card-title">應用 × 機型等級（單位：台）</div>'
+    +'<div class="ea-card-desc">數字是 CRM 需求的機型台數。各應用那一列的台數依「該列寫了幾類應用」平分，所以是約略值；最下面「全部應用合計」是實際台數。'
+    +'高階依「出貨實績」的機型分類，對照表是高階的算高階、其他都算一般。點任一格，下方會列出該組合的機型 × 台數。百分比＝占該列合計。</div></div></div>'
     +'<div class="ea-xscroll">'+h+'</div></div>';
 }
 function selectEaCross(app,tier){

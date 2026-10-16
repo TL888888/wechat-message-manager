@@ -44,12 +44,13 @@
 - [ ] RU5M 不在出貨實績的機型分類清單裡(4 台,顯示未分類)→ 請出貨實績補上分類後,再請 Claude 同步 EA_MODEL_TIERS
 
 ## 大量資料 / 手機記憶體(2026-10-16 總管派工後續)
-- [x] ① 拜訪紀錄＋微信訊息改後台函式 wechat_customer_feed(待 Michelle 在 TL_projects 貼 SQL 後上線)
+- [x] ① 拜訪紀錄＋微信訊息改後台函式 wechat_customer_feed(2026-10-16 上線)
 - [x] ② 刪除沒在用的 fetchAllRows()
 - [ ] ③ 名片 business_cards、設備訊息 engineer_messages 載入沒有分頁(超過 1000 筆會被 Supabase 截斷、畫面少資料不會報錯)。
       目前筆數很少(設備訊息 2 筆),Michelle 決定「之後順便做」。另外 wechat_messages 也仍整張載入給「編輯微信訊息」用(目前 28 筆)。
 - [ ] ④ 終端應用分析改後台函式:Michelle 決定不做(只用最新一次匯入的 CRM 約 320 筆,每次匯入整批取代,不會累積)
 - [ ] repo 根目錄的 wechat-ask.js 疑似舊檔(Vercel 用的是 api/wechat-ask.js),交接前確認後可刪除
 - [x] 16c RLS 讀取規則加速:已貼(2026-10-16),計數 2.9 秒→0.14 秒
-- [ ] 待貼:sql/2026-10-16d_wechat_customer_feed_fast.sql(TL_projects;取代 16b,16b 不用貼),貼完請 Claude 實測速度與匯出
+- [x] 16d 已貼(2026-10-16)。正式站實測:不篩選 0.9 秒、搜客戶 0.4 秒、全文 0.4 秒、翻到第 300 頁 0.4 秒(原本 7.2~7.5 秒);匯出全部 10,258 筆約 14 秒
+- [ ] 匯出「全部」一萬筆時,手機要在瀏覽器裡組一個約 10 MB 的 Excel,iPhone 上可能吃力;平常匯出有篩選過的資料沒問題。若有人反映手機匯出卡住,再考慮改成後台產生檔案
 - [ ] 其他表(crm_records、business_cards、wechat_ai_qa_usage_log 及各表的 update/delete 規則)也用 current_user_role() 逐筆呼叫的寫法,資料量大了一樣會慢,可比照 16c 改成 (select ...) 寫法

@@ -1162,7 +1162,6 @@ var currentTab = 'customer';
 var currentMsgType = 'customer';
 var custData = [];
 var crmData = [];
-var visitData = [];
 var cardData = [];
 var engData = [];
 var uniPage = 1;
@@ -1986,7 +1985,6 @@ async function onLogin(user){
   btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> 登入';
   await loadAllData();
   renderUnified();
-  loadVisitRemainingInBackground(); // 不等它，背景繼續把剩下的拜訪紀錄陸續補進來
 }
 // 首頁卡片免密碼登入：把首頁憑證交給 api/tl-sso.js 確認人資權限，拿回一次性登入碼後直接登入
 // 成功回傳 true；失敗就在登入畫面顯示原因，使用者仍可改用 email+密碼登入
@@ -2081,43 +2079,9 @@ function showPasswordLogin(){
 var usersMap={}; // id -> {name, role}
 var ACCOUNT_MGMT_ENABLED=false; // 帳號管理頁籤開關（暫停中，見 onLogin 註解與 NOTES.md）
 
-// Supabase REST API 預設一次最多回傳1000筆，資料量一大（例如拜訪紀錄破萬筆）就會被截斷，
-// 參考 shipping 系統的做法：不要一次全撈，改成先抓第一批讓畫面快點有東西可看，
-// 剩下的分頁在背景陸續補進來，每補一批就重畫一次表格，使用者不用整批等完才看得到資料
-var VISIT_PAGE_SIZE=500;
-async function loadVisitFirstPage(){
-  var {data,error}=await sb.from('visit_records').select('*').order('created_at',{ascending:false}).range(0,VISIT_PAGE_SIZE-1);
-  if(error) throw error;
-  visitData=data||[];
-  return (data||[]).length===VISIT_PAGE_SIZE; // true代表可能還有更多，要繼續背景補
-}
-async function loadVisitRemainingInBackground(){
-  var from=VISIT_PAGE_SIZE;
-  while(true){
-    var {data,error}=await sb.from('visit_records').select('*').order('created_at',{ascending:false}).range(from,from+VISIT_PAGE_SIZE-1);
-    if(error){console.error('拜訪紀錄背景補齊失敗',error);return;}
-    if(!data||!data.length) break;
-    visitData=visitData.concat(data);
-    if(currentTab==='customer') renderUnified(); // 每補一批就更新畫面，不用等全部載完
-    if(data.length<VISIT_PAGE_SIZE) break;
-    from+=VISIT_PAGE_SIZE;
-  }
-}
-// 保留給「匯入完成後想確保資料完全載齊」的場合使用（例如重新整理統計數字時）
-async function fetchAllRows(table,orderCol,ascending){
-  var pageSize=1000;
-  var all=[];
-  var from=0;
-  while(true){
-    var {data,error}=await sb.from(table).select('*').order(orderCol,{ascending:ascending}).range(from,from+pageSize-1);
-    if(error) throw error;
-    if(!data||!data.length) break;
-    all=all.concat(data);
-    if(data.length<pageSize) break; // 這頁不滿代表已經是最後一頁
-    from+=pageSize;
-  }
-  return all;
-}
+// 拜訪紀錄（一萬多筆）不再整張抓進網頁：2026-10-16 改成「客戶商務」頁籤每次向後台函式
+// wechat_customer_feed 只拿一頁，搜尋/篩選/排序都在資料庫做（原因：iPhone 記憶體擋不住大量資料，
+// 見 NOTES.md「客戶商務頁籤改後台」與 sql/2026-10-16_wechat_customer_feed.sql）
 
 async function loadAllData(){
   // 先找最新的 import_date
@@ -2137,8 +2101,7 @@ async function loadAllData(){
       : sb.from('crm_records').select('*').order('created_at',{ascending:false}),
     sb.from('engineer_messages').select('*').order('created_at',{ascending:false}),
     sb.from('users').select('id,name,role,sales_name,region'),
-    sb.from('business_cards').select('*').order('created_at',{ascending:false}),
-    loadVisitFirstPage() // 拜訪紀錄只先抓第一批，跟其他小表一起等，讓畫面能盡快顯示
+    sb.from('business_cards').select('*').order('created_at',{ascending:false})
   ]);
   custData=wRes.data||[];
   crmData=cRes.data||[];
@@ -2195,9 +2158,17 @@ function clearUnifiedFilter(){
   renderUnified();
 }
 // 匯出「客戶商務」目前篩選條件下的完整清單成Excel（不受目前頁面只顯示15筆的限制，符合條件的全部匯出）
-function exportUnifiedExcel(){
-  var f=getFilteredUnifiedRows();
-  var rows=buildUnifiedRows(f.fCust,f.fVisit);
+// 2026-10-16 起改成向後台函式每次拿 500 筆、分批拿完（不再把整張表放在網頁裡）
+async function exportUnifiedExcel(){
+  var fs=getUnifiedFilters();
+  var all=[];
+  for(var off=0;;off+=500){
+    var {data,error}=await sb.rpc('wechat_customer_feed',uniRpcParams(fs,off,500));
+    if(error){alert('匯出失敗：'+error.message);return;}
+    all=all.concat((data&&data.rows)||[]);
+    if(!data||!data.rows||data.rows.length<500||all.length>=data.total) break;
+  }
+  var rows=all.map(feedRowToUnified);
   if(!rows.length){alert('目前篩選條件下沒有資料可以匯出，請先確認篩選條件');return;}
   var data=rows.map(function(r){
     return {'日期':r.date,'業務':r.sales,'客戶':r.customer,'機型':r.model,'客戶資訊':r.info,'其他':r.other};
@@ -2207,7 +2178,6 @@ function exportUnifiedExcel(){
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'客戶商務');
   var todayStr=new Date().toISOString().split('T')[0];
-  var fs=f.filterSummary;
   var filterTag=(fs.company||fs.model||fs.person||fs.keyword||fs.dateFrom||fs.dateTo)?'_已篩選':'_全部';
   XLSX.writeFile(wb,'客戶商務'+filterTag+'_'+todayStr+'.xlsx');
 }
@@ -2225,24 +2195,10 @@ function formatShortDate(iso){
   if(isNaN(d.getTime())) return '';
   return (d.getMonth()+1)+'/'+d.getDate();
 }
-// 合併微信訊息＋拜訪紀錄成統一的表格列資料（名片管理已改成獨立頁面/資料庫，不再併入這裡）
-function buildUnifiedRows(fCust,fVisit){
-  var rows=[];
-  fCust.forEach(function(r){
-    rows.push({_type:'wechat',_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.company||'',model:r.model||'',info:r.raw||r.note||'',other:r.other||''});
-  });
-  fVisit.forEach(function(r){
-    var infoParts=[];
-    if(r.customer_info) infoParts.push(r.customer_info);
-    if(r.competitor) infoParts.push('【競爭對手】'+r.competitor);
-    if(r.market_info) infoParts.push('【市場訊息】'+r.market_info);
-    var otherParts=[];
-    if(r.other) otherParts.push(r.other);
-    if(r.companion) otherParts.push('【陪同人員】'+r.companion);
-    rows.push({_type:'visit',_id:r.id,_raw:r,date:r.report_date||'',sales:r.sales||'',customer:r.customer||'',model:r.model||'',info:infoParts.join('\n\n'),other:otherParts.join('\n\n')});
-  });
-  rows.sort(function(a,b){return dateSortKey(b.date).localeCompare(dateSortKey(a.date));});
-  return rows;
+// 後台函式回傳的一筆 → 表格列資料（微信訊息＋拜訪紀錄的欄位合併、「客戶資訊」「其他」的組字都在後台做好了，
+// 規則跟改版前的 buildUnifiedRows 相同，見 sql/2026-10-16_wechat_customer_feed.sql）
+function feedRowToUnified(r){
+  return {_type:r.kind,_id:r.id,_raw:r,date:r.date||'',sales:r.sales||'',customer:r.customer||'',model:r.model||'',info:r.info||'',other:r.other||''};
 }
 function buildUnifiedTableHtml(pageRows,q){
   var thead='<thead><tr>'
@@ -2300,79 +2256,63 @@ function goUniPage(p){
   if(wrap) wrap.scrollTop=0;
 }
 
-// 依照目前畫面上的篩選條件，算出客戶商務(微信訊息+拜訪紀錄)符合條件的完整清單，
-// renderUnified()跟匯出Excel都共用這段，確保「畫面上看到的」跟「匯出的」永遠是同一批資料
-function getFilteredUnifiedRows(){
-  var company=(document.getElementById('f-uni-company')||{}).value||'';
-  var model=(document.getElementById('f-uni-model')||{}).value||'';
-  var person=(document.getElementById('f-uni-person')||{}).value||'';
-  var keyword=(document.getElementById('f-uni-keyword')||{}).value||'';
-  var dateFrom=(document.getElementById('f-uni-date-from')||{}).value||'';
-  var dateTo=(document.getElementById('f-uni-date-to')||{}).value||'';
-  var fromKey=dateFrom?dateSortKey(dateFrom):null;
-  var toKey=dateTo?dateSortKey(dateTo):null;
-  function inDateRange(dateStr){
-    if(!fromKey&&!toKey) return true;
-    var k=dateSortKey(dateStr);
-    if(k==='00000000') return false; // 日期本身看不懂，篩日期區間時當作不符合
-    if(fromKey&&k<fromKey) return false;
-    if(toKey&&k>toKey) return false;
-    return true;
-  }
-  var fCust=custData.filter(function(r){
-    if(company&&!matchQ(r.company,company)) return false;
-    if(model&&!matchQ([r.model,r.raw].join(' '),model)) return false;
-    if(person&&!matchQ([r.sales,r.contact,r.raw].join(' '),person)) return false;
-    if(keyword&&!matchQ([r.company,r.contact,r.model,r.price,r.delivery,r.status,r.note,r.raw].join(' '),keyword)) return false;
-    if(!inDateRange(r.date)) return false;
-    return true;
-  });
-  var fVisit=visitData.filter(function(r){
-    if(company&&!matchQ(r.customer,company)) return false;
-    if(model&&!matchQ(r.model||'',model)) return false;
-    if(person&&!matchQ(r.sales,person)) return false;
-    if(keyword&&!matchQ([r.customer,r.sales,r.model,r.customer_info,r.competitor,r.market_info,r.other,r.work,r.work_purpose,r.next_action].join(' '),keyword)) return false;
-    if(!inDateRange(r.report_date)) return false;
-    return true;
-  });
-  return {fCust:fCust,fVisit:fVisit,filterSummary:{company:company,model:model,person:person,keyword:keyword,dateFrom:dateFrom,dateTo:dateTo}};
+// ══ 客戶商務：搜尋/篩選/排序/分頁 全部交給後台函式 wechat_customer_feed（2026-10-16 改版）══
+// 以前是把微信訊息＋一萬多筆拜訪紀錄整張抓進網頁再篩選，iPhone 記憶體吃不消；
+// 現在網頁只把「畫面上的篩選條件」送到後台，一次拿一頁（15筆）。比對規則（各條件比對哪些欄位、
+// 繁簡互通、日期看不懂就不算在日期區間內、排序方式）跟改版前完全相同，寫在 sql/2026-10-16_wechat_customer_feed.sql。
+// ⚠ 要改篩選規則時，三處一起改：這裡（傳哪些條件）、SQL 函式、api/wechat-ask.js（AI 問答也用同一支函式）
+function getUnifiedFilters(){
+  var v=function(id){return (document.getElementById(id)||{}).value||'';};
+  return {company:v('f-uni-company'),model:v('f-uni-model'),person:v('f-uni-person'),keyword:v('f-uni-keyword'),
+    dateFrom:v('f-uni-date-from'),dateTo:v('f-uni-date-to')};
 }
-function renderUnified(){
-  var f=getFilteredUnifiedRows();
-  var company=f.filterSummary.company,model=f.filterSummary.model,person=f.filterSummary.person,keyword=f.filterSummary.keyword;
-  var dateFrom=f.filterSummary.dateFrom,dateTo=f.filterSummary.dateTo;
-  var q=company||model||person||keyword; // 只用文字類篩選詞做畫面上的黃底標示，日期不適合拿來highlight文字
-  var anyFilter=q||dateFrom||dateTo;
-  var fCust=f.fCust,fVisit=f.fVisit;
+function uniRpcParams(f,offset,limit){
+  var arr=function(s){return s?[s]:null;};
+  return {p_company:arr(f.company),p_model:arr(f.model),p_person:arr(f.person),p_keyword:arr(f.keyword),
+    p_from_key:f.dateFrom?dateSortKey(f.dateFrom):null,p_to_key:f.dateTo?dateSortKey(f.dateTo):null,
+    p_kind:null,p_offset:offset,p_limit:limit,p_include_src:false};
+}
+var _uniReqSeq=0; // 打字很快時會連發好幾個查詢，只畫「最後一次」的結果，避免舊結果蓋掉新結果
+async function renderUnified(){
+  var f=getUnifiedFilters();
+  var q=f.company||f.model||f.person||f.keyword; // 只用文字類篩選詞做畫面上的黃底標示，日期不適合拿來highlight文字
+  var anyFilter=q||f.dateFrom||f.dateTo;
   // 注意：客戶商務頁籤故意不放CRM資料（crm_records），CRM只在「CRM需求統計」頁籤顯示，
   // 避免同一筆訂單在兩個頁籤都出現、造成重複計算或混淆
+  var el=document.getElementById('unified-records');
+  if(!el) return;
+  if(uniPage<1) uniPage=1;
+  var seq=++_uniReqSeq;
+  if(!el.innerHTML) el.innerHTML='<div class="empty-state"><span class="spinner"></span> 載入中...</div>';
+  var {data,error}=await sb.rpc('wechat_customer_feed',uniRpcParams(f,(uniPage-1)*uniPageSize,uniPageSize));
+  if(seq!==_uniReqSeq) return;
+  if(error){
+    el.innerHTML='<div class="empty-state" style="color:var(--red);"><i class="fa-solid fa-circle-exclamation" style="font-size:30px;display:block;margin-bottom:10px;"></i>讀取客戶商務資料失敗：'+escH(error.message)
+      +(/wechat_customer_feed/.test(error.message||'')?'<div style="font-size:12px;color:var(--text-s);margin-top:6px;">（資料庫還沒建立 wechat_customer_feed 函式，請依 NOTES.md 貼 sql/2026-10-16_wechat_customer_feed.sql）</div>':'')+'</div>';
+    renderUniPager(0,0);
+    return;
+  }
+  var res=data||{total:0,rows:[]};
+  var total=res.total||0;
+  var totalPages=Math.max(1,Math.ceil(total/uniPageSize));
+  if(total&&uniPage>totalPages){uniPage=totalPages;return renderUnified();} // 刪除資料後頁數變少，退回最後一頁
 
   // 統計列
   var statsEl=document.getElementById('unified-stats-row');
   if(statsEl){
     statsEl.innerHTML=
-      '<span class="stat-pill">微信訊息 <b>'+custData.length+'</b></span>'
-      +'<span class="stat-pill">拜訪紀錄 <b>'+visitData.length+'</b></span>'
-      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+fCust.length+'</b> 拜訪<b>'+fVisit.length+'</b></span>':'');
+      '<span class="stat-pill">微信訊息 <b>'+(res.all_wechat||0)+'</b></span>'
+      +'<span class="stat-pill">拜訪紀錄 <b>'+(res.all_visit||0)+'</b></span>'
+      +(anyFilter?'<span class="stat-pill" style="color:var(--accent);border-color:var(--accent);">篩選：微信<b>'+(res.wechat_count||0)+'</b> 拜訪<b>'+(res.visit_count||0)+'</b></span>':'');
   }
 
-  var el=document.getElementById('unified-records');
-  if(!el) return;
-  var rows=buildUnifiedRows(fCust,fVisit);
-  if(!rows.length){
+  if(!total){
     el.innerHTML='<div class="empty-state"><i class="fa-solid fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>查無符合紀錄</div>';
     renderUniPager(0,0);
     return;
   }
-
-  var totalPages=Math.max(1,Math.ceil(rows.length/uniPageSize));
-  if(uniPage>totalPages) uniPage=totalPages;
-  if(uniPage<1) uniPage=1;
-  var startIdx=(uniPage-1)*uniPageSize;
-  var pageRows=rows.slice(startIdx,startIdx+uniPageSize);
-
-  el.innerHTML=buildUnifiedTableHtml(pageRows,q);
-  renderUniPager(rows.length,totalPages);
+  el.innerHTML=buildUnifiedTableHtml((res.rows||[]).map(feedRowToUnified),q);
+  renderUniPager(total,totalPages);
   resizeFlexArea('unified-flex-area');
 }
 // 讓表格區塊撐滿視窗剩餘高度（筆電用觸控板往下捲動時不用特地對準小卷軸），
@@ -2397,7 +2337,7 @@ window.addEventListener('resize',function(){
 // 能不能編輯/刪除某一筆資料：資料庫RLS已經先把「看得到的範圍」限制好了——
 // 大總管看得到所有人；總監/助理看得到自己所屬地區(華東/華南)的所有人；業務只看得到自己的。
 // 權限規則統一是「看得到就能編輯/刪除」，四種角色都一樣，只是「看得到的範圍」不同，
-// 所以這裡不用再重複判斷角色，只要這筆資料出現在custData/crmData/visitData裡，
+// 所以這裡不用再重複判斷角色，只要這筆資料出現在畫面上（custData/crmData，或後台 wechat_customer_feed 回傳的資料）裡，
 // 就代表這個人本來就有權限動它，真正的防線在資料庫RLS端。
 function canDelete(r){
   if(!currentUserProfile) return false;
@@ -2928,8 +2868,7 @@ async function submitEditCRM(){
 async function deleteVisitRecord(id){
   if(!confirm('確定刪除這筆拜訪紀錄？')) return;
   await sb.from('visit_records').delete().eq('id',id);
-  visitData=visitData.filter(function(r){return r.id!==id;});
-  renderUnified();
+  renderUnified(); // 重新向後台拿這一頁
 }
 
 // ══ 需求統計 ════════════════════════════════════════════════
@@ -4627,8 +4566,6 @@ function handleExcelFile(e){
       if(filesDone===files.length){
         var {data:newCRM}=await sb.from('crm_records').select('*').eq('import_date',importDate).order('created_at',{ascending:false});
         crmData=newCRM||[];
-        await loadVisitFirstPage();
-        loadVisitRemainingInBackground(); // 匯入完成後一樣先顯示第一批，其餘背景陸續補齊
         if(totalReportRows>0){
           var {data:newWechat}=await sb.from('wechat_messages').select('*').order('created_at',{ascending:false});
           custData=newWechat||[];

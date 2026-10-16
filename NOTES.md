@@ -58,3 +58,40 @@ alter table crm_records add column if not exists end_product text;
   出貨實績那邊改了分類要同步:到 TL_technology 的 SQL Editor 執行 `select category_name, stk_no from stk_category_mapping` 後更新。
   CRM 裡的 RU5M 不在出貨實績清單中(顯示「未分類」),要請出貨實績那邊補分類。
 - 「應用 × 機型等級」交叉表:點格子看該組合的機型×台數;最下面一列「全部應用合計」= 不分應用看高階/一般各有哪些機型。
+
+## 客戶商務頁籤改後台搜尋(2026-10-16,雲端系統總管派工)
+**為什麼改**:拜訪紀錄 visit_records 有 10,230 筆(2026-08-14 一次匯入的歷史資料)。以前登入後網頁會在背景把整張表抓進手機,再在手機上搜尋/篩選/分頁,iPhone 記憶體會吃不消(資料庫計算鐵則)。
+
+**改了什麼**
+- 新增後台資料庫函式 `wechat_customer_feed`(SQL 檔:`sql/2026-10-16_wechat_customer_feed.sql`,貼在 **TL_projects**)。
+  「客戶商務」頁籤的搜尋、篩選、日期區間、排序、分頁,全部在資料庫裡做,網頁一次只拿一頁(15 筆,約 22 KB)。
+  微信訊息 wechat_messages 跟拜訪紀錄是合併顯示的,所以一起併進同一支函式。
+- 匯出 Excel:改成向同一支函式每次拿 500 筆、分批拿完。
+- 拿掉 `loadVisitFirstPage` / `loadVisitRemainingInBackground`(整張抓的迴圈)、`visitData` 變數、沒在用的 `fetchAllRows()`。
+- 輔助函式:`wechat_q_pattern` / `wechat_q_patterns`(搜尋字轉成繁簡互通的比對樣式)、`wechat_date_key`(日期排序鍵)。
+- 權限不變:函式用登入者本人的權限執行(security invoker),RLS 照舊,業務仍只看得到自己的資料。
+
+**比對規則跟改版前完全相同**(2026-10-16 用 30 組測試條件逐筆比對舊網頁算法 vs 新函式,結果、筆數、排序全部一致)
+- 客戶名稱:微信=company;拜訪=customer
+- 機型:微信=model+raw;拜訪=model
+- 業務/聯絡人:微信=sales+contact+raw;拜訪=sales
+- 全文關鍵字:微信=company+contact+model+price+delivery+status+note+raw;
+  拜訪=customer+sales+model+customer_info+competitor+market_info+other+work+work_purpose+next_action
+- 繁簡互通、不分大小寫的「包含」比對;日期看不懂的,篩日期區間時不算在內
+- 排序:日期新→舊;同一天微信訊息在前、拜訪紀錄在後;再依建立時間新→舊
+- 繁簡對照表是從 index.html 的 T2S 自動產生的(產生方式:把 T2S 轉成「每個字→它的繁簡同義字組」的 JSON 寫進 wechat_q_pattern)。
+  **若修改 T2S 對照表,要重新產生 SQL**(請 Claude 處理)。
+- 效能注意:不要改成「把每筆資料逐字轉簡體再比對」(2026-10-16 測過,一萬筆長文字會慢到無法使用);
+  現在是「只轉換搜尋字」(例:報價→[報报][價价])。
+
+**以後要改篩選規則,三處一起改**(網頁查詢與 AI 問答同步鐵則)
+1. `sql/2026-10-16_wechat_customer_feed.sql` 的 `wechat_customer_feed`(改完要重新貼到 TL_projects)
+2. `index.html` 的 `getUnifiedFilters` / `uniRpcParams` / `renderUnified`(網頁送哪些條件)
+3. `api/wechat-ask.js` 的 `fetchFeedByAnyDimension`(AI 問答找微信訊息與拜訪紀錄也是呼叫同一支函式)
+
+## AI 問答(api/wechat-ask.js)2026-10-16 調整
+- 找微信訊息、拜訪紀錄改成呼叫 `wechat_customer_feed`(跟網頁同一套比對規則)。客戶/機型/業務三個線索仍是「符合任一個就算」。
+  與以前的差異:以前是「欄位值完全相同」才找得到,現在跟網頁一樣是「包含」比對(例如機型欄寫「鑽孔機:RU6HM-125*82台」也找得到 RU6HM-125)。
+- CRM 需求加上 `end_product`(終端產品),AI 可以回答「某客戶的終端應用」。
+- 各類紀錄合併排序時,日期改用跟網頁相同的排序鍵(避免「2026/9/3」被排到「2026/10/1」後面)。
+- 備註:repo 根目錄也有一個 `wechat-ask.js`,跟 `api/wechat-ask.js` 內容不同;Vercel 實際使用的是 `api/` 底下那支,根目錄那支疑似舊檔。

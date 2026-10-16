@@ -261,22 +261,35 @@ module.exports = async function handler(req, res) {
       return merged.slice(0, MAX_RECORDS_PER_TABLE);
     }
 
+    // 微信訊息、拜訪紀錄：跟網頁「客戶商務」頁籤呼叫同一支後台函式 wechat_customer_feed（2026-10-16），
+    // 比對規則（各條件比對哪些欄位、繁簡互通、包含比對、排序）三處一致：網頁 / SQL 函式 / AI 問答。
+    // 客戶／機型／業務三個線索一樣「符合任一個就算」：各呼叫一次函式（同一線索給多個值＝符合任一個），再合併去重。
+    // ⚠ 要改篩選規則時，同步改 sql/2026-10-16_wechat_customer_feed.sql 與 index.html 的 renderUnified
+    async function fetchFeedByAnyDimension(kind) {
+      const base = { p_kind: kind, p_offset: 0, p_limit: MAX_RECORDS_PER_TABLE, p_include_src: true };
+      const calls = [];
+      if (matchedCustomers.length) calls.push(userClient.rpc('wechat_customer_feed', { ...base, p_company: matchedCustomers }));
+      if (matchedModels.length) calls.push(userClient.rpc('wechat_customer_feed', { ...base, p_model: matchedModels }));
+      if (matchedSales.length) calls.push(userClient.rpc('wechat_customer_feed', { ...base, p_person: matchedSales }));
+      const results = await Promise.all(calls);
+      const byId = new Map();
+      results.forEach((r) => {
+        ((r.data && r.data.rows) || []).forEach((row) => { if (!byId.has(row.id)) byId.set(row.id, row); });
+      });
+      return [...byId.values()]
+        .sort((a, b) => (a.date_key < b.date_key ? 1 : a.date_key > b.date_key ? -1 : 0))
+        .slice(0, MAX_RECORDS_PER_TABLE)
+        .map((row) => row.src || {});
+    }
+
     const [wmData, crData, vrData, cardMatchData] = await Promise.all([
-      fetchByAnyDimension(
-        'wechat_messages',
-        'date,company,model,qty,price,delivery,status,sales,raw,note,other',
-        'company', 'model', 'sales', 'date'
-      ),
+      fetchFeedByAnyDimension('wechat'),
       fetchByAnyDimension(
         'crm_records',
-        'import_date,customer,model,qty,delivery,status_w1,status_w2,sales',
+        'import_date,customer,model,qty,delivery,status_w1,status_w2,sales,end_product',
         'customer', 'model', 'sales', 'import_date'
       ),
-      fetchByAnyDimension(
-        'visit_records',
-        'report_date,customer,model,customer_info,market_info,other,sales',
-        'customer', 'model', 'sales', 'report_date'
-      ),
+      fetchFeedByAnyDimension('visit'),
       (async () => {
         // 名片管理是獨立表，欄位跟其他三張不一樣（公司/聯絡人，沒有機型），另外查
         const queries = [];
@@ -320,28 +333,34 @@ module.exports = async function handler(req, res) {
     // 重要：三種資料來源要先「混在一起依日期全部重新排序」，不能照商務訊息／CRM／拜訪紀錄
     // 的順序依序塞入陣列——不然字數預算被前面類型用光時，後面類型（例如拜訪紀錄）會直接
     // 完全擠不進去，不管它日期多新、多相關，這就是華通那筆報價一直被漏掉的真正原因。
+    // 日期排序鍵：跟網頁 dateSortKey() 及 SQL wechat_date_key() 同一規則（「2026/9/3」「2026-09-03」都轉成 20260903），
+    // 避免直接比字串時「2026/9/3」被排在「2026/10/1」後面這類錯亂
+    const dateKey = (s) => {
+      const m = String(s || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+      return m ? m[1] + ('0' + m[2]).slice(-2) + ('0' + m[3]).slice(-2) : '00000000';
+    };
     const recordItems = [];
     (wmData || []).forEach((r) =>
       recordItems.push({
-        date: r.date || '',
+        date: dateKey(r.date),
         text: `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${r.raw || ''} 備註:${r.note || ''} 其他:${r.other || ''}`,
       })
     );
     (crData || []).forEach((r) =>
       recordItems.push({
-        date: r.import_date || '',
-        text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales}`,
+        date: dateKey(r.import_date),
+        text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales} 終端產品(客戶的板子用在哪些終端應用):${r.end_product || '未填'}`,
       })
     );
     (vrData || []).forEach((r) =>
       recordItems.push({
-        date: r.report_date || '',
+        date: dateKey(r.report_date),
         text: `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`,
       })
     );
     (cardMatchData || []).forEach((r) =>
       recordItems.push({
-        date: r.upload_date || '',
+        date: dateKey(r.upload_date),
         text: `[名片] 日期:${r.upload_date} 公司:${r.company} 聯絡人:${r.contact} 電話:${r.phone || ''} 手機:${r.mobile || ''} email:${r.email || ''} 地址:${r.address || ''} 備註:${r.note || ''} 業務:${r.sales}`,
       })
     );
@@ -380,7 +399,7 @@ module.exports = async function handler(req, res) {
             {
               role: 'system',
               content:
-                '你是公司內部營業商務資料查詢助理，只能根據使用者提供的資料紀錄回答問題，不可捏造資料裡沒有的內容。一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。',
+                '你是公司內部營業商務資料查詢助理，只能根據使用者提供的資料紀錄回答問題，不可捏造資料裡沒有的內容。一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。[CRM需求]紀錄裡的「終端產品」是業務填寫的「客戶的PCB板用在哪些終端應用」（例如AI伺服器、車載、光模組），被問到客戶的終端應用或用途時以這個欄位為準。',
             },
             {
               role: 'user',

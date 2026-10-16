@@ -42,3 +42,11 @@
       - 健鼎 / 滬士 等長文一次寫很多類,台數被平分很細
 - [x] 應用 × 機型等級(高階/一般)交叉表(2026-10-15 上線)
 - [ ] RU5M 不在出貨實績的機型分類清單裡(4 台,顯示未分類)→ 請出貨實績補上分類後,再請 Claude 同步 EA_MODEL_TIERS
+
+## 大量資料 / 手機記憶體(2026-10-16 總管派工後續)
+- [x] ① 拜訪紀錄＋微信訊息改後台函式 wechat_customer_feed(待 Michelle 在 TL_projects 貼 SQL 後上線)
+- [x] ② 刪除沒在用的 fetchAllRows()
+- [ ] ③ 名片 business_cards、設備訊息 engineer_messages 載入沒有分頁(超過 1000 筆會被 Supabase 截斷、畫面少資料不會報錯)。
+      目前筆數很少(設備訊息 2 筆),Michelle 決定「之後順便做」。另外 wechat_messages 也仍整張載入給「編輯微信訊息」用(目前 28 筆)。
+- [ ] ④ 終端應用分析改後台函式:Michelle 決定不做(只用最新一次匯入的 CRM 約 320 筆,每次匯入整批取代,不會累積)
+- [ ] repo 根目錄的 wechat-ask.js 疑似舊檔(Vercel 用的是 api/wechat-ask.js),交接前確認後可刪除

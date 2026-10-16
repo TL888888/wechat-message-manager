@@ -82,5 +82,7 @@
 
 ## 名片管理移到行動秘書(2026-10-16,Michelle 同意)
 - [x] 拿掉名片管理頁籤、拍照辨識 api、card-note-repair、AI 問答查名片(DEEPINFRA_API_KEY_SALES 保留)
-- [ ] 6 筆名片交給林麗君:總管排隊貼 sql/2026-10-17c_readonly_export_business_cards_for_secretary.sql(TL_projects,只讀)→ CSV 給 Claude 轉 .xlsx → 林麗君在行動秘書「匯入 Excel」
+- [x] 17c 已跑、CSV 已轉成 .xlsx(2026-10-16):wechat-message-manager/名片交接/林麗君_名片_匯入行動秘書.xlsx(原始 CSV 也在同資料夾)。
+      ⚠ 名片交接/ 已加進 .gitignore:內含個人電話/email,repo 是公開的,不可上傳
+- [ ] 林麗君登入行動秘書 → 名片管理 → 匯入 Excel(6 筆)。匯入不會檢查重複;第 5、6 筆的「電話」欄混了手機/傳真或兩支號碼連在一起(原本 OCR 的問題),匯入後可順手整理
 - [ ] 觀察幾天沒人反映後,刪除 business_cards 整張表(Claude 寫 SQL,含先備份的選項)。刪之前要確認 interview-records(董事長訪談資料庫,已暫停)不再需要這張表

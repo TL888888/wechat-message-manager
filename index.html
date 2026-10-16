@@ -380,7 +380,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       </a>
       <div style="font-size:12px;color:var(--text-s);text-align:center;margin-top:10px;">權限由人資系統開通，不需要另外的帳號密碼</div>
     </div>
-    <!-- email+密碼登入：暫停使用（保留程式，網址加 ?pwlogin=1 才會出現，給緊急狀況用；LOGIN_FORM_ENABLED 改 true 可恢復） -->
+    <!-- email+密碼登入：暫停使用（保留程式；緊急時把 index.html 的 LOGIN_FORM_ENABLED 改 true 再上線才會出現。2026-10-17 已拿掉 ?pwlogin=1 網址入口） -->
     <div id="pw-login-area" style="display:none;">
     <form id="login-form" autocomplete="on" onsubmit="event.preventDefault();doLogin();">
       <div style="margin-bottom:14px;">
@@ -1873,14 +1873,18 @@ async function submitNewPassword(){
 async function onLogin(user){
   currentUser=user;
   // 從 users 表取得角色
-  var {data, error}=await sb.from('users').select('*').eq('id',user.id).single();
-  if(error){
-    console.error('讀取用戶資料失敗:', error);
-    // 就算讀不到 users 表，也讓用戶進入（當作 admin）
-    currentUserProfile={id:user.id, email:user.email, name:user.email, role:'admin'};
-  } else {
-    currentUserProfile=data||{id:user.id, email:user.email, name:user.email, role:'admin'};
+  var {data, error}=await sb.from('users').select('*').eq('id',user.id).maybeSingle();
+  if(error||!data||!data.role){
+    // 2026-10-17 修正（漏洞 B）：以前「讀不到 users 資料就當作大總管」讓其他系統的帳號也能看到大總管畫面。
+    // 現在一律拒絕登入。正常從首頁進來的人，api/tl-sso.js 會先依人資權限建好 users 資料，不會走到這裡。
+    if(error) console.error('讀取用戶資料失敗:', error);
+    currentUser=null;currentUserProfile=null;
+    await sb.auth.signOut();
+    showLoginScreen();
+    setSsoStatus('<i class="fa-solid fa-circle-exclamation" style="color:var(--red);margin-right:6px;"></i>您沒有營業商務訊息的權限，請洽人資');
+    return;
   }
+  currentUserProfile=data;
   document.getElementById('boot-screen').style.display='none';
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -1948,7 +1952,7 @@ async function doLogout(){
   document.getElementById('boot-screen').style.display='flex';
   document.getElementById('boot-msg').textContent='已登出，正在回到公司首頁...';
   // 登出後直接回公司首頁（不帶 ?goto=wechat，所以不會被自動登入回來）；緊急密碼登入模式則留在登入畫面
-  if(LOGIN_FORM_ENABLED||/[?&]pwlogin=1/.test(window.location.search)) showPasswordLogin();
+  if(LOGIN_FORM_ENABLED) showPasswordLogin();
   else window.location.href='https://tl-home.com/';
 }
 // 頁面載入時檢查登入狀態
@@ -1972,7 +1976,7 @@ window.onload=async function(){
     await loginWithTlSso(decodeURIComponent(ssoMatch[1]));
     return; // 成功就進系統；失敗會停在登入畫面顯示原因，不再自動跳轉，避免來回跳個不停
   }
-  var pwMode=LOGIN_FORM_ENABLED||/[?&]pwlogin=1/.test(window.location.search);
+  var pwMode=LOGIN_FORM_ENABLED;
   var {data:{session}}=await sb.auth.getSession();
   if(session&&(pwMode||isFreshTlSso(session.user))){await onLogin(session.user);return;}
   if(pwMode){showPasswordLogin();return;}
@@ -1980,7 +1984,9 @@ window.onload=async function(){
   if(session) await sb.auth.signOut();
   goToTlHomeForLogin();
 };
-// email+密碼登入開關（暫停中）：平常一律透過公司首頁＋人資權限登入；網址加 ?pwlogin=1 可臨時開啟（緊急用）
+// email+密碼登入開關（暫停中）：平常一律透過公司首頁＋人資權限登入。
+// 2026-10-17 拿掉「網址加 ?pwlogin=1」的入口（漏洞 A：它不檢查人資權限，TL_projects 裡其他系統的帳號也能用舊密碼登入）。
+// 緊急時（首頁或人資系統壞掉）：把下面改成 true 再 push 上線，登入畫面就會出現 email+密碼欄；用完記得改回 false
 var LOGIN_FORM_ENABLED=false;
 var TL_SSO_MAX_AGE_MS=12*60*60*1000; // 每 12 小時重新跟人資系統確認一次權限（首頁有登入的話是自動的，使用者感覺不到）
 function isFreshTlSso(user){

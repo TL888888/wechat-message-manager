@@ -45,7 +45,8 @@ alter table crm_records add column if not exists end_product text;
   **為什麼不用「助理」**:資料庫規則(RLS)裡助理只能看自己地區、且完全看不到 CRM 需求統計;總監才看得到全部。
 - 每次從首頁進來都會依「當下」人資權限更新角色;超過 12 小時會自動回首頁重新確認(人資取消權限,最晚 12 小時內失效)。
 - ⚠️ Michelle 自己在人資系統的權限要設「完整(管理員)」,否則會變成總監,看不到「匯入 Excel」。
-- 緊急備援:網址加 `?pwlogin=1`(例:wechat.tl-home.com/?pwlogin=1)會出現舊的 email+密碼登入框。要永久恢復,把 index.html 的 `LOGIN_FORM_ENABLED` 改 true。
+- 緊急備援(2026-10-17 改):**已拿掉「網址加 ?pwlogin=1」入口**(它不檢查人資權限,TL_projects 是 7 個系統共用,其他系統的帳號也能用舊密碼登入)。
+  首頁或人資系統壞掉、真的需要用 email+密碼登入時:把 index.html 的 `var LOGIN_FORM_ENABLED=false;` 改成 `true` 再 push 上線,登入畫面就會出現帳密欄;**用完一定要改回 false 再上線**。
 - 「帳號管理」頁籤也暫停(`ACCOUNT_MGMT_ENABLED=false`),程式保留,經理要啟用時改 true。
 - 已知限制:瀏覽員的唯讀只做在畫面上,資料庫層級沒有擋(要擋需新增 viewer 角色並改 RLS)。
 
@@ -142,3 +143,9 @@ alter table crm_records add column if not exists end_product text;
 - 補充:拿掉前的名片拍照辨識用 DeepInfra 的 Qwen 視覺模型,DeepInfra 2026-09-18 已下架該模型,所以這功能很可能早就不能用了。
 - 資料:business_cards 表與 6 筆名片(林麗君 9/15~9/16 建的)**先保留**,用 sql/2026-10-17c_readonly_export_business_cards_for_secretary.sql
   匯出成行動秘書匯入格式,轉 Excel 給林麗君自己匯入行動秘書。觀察幾天沒問題後再刪表(見 TODO.md)。
+
+## 登入安全修正(2026-10-17,Michelle 決定 A、B 都修)
+- A. 拿掉 ?pwlogin=1 緊急入口(見上方「緊急備援」)。
+- B. 登入時在 users 表找不到這個人(或沒有角色)→ **拒絕登入**,顯示「您沒有營業商務訊息的權限，請洽人資」並登出。
+  以前會「當作大總管」放行。正常從首頁進來的人,api/tl-sso.js 會先依人資權限建好 users 資料,不受影響。
+- E. AI「歷史問答」:有權限的人都看得到所有人的提問(最近 50 筆)。**這是 Michelle 2026-10-16 的決定:維持大家都看得到**,不要改成只看自己的。

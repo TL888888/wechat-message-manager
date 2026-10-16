@@ -100,7 +100,9 @@ alter table crm_records add column if not exists end_product text;
 - dcb2f2a 上線後,用公司共用帳號(大總管)實測正式站:客戶商務一頁約 7.2~7.5 秒(Supabase 登入者查詢上限 8 秒,太接近)。
 - 瓶頸在 **RLS 權限檢查**:visit_records_select 規則裡的 current_user_role() 等函式會「每一筆資料都呼叫一次」,
   光是數一數拜訪紀錄就要約 2.5~2.9 秒;舊版函式又把拜訪紀錄掃了兩次。搜尋文字本身幾乎不花時間。
-- 修正 1:`sql/2026-10-16b_wechat_customer_feed_single_scan.sql`(取代 16 那支):每張表只掃一次,總筆數從同一次掃描算。
+- 修正 1:`sql/2026-10-16b_wechat_customer_feed_single_scan.sql`:每張表只掃一次。**已被 16d 取代,不用再貼 16b。**
+- 修正 1(最終版):`sql/2026-10-16d_wechat_customer_feed_fast.sql`:每張表只掃一次、直接讀欄位(不再 to_jsonb 整列)、比對用長字串只在該條件有填時才組合。測試資料上比 16b 快約 5 倍。
+  ⚠ 因為改成直接讀欄位,若以後刪除或改名 wechat_messages / visit_records 的欄位(例如 contact、competitor),要同步改這支函式。
 - 修正 2:`sql/2026-10-16c_rls_select_policy_speedup.sql`:visit_records / wechat_messages 的「讀取」規則改成 (select current_user_role()) 寫法
-  (Supabase 官方建議),每次查詢只算一次角色。**權限規則不變**,已用測試資料驗證五種角色看得到的資料前後完全相同。
+  (Supabase 官方建議),每次查詢只算一次角色。2026-10-16 已貼:拜訪紀錄單純計數從約 2.9 秒降到 0.14 秒。**權限規則不變**,已用測試資料驗證五種角色看得到的資料前後完全相同。
 - 其他資料表(crm_records、business_cards 等)的規則也是同樣寫法,資料量變大時可比照修改(見 TODO.md)。

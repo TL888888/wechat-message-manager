@@ -110,6 +110,7 @@ alter table crm_records add column if not exists end_product text;
 ## 機型等級:營業商務訊息只分「高階／一般」(2026-10-16 Michelle 決定)
 - 規則:出貨實績對照表(stk_category_mapping)是「高階」的算高階;其他(一般、其他、對照表沒有的機型)全部算「一般」。
   程式:index.html 的 `eaModelTier()`。對照表三分類原樣保留在 `EA_MODEL_TIERS`,方便跟出貨實績對照。
+  ⚠ `EA_MODEL_TIERS` 是共用表的「複製品」,不會自動同步:共用表 stk_category_mapping 有改分類時,要請 Claude 同步更新這份。
 - ⚠ 共用表 stk_category_mapping 不可改內容、不可改三分類:出貨管理系統、已接未出訂單仍使用「高階／一般／其他」。
 - AI 問答(api/wechat-ask.js)目前沒有用到機型等級,所以不用同步改。
 - **高階怎麼判斷(Michelle 口述,交接用)**:高階主要是「有 CCD」的機型。
@@ -118,6 +119,6 @@ alter table crm_records add column if not exists end_product text;
   - 另外 DG1D 也有 CCD(Michelle 說「標準有點不容易記住」)。
   - 規則跟對照表的差異(2026-10-16 比對 218 個機型,203 個一致):
     - 對照表是高階、但規則抓不到:DG1AF、DG1S-BC、DG6AF、DGGZM、NTL-DG2L、RU6AF、RU6AFL、TM2、TM2-A、TM3、TM3-A、TM4
-    - 規則說高階、但對照表是一般:DG1D、DG1D2、DG1DX2630(跟 Michelle 說 DG1D 有 CCD 不一致,待確認)
+    - 規則說高階、但對照表原本是一般:DG1D、DG1D2、DG1DX2630 → **DG1D 系列 2026-10-16 已在對照表改為高階**(Michelle 決定,出貨、訂單一起變;營業商務訊息的程式快照 EA_MODEL_TIERS 也同步改了)
   - 所以目前以對照表為準;規則只能當「對照表沒有的新機型」的參考。
 - 單位:「應用 × 機型等級」表的數字是 CRM 需求的機型台數。各應用那列依應用類數平分(約略值);最下面「全部應用合計」是實際台數。

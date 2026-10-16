@@ -50,3 +50,5 @@
       目前筆數很少(設備訊息 2 筆),Michelle 決定「之後順便做」。另外 wechat_messages 也仍整張載入給「編輯微信訊息」用(目前 28 筆)。
 - [ ] ④ 終端應用分析改後台函式:Michelle 決定不做(只用最新一次匯入的 CRM 約 320 筆,每次匯入整批取代,不會累積)
 - [ ] repo 根目錄的 wechat-ask.js 疑似舊檔(Vercel 用的是 api/wechat-ask.js),交接前確認後可刪除
+- [ ] 待貼:sql/2026-10-16b_wechat_customer_feed_single_scan.sql → 再貼 sql/2026-10-16c_rls_select_policy_speedup.sql(TL_projects),貼完請 Claude 實測速度
+- [ ] 其他表(crm_records、business_cards、wechat_ai_qa_usage_log 及各表的 update/delete 規則)也用 current_user_role() 逐筆呼叫的寫法,資料量大了一樣會慢,可比照 16c 改成 (select ...) 寫法

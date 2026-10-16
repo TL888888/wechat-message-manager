@@ -95,3 +95,12 @@ alter table crm_records add column if not exists end_product text;
 - CRM 需求加上 `end_product`(終端產品),AI 可以回答「某客戶的終端應用」。
 - 各類紀錄合併排序時,日期改用跟網頁相同的排序鍵(避免「2026/9/3」被排到「2026/10/1」後面)。
 - 備註:repo 根目錄也有一個 `wechat-ask.js`,跟 `api/wechat-ask.js` 內容不同;Vercel 實際使用的是 `api/` 底下那支,根目錄那支疑似舊檔。
+
+### 上線後實測與效能修正(2026-10-16)
+- dcb2f2a 上線後,用公司共用帳號(大總管)實測正式站:客戶商務一頁約 7.2~7.5 秒(Supabase 登入者查詢上限 8 秒,太接近)。
+- 瓶頸在 **RLS 權限檢查**:visit_records_select 規則裡的 current_user_role() 等函式會「每一筆資料都呼叫一次」,
+  光是數一數拜訪紀錄就要約 2.5~2.9 秒;舊版函式又把拜訪紀錄掃了兩次。搜尋文字本身幾乎不花時間。
+- 修正 1:`sql/2026-10-16b_wechat_customer_feed_single_scan.sql`(取代 16 那支):每張表只掃一次,總筆數從同一次掃描算。
+- 修正 2:`sql/2026-10-16c_rls_select_policy_speedup.sql`:visit_records / wechat_messages 的「讀取」規則改成 (select current_user_role()) 寫法
+  (Supabase 官方建議),每次查詢只算一次角色。**權限規則不變**,已用測試資料驗證五種角色看得到的資料前後完全相同。
+- 其他資料表(crm_records、business_cards 等)的規則也是同樣寫法,資料量變大時可比照修改(見 TODO.md)。

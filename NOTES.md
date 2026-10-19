@@ -149,3 +149,10 @@ alter table crm_records add column if not exists end_product text;
 - B. 登入時在 users 表找不到這個人(或沒有角色)→ **拒絕登入**,顯示「您沒有營業商務訊息的權限，請洽人資」並登出。
   以前會「當作大總管」放行。正常從首頁進來的人,api/tl-sso.js 會先依人資權限建好 users 資料,不受影響。
 - E. AI「歷史問答」:有權限的人都看得到所有人的提問(最近 50 筆)。**這是 Michelle 2026-10-16 的決定:維持大家都看得到**,不要改成只看自己的。
+
+## 進站不再「閃兩次」(2026-10-19,參考 AI用量統計 39f87ec)
+- `<head>` 最前面(還沒畫任何畫面、還沒載入 supabase)先判斷:網址沒有 `#tl_sso=` 憑證、本機也沒有 12 小時內確認過的登入
+  (localStorage 的 `sb-bvuygyajzupeqpqfwmgi-auth-token` 裡 app_metadata.tl_wechat_role / tl_sso_at)→ 直接 `location.replace` 回 tl-home.com/?goto=wechat。
+- 確認權限時只顯示「正在確認您的權限…」;「回公司首頁」按鈕 8 秒還沒進去才出現。跳轉一律用 replace(按上一頁不會回到中途畫面)。
+- 帳密登入開關 `LOGIN_FORM_ENABLED` 移到 `<head>` 最前面那段程式裡(緊急開啟改那裡)。
+- 頁面標題/登入畫面/左上角名稱由「訊息管理系統」改為「營業商務訊息」(名稱一致鐵則:首頁卡片＝人資權限＝頁面標題)。

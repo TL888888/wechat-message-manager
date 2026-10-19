@@ -3,9 +3,29 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>訊息管理系統</title>
+<title>營業商務訊息</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<script>
+// email+密碼登入開關（暫停中）：平常一律透過公司首頁＋人資權限登入。
+// 2026-10-17 拿掉「網址加 ?pwlogin=1」的入口（漏洞 A：它不檢查人資權限，TL_projects 裡其他系統的帳號也能用舊密碼登入）。
+// 緊急時（首頁或人資系統壞掉）：把下面改成 true 再 push 上線，登入畫面就會出現 email+密碼欄；用完記得改回 false
+var LOGIN_FORM_ENABLED=false;
+// 進站最前面先判斷（還沒畫任何畫面）：網址沒帶首頁憑證、這台電腦也沒有 12 小時內確認過的登入 → 直接回首頁確認，
+// 不先閃一下確認畫面。2026-10-19 Michelle 反映「確認權限的畫面閃兩次」：直接開網址時，原本會先顯示一次、跳回首頁、
+// 再帶憑證回來又顯示一次。判斷規則與下方 isFreshTlSso() 相同（12 小時），讀不到就交給下方 window.onload 照原流程處理。
+(function(){
+  try{
+    if(LOGIN_FORM_ENABLED) return;
+    if(/tl_sso=|type=recovery/.test(location.hash)) return;
+    var raw=localStorage.getItem('sb-bvuygyajzupeqpqfwmgi-auth-token');
+    var u=raw&&JSON.parse(raw).user;var m=u&&u.app_metadata;
+    if(m&&m.tl_wechat_role&&m.tl_sso_at&&(Date.now()-m.tl_sso_at)<12*3600*1000) return;
+    document.documentElement.style.visibility='hidden';
+    location.replace('https://tl-home.com/?goto=wechat');
+  }catch(e){}
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="/ai-mascot.js"></script>
@@ -357,7 +377,9 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
 <!-- ══ 開啟時的轉圈畫面：自動登入（向人資系統確認權限）期間顯示，避免先閃出登入框讓人以為要打帳密 ══ -->
 <div id="boot-screen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:14px;">
   <span class="spinner" style="width:28px;height:28px;border-width:3px;"></span>
-  <div id="boot-msg" style="font-size:14px;color:var(--text-m);">正在登入營業商務系統...</div>
+  <div id="boot-msg" style="font-size:14px;color:var(--text-m);">正在確認您的權限…</div>
+  <!-- 正常幾秒內就會進去，所以先藏起來；8 秒還沒進去才出現，避免讓人以為要按 -->
+  <button id="boot-home-btn" class="btn-ghost" style="display:none;" onclick="goToTlHomeForLogin()">回公司首頁</button>
 </div>
 
 <!-- ══ LOGIN ══ -->
@@ -367,15 +389,15 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
       <div style="background:var(--accent-bg);border-radius:12px;padding:12px;display:inline-block;margin-bottom:12px;">
         <i class="fa-brands fa-weixin" style="color:var(--accent);font-size:28px;"></i>
       </div>
-      <div style="font-size:20px;font-weight:700;color:var(--text-h);">訊息管理系統</div>
+      <div style="font-size:20px;font-weight:700;color:var(--text-h);">營業商務訊息</div>
       <div style="font-size:12px;color:var(--text-s);margin-top:4px;">請登入以繼續</div>
     </div>
     <!-- 公司首頁免密碼登入（2026-10-12 起的正式登入方式）：權限一律依人資系統，詳見 api/tl-sso.js -->
     <div id="sso-login-area">
       <div id="sso-login-status" style="font-size:14px;color:var(--text-m);text-align:center;margin-bottom:16px;line-height:1.7;">
-        <span class="spinner" style="margin-right:6px;"></span>正在前往公司首頁確認登入身分...
+        <span class="spinner" style="margin-right:6px;"></span>正在確認您的權限…
       </div>
-      <a href="https://tl-home.com/?goto=wechat" class="btn-primary" style="width:100%;justify-content:center;text-decoration:none;">
+      <a href="javascript:void(0)" onclick="goToTlHomeForLogin()" class="btn-primary" style="width:100%;justify-content:center;text-decoration:none;">
         <i class="fa-solid fa-house"></i> 用公司首頁帳號登入
       </a>
       <div style="font-size:12px;color:var(--text-s);text-align:center;margin-top:10px;">權限由人資系統開通，不需要另外的帳號密碼</div>
@@ -498,7 +520,7 @@ input[type=password]::-webkit-credentials-auto-fill-button { display:none !impor
         <i class="fa-brands fa-weixin" style="color:var(--accent);font-size:17px;"></i>
       </div>
       <div style="min-width:0;">
-        <div style="font-size:15px;font-weight:700;color:var(--text-h);white-space:nowrap;">訊息管理系統</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text-h);white-space:nowrap;">營業商務訊息</div>
         <div style="font-size:11px;color:var(--text-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="nav-user-info">載入中...</div>
       </div>
     </div>
@@ -1953,8 +1975,13 @@ async function doLogout(){
   document.getElementById('boot-msg').textContent='已登出，正在回到公司首頁...';
   // 登出後直接回公司首頁（不帶 ?goto=wechat，所以不會被自動登入回來）；緊急密碼登入模式則留在登入畫面
   if(LOGIN_FORM_ENABLED) showPasswordLogin();
-  else window.location.href='https://tl-home.com/';
+  else window.location.replace('https://tl-home.com/');
 }
+// 8 秒還沒進到系統畫面，才在轉圈畫面顯示「回公司首頁」按鈕
+setTimeout(function(){
+  var app=document.getElementById('app'),boot=document.getElementById('boot-screen'),btn=document.getElementById('boot-home-btn');
+  if(app&&app.style.display!=='block'&&boot&&boot.style.display!=='none'&&btn) btn.style.display='';
+},8000);
 // 頁面載入時檢查登入狀態
 window.onload=async function(){
   var today=new Date().toISOString().split('T')[0];
@@ -1984,18 +2011,15 @@ window.onload=async function(){
   if(session) await sb.auth.signOut();
   goToTlHomeForLogin();
 };
-// email+密碼登入開關（暫停中）：平常一律透過公司首頁＋人資權限登入。
-// 2026-10-17 拿掉「網址加 ?pwlogin=1」的入口（漏洞 A：它不檢查人資權限，TL_projects 裡其他系統的帳號也能用舊密碼登入）。
-// 緊急時（首頁或人資系統壞掉）：把下面改成 true 再 push 上線，登入畫面就會出現 email+密碼欄；用完記得改回 false
-var LOGIN_FORM_ENABLED=false;
+// LOGIN_FORM_ENABLED（帳密登入開關）宣告在 <head> 最前面的判斷程式裡，要緊急開啟請改那裡
 var TL_SSO_MAX_AGE_MS=12*60*60*1000; // 每 12 小時重新跟人資系統確認一次權限（首頁有登入的話是自動的，使用者感覺不到）
 function isFreshTlSso(user){
   var m=user&&user.app_metadata;
   return !!(m&&m.tl_wechat_role&&m.tl_sso_at&&(Date.now()-m.tl_sso_at)<TL_SSO_MAX_AGE_MS);
 }
 function goToTlHomeForLogin(){
-  document.getElementById('boot-msg').textContent='正在前往公司首頁確認登入身分...';
-  window.location.href='https://tl-home.com/?goto=wechat';
+  // 用 replace：按「上一頁」不會回到這個中途畫面
+  window.location.replace('https://tl-home.com/?goto=wechat');
 }
 function showPasswordLogin(){
   showLoginScreen();

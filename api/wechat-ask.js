@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { matchQ } = require('./_t2s'); // 跟網頁搜尋框同一套比對（繁簡互通、不分大小寫的包含比對）
 
 const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 // 這把是前端本來就在用的 anon key（公開金鑰，不是機密，RLS會保護資料，這裡沿用同一把）
@@ -177,90 +178,101 @@ module.exports = async function handler(req, res) {
     const matchedModels = matchStrict(modelSet);
     const matchedSales = matchFuzzy(salesSet);
 
-    if (
-      !matchedCustomers.length &&
-      !matchedModels.length &&
-      !matchedSales.length
-    ) {
+    // ══ 「先用檢索」鐵則（2026-10-24 Michelle：「用檢索用檢索」）══════════════════════════
+    // 網頁搜尋框查得到的，AI 一定要查得到。做法：
+    //  ① 欄位查詢：問題裡比對到的「資料庫裡真的存在的」客戶/機型/業務名稱，各自用跟網頁同一套查詢查（客戶↔客戶框、機型↔機型框、業務↔業務框）
+    //  ② 全文查詢（＝網頁「全文關鍵字」搜尋框同款）：從問題拆出搜尋詞，不猜它屬於哪個欄位，直接用全文查。
+    //     什麼時候跑：①查到 0 筆、或①根本沒比對到名稱、或問題裡有英數代碼（例 TM、RU6H）沒被①的機型名稱涵蓋時。
+    //  ③ ①②都 0 筆，才回「查無資料」。同一個詞不會同時塞進兩個欄位做 AND（每路分開查、結果用「或」合併）。
+    // 搜尋詞拆法：英數代碼（TM、RU6HM-125…）原樣保留；中文以標點、連接詞切開，再去掉問句常用詞（最近、需求、多少…）。
+    const QUESTION_FILLERS = ['請問', '幫我', '查一下', '查詢', '列出', '告訴我', '最近', '目前', '現在', '之前', '以前', '今年', '去年', '本月', '上個月',
+      '的', '是', '有', '嗎', '呢', '吧', '了', '多少', '幾台', '幾個', '什麼', '哪些', '哪個', '哪裡', '如何', '怎麼', '狀況', '情況', '資訊', '資料',
+      '需求', '進度', '紀錄', '記錄', '訊息', '機型', '客戶', '業務', '台數', '數量', '交期', '報價', '一下', '所有', '全部', '相關', '關於', '有關',
+      '誰', '提到', '提過', '問題', '我們', '你們', '我司', '比較', '拜訪', '一些', '怎樣', '為何', '為什麼'];
+    function extractSearchTerms(q) {
+      const terms = new Set();
+      (q.match(/[A-Za-z][A-Za-z0-9\-]*/g) || []).forEach((t) => { if (t.length >= 2) terms.add(t.toUpperCase()); });
+      q.replace(/[A-Za-z0-9\-]+/g, ' ')
+        .split(/[\s,，。、？?！!：:；;（）()「」『』"'\/和跟與及或]+/)
+        .forEach((seg) => {
+          let s = seg;
+          QUESTION_FILLERS.forEach((w) => { s = s.split(w).join(' '); });
+          s.split(/\s+/).forEach((piece) => { if (piece.length >= 2 && !FUZZY_STOPWORDS.has(piece)) terms.add(piece); });
+        });
+      return [...terms];
+    }
+    const searchTerms = extractSearchTerms(question);
+    const codeTerms = searchTerms.filter((t) => /^[A-Z]/.test(t));
+    const codesNotCoveredByModels = codeTerms.filter((t) => !matchedModels.some((m) => m.toUpperCase().includes(t)));
+
+    if (!matchedCustomers.length && !matchedModels.length && !matchedSales.length && !searchTerms.length) {
       const answer =
-        '在你看得到的資料範圍內，沒有找到符合的客戶名稱／機型／業務姓名關鍵字，麻煩換個問法（例如加上完整客戶名稱或機型代碼）再試一次。';
+        '查無資料：問題裡沒有可以拿來搜尋的客戶名稱／機型／業務姓名或關鍵字，麻煩加上客戶名稱、機型代碼或關鍵字再問一次。';
       await logAttempt(answer, 0, 0);
       res.status(200).json({ answer, matched_records_count: 0 });
       return;
     }
 
-    // ── 第二段：依比對到的關鍵字查三張表（RLS自動限縮，不用另外寫權限判斷）──
-    // 客戶／機型／業務三個線索之間改成「符合任一個就算」（OR），不是「全部都要符合」（AND）。
-    // 原本用AND的問題：機型欄位常常是一整段自由文字（例如「鑽孔機:成型機:RU6HM-125*82台...」），
-    // 不是乾淨的機型代碼，同時問「客戶+機型」時，客戶明明對得上，卻因為機型欄位比對不到精確字串
-    // 而被AND邏輯整筆排除，明明是最相關的資料卻查不到。
-    // 改成分開查三次（每個線索各自用.in()安全比對，不用字串拼接.or()以免客戶名稱裡的括號/逗號等
-    // 特殊字元弄壞查詢語法），再合併去重，只要任一線索命中就收進來。
-    async function fetchByAnyDimension(table, selectCols, customerCol, modelCol, salesCol, orderCol) {
-      const queries = [];
-      if (matchedCustomers.length) {
-        queries.push(
-          userClient.from(table).select(selectCols).in(customerCol, matchedCustomers)
-            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
-        );
-      }
-      if (matchedModels.length && modelCol) {
-        queries.push(
-          userClient.from(table).select(selectCols).in(modelCol, matchedModels)
-            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
-        );
-      }
-      if (matchedSales.length && salesCol) {
-        queries.push(
-          userClient.from(table).select(selectCols).in(salesCol, matchedSales)
-            .order(orderCol, { ascending: false }).limit(MAX_RECORDS_PER_TABLE)
-        );
-      }
-      const results = await Promise.all(queries);
-      const merged = [];
-      const seen = new Set();
-      results.forEach((r) => {
-        (r.data || []).forEach((row) => {
-          const key = JSON.stringify(row);
-          if (!seen.has(key)) {
-            seen.add(key);
-            merged.push(row);
-          }
-        });
-      });
-      // 合併多路查詢後，依日期重新排序、收斂到同樣的上限，避免筆數暴增
-      merged.sort((a, b) => (a[orderCol] < b[orderCol] ? 1 : -1));
-      return merged.slice(0, MAX_RECORDS_PER_TABLE);
-    }
-
     // 微信訊息、拜訪紀錄：跟網頁「客戶商務」頁籤呼叫同一支後台函式 wechat_customer_feed（2026-10-16），
     // 比對規則（各條件比對哪些欄位、繁簡互通、包含比對、排序）三處一致：網頁 / SQL 函式 / AI 問答。
-    // 客戶／機型／業務三個線索一樣「符合任一個就算」：各呼叫一次函式（同一線索給多個值＝符合任一個），再合併去重。
-    // ⚠ 要改篩選規則時，同步改 sql/2026-10-16_wechat_customer_feed.sql 與 index.html 的 renderUnified
-    async function fetchFeedByAnyDimension(kind) {
-      const base = { p_kind: kind, p_offset: 0, p_limit: MAX_RECORDS_PER_TABLE, p_include_src: true };
-      const calls = [];
-      if (matchedCustomers.length) calls.push(userClient.rpc('wechat_customer_feed', { ...base, p_company: matchedCustomers }));
-      if (matchedModels.length) calls.push(userClient.rpc('wechat_customer_feed', { ...base, p_model: matchedModels }));
-      if (matchedSales.length) calls.push(userClient.rpc('wechat_customer_feed', { ...base, p_person: matchedSales }));
-      const results = await Promise.all(calls);
+    // ⚠ 要改篩選規則時，同步改 sql/2026-10-16d_wechat_customer_feed_fast.sql 與 index.html 的 renderUnified
+    async function feedCall(kind, params) {
+      const r = await userClient.rpc('wechat_customer_feed', { p_kind: kind, p_offset: 0, p_limit: MAX_RECORDS_PER_TABLE, p_include_src: true, ...params });
+      return (r.data && r.data.rows) || [];
+    }
+    function mergeFeedRows(lists) {
       const byId = new Map();
-      results.forEach((r) => {
-        ((r.data && r.data.rows) || []).forEach((row) => { if (!byId.has(row.id)) byId.set(row.id, row); });
-      });
+      lists.forEach((rows) => rows.forEach((row) => { if (!byId.has(row.id)) byId.set(row.id, row); }));
       return [...byId.values()]
         .sort((a, b) => (a.date_key < b.date_key ? 1 : a.date_key > b.date_key ? -1 : 0))
-        .slice(0, MAX_RECORDS_PER_TABLE)
-        .map((row) => row.src || {});
+        .slice(0, MAX_RECORDS_PER_TABLE);
+    }
+    async function fetchFeedByAnyDimension(kind) {
+      const fieldCalls = [];
+      if (matchedCustomers.length) fieldCalls.push(feedCall(kind, { p_company: matchedCustomers }));
+      if (matchedModels.length) fieldCalls.push(feedCall(kind, { p_model: matchedModels }));
+      if (matchedSales.length) fieldCalls.push(feedCall(kind, { p_person: matchedSales }));
+      const fieldLists = await Promise.all(fieldCalls);
+      const fieldTotal = fieldLists.reduce((a, l) => a + l.length, 0);
+      const lists = [...fieldLists];
+      if (fieldTotal === 0 && searchTerms.length) {
+        lists.push(await feedCall(kind, { p_keyword: searchTerms }));               // ② 全文（搜尋框同款）
+      } else if (codesNotCoveredByModels.length) {
+        lists.push(await feedCall(kind, { p_keyword: codesNotCoveredByModels }));   // ② 沒被機型名稱涵蓋的英數代碼（例 TM）也用全文查
+      }
+      return mergeFeedRows(lists).map((row) => row.src || {});
+    }
+
+    // CRM 需求：跟網頁「CRM需求統計」頁籤的客戶／機型／業務三個框同一套比對（包含比對、繁簡互通，matchQ），
+    // 以前 AI 用「完全相同」比對，網頁打一部分就查得到的，AI 反而查不到（2026-10-24 修正）。
+    // CRM 每次匯入整批取代，只有一份約幾百筆，在伺服器端讀進來比對即可（不會送到手機）。
+    async function fetchCrm() {
+      const all = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await userClient.from('crm_records')
+          .select('import_date,customer,model,qty,delivery,status_w1,status_w2,sales,end_product,created_at')
+          .order('created_at', { ascending: false }).range(from, from + 999);
+        if (error || !data || !data.length) break;
+        all.push(...data);
+        if (data.length < 1000) break;
+      }
+      const anyMatch = (hay, qs) => qs.some((q) => matchQ(hay, q));
+      let rows = all.filter((r) =>
+        (matchedCustomers.length && anyMatch(r.customer, matchedCustomers)) ||
+        (matchedModels.length && anyMatch(r.model, matchedModels)) ||
+        (matchedSales.length && anyMatch(r.sales, matchedSales)));
+      const extra = rows.length === 0 ? searchTerms : codesNotCoveredByModels;
+      if (extra.length) {
+        // ② 網頁 CRM 頁籤沒有全文框，所以搜尋詞依序套用到客戶／機型／業務三個框（任一框符合就算）＋終端產品
+        const more = all.filter((r) => [r.customer, r.model, r.sales, r.end_product].some((f) => anyMatch(f, extra)));
+        rows = [...new Set([...rows, ...more])];
+      }
+      return rows.slice(0, MAX_RECORDS_PER_TABLE);
     }
 
     const [wmData, crData, vrData] = await Promise.all([
       fetchFeedByAnyDimension('wechat'),
-      fetchByAnyDimension(
-        'crm_records',
-        'import_date,customer,model,qty,delivery,status_w1,status_w2,sales,end_product',
-        'customer', 'model', 'sales', 'import_date'
-      ),
+      fetchCrm(),
       fetchFeedByAnyDimension('visit'),
     ]);
 

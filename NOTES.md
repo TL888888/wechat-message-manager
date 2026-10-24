@@ -176,3 +176,9 @@ alter table crm_records add column if not exists end_product text;
   CRM 用「完全相同」比對(網頁打一部分查得到、AI 查不到)。
 - 搜尋詞拆法:英數代碼原樣保留;中文用標點與連接詞(和、跟、與、及、或)切開,再去掉問句常用詞(QUESTION_FILLERS 清單,可再補)。
 - ⚠ api/_t2s.js 是 index.html 繁簡對照與 matchQ 的複製品,index.html 那邊改了要一起更新。
+- **答案正確為主修正(2026-10-24,小科組長要求)**:
+  - 英數代碼(TM、DG6Z、RU6H…)先查「機型」欄位(＝網頁機型框);機型欄位 0 筆才補全文查。
+  - 代碼前面不能緊接英文字母;純英文字母代碼(例 TM)後面也不能緊接英文字母 → 擋掉 FTM、TTM(公司名)、SmartMapping、JTMD、TTTMESSAGE。
+    含數字的代碼(DG6Z、RU6H)後面可以接字母,才能用系列代碼找到 DG6ZM、RU6HM。
+  - 實測(2026-10-24 正式資料):全文查 TM 858 筆,其中 851 筆真的在講 TM 機台,7 筆是上述英文字誤抓;機型欄查 TM 127 筆,全部正確。
+  - 網頁的全文框/機型框本身目前仍會包含這 7 筆誤抓(網頁比對規則在 SQL 函式 wechat_q_pattern),要一起改準需要改 SQL(見 TODO)。

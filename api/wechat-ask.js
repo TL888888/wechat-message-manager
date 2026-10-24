@@ -216,8 +216,8 @@ module.exports = async function handler(req, res) {
     // 微信訊息、拜訪紀錄：跟網頁「客戶商務」頁籤呼叫同一支後台函式 wechat_customer_feed（2026-10-16），
     // 比對規則（各條件比對哪些欄位、繁簡互通、包含比對、排序）三處一致：網頁 / SQL 函式 / AI 問答。
     // ⚠ 要改篩選規則時，同步改 sql/2026-10-16d_wechat_customer_feed_fast.sql 與 index.html 的 renderUnified
-    async function feedCall(kind, params) {
-      const r = await userClient.rpc('wechat_customer_feed', { p_kind: kind, p_offset: 0, p_limit: MAX_RECORDS_PER_TABLE, p_include_src: true, ...params });
+    async function feedCall(kind, params, limit) {
+      const r = await userClient.rpc('wechat_customer_feed', { p_kind: kind, p_offset: 0, p_limit: limit || MAX_RECORDS_PER_TABLE, p_include_src: true, ...params });
       return (r.data && r.data.rows) || [];
     }
     function mergeFeedRows(lists) {
@@ -227,6 +227,25 @@ module.exports = async function handler(req, res) {
         .sort((a, b) => (a.date_key < b.date_key ? 1 : a.date_key > b.date_key ? -1 : 0))
         .slice(0, MAX_RECORDS_PER_TABLE);
     }
+    // 「答案正確為主」（2026-10-24）：英數代碼（TM、DG6Z…）前後不能緊接英文字母，避免 FTM、TTM（公司名）、SmartMapping 這類誤抓。
+    // 2026-10-24 實測：全文查 TM 共 858 筆，其中 7 筆是這種誤抓，其餘都是真的在講 TM 機台。
+    const escRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // 規則：代碼前面不能緊接英文字母（擋 FTM、TTM、SmartMapping、JTMD）；純英文字母的代碼（例 TM）後面也不能緊接英文字母（擋 TMD、TMS）。
+    // 含數字的代碼（例 DG6Z、RU6H）後面可以接字母，才能用系列代碼找到 DG6ZM、RU6HM（Michelle 判斷高階就是看 DG＋數字＋Z、RU＋數字＋H）。
+    const codeHit = (text, codes) => codes.some((c) => new RegExp('(^|[^A-Za-z])' + escRe(c) + (/[0-9]/.test(c) ? '' : '(?![A-Za-z])'), 'i').test(String(text || '')));
+    const feedHay = (row, stage) => {
+      const s = row.src || {};
+      if (stage === 'model') return row.kind === 'wechat' ? [s.model, s.raw].join(' ') : String(s.model || '');
+      return (row.kind === 'wechat'
+        ? [s.company, s.contact, s.model, s.price, s.delivery, s.status, s.note, s.raw]
+        : [s.customer, s.sales, s.model, s.customer_info, s.competitor, s.market_info, s.other, s.work, s.work_purpose, s.next_action]).join(' ');
+    };
+    // 英數代碼：先查「機型」欄位（＝網頁機型框）；機型欄位 0 筆才補全文查（＝網頁全文框）。兩段都排除緊接英文字母的誤抓
+    async function codeSearch(kind, codes) {
+      const byModel = (await feedCall(kind, { p_model: codes }, 200)).filter((r) => codeHit(feedHay(r, 'model'), codes));
+      if (byModel.length) return byModel;
+      return (await feedCall(kind, { p_keyword: codes }, 200)).filter((r) => codeHit(feedHay(r, 'all'), codes));
+    }
     async function fetchFeedByAnyDimension(kind) {
       const fieldCalls = [];
       if (matchedCustomers.length) fieldCalls.push(feedCall(kind, { p_company: matchedCustomers }));
@@ -235,10 +254,12 @@ module.exports = async function handler(req, res) {
       const fieldLists = await Promise.all(fieldCalls);
       const fieldTotal = fieldLists.reduce((a, l) => a + l.length, 0);
       const lists = [...fieldLists];
-      if (fieldTotal === 0 && searchTerms.length) {
-        lists.push(await feedCall(kind, { p_keyword: searchTerms }));               // ② 全文（搜尋框同款）
+      if (fieldTotal === 0) {
+        const words = searchTerms.filter((t) => !codeTerms.includes(t));
+        if (words.length) lists.push(await feedCall(kind, { p_keyword: words }));   // ② 中文搜尋詞：全文（搜尋框同款）
+        if (codeTerms.length) lists.push(await codeSearch(kind, codeTerms));        // ② 英數代碼：機型欄優先，再全文
       } else if (codesNotCoveredByModels.length) {
-        lists.push(await feedCall(kind, { p_keyword: codesNotCoveredByModels }));   // ② 沒被機型名稱涵蓋的英數代碼（例 TM）也用全文查
+        lists.push(await codeSearch(kind, codesNotCoveredByModels));               // 沒被①機型名稱涵蓋的英數代碼（例 TM）
       }
       return mergeFeedRows(lists).map((row) => row.src || {});
     }
@@ -257,6 +278,8 @@ module.exports = async function handler(req, res) {
         if (data.length < 1000) break;
       }
       const anyMatch = (hay, qs) => qs.some((q) => matchQ(hay, q));
+      // 英數代碼一樣不可緊接英文字母（避免 FTM、TTM 誤抓）；中文詞用網頁同款 matchQ
+      const termMatch = (hay, qs) => qs.some((q) => (/^[A-Z]/.test(q) ? codeHit(hay, [q]) : matchQ(hay, q)));
       let rows = all.filter((r) =>
         (matchedCustomers.length && anyMatch(r.customer, matchedCustomers)) ||
         (matchedModels.length && anyMatch(r.model, matchedModels)) ||
@@ -264,7 +287,7 @@ module.exports = async function handler(req, res) {
       const extra = rows.length === 0 ? searchTerms : codesNotCoveredByModels;
       if (extra.length) {
         // ② 網頁 CRM 頁籤沒有全文框，所以搜尋詞依序套用到客戶／機型／業務三個框（任一框符合就算）＋終端產品
-        const more = all.filter((r) => [r.customer, r.model, r.sales, r.end_product].some((f) => anyMatch(f, extra)));
+        const more = all.filter((r) => [r.customer, r.model, r.sales, r.end_product].some((f) => termMatch(f, extra)));
         rows = [...new Set([...rows, ...more])];
       }
       return rows.slice(0, MAX_RECORDS_PER_TABLE);

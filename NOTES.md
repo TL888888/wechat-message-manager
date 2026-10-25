@@ -176,9 +176,12 @@ alter table crm_records add column if not exists end_product text;
   CRM 用「完全相同」比對(網頁打一部分查得到、AI 查不到)。
 - 搜尋詞拆法:英數代碼原樣保留;中文用標點與連接詞(和、跟、與、及、或)切開,再去掉問句常用詞(QUESTION_FILLERS 清單,可再補)。
 - ⚠ api/_t2s.js 是 index.html 繁簡對照與 matchQ 的複製品,index.html 那邊改了要一起更新。
-- **答案正確為主修正(2026-10-24,小科組長要求)**:
-  - 英數代碼(TM、DG6Z、RU6H…)先查「機型」欄位(＝網頁機型框);機型欄位 0 筆才補全文查。
-  - 代碼前面不能緊接英文字母;純英文字母代碼(例 TM)後面也不能緊接英文字母 → 擋掉 FTM、TTM(公司名)、SmartMapping、JTMD、TTTMESSAGE。
-    含數字的代碼(DG6Z、RU6H)後面可以接字母,才能用系列代碼找到 DG6ZM、RU6HM。
-  - 實測(2026-10-24 正式資料):全文查 TM 858 筆,其中 851 筆真的在講 TM 機台,7 筆是上述英文字誤抓;機型欄查 TM 127 筆,全部正確。
-  - 網頁的全文框/機型框本身目前仍會包含這 7 筆誤抓(網頁比對規則在 SQL 函式 wechat_q_pattern),要一起改準需要改 SQL(見 TODO)。
+- **答案正確為主修正(2026-10-24 初版 → 2026-10-25 定案,小科組長要求)**:
+  - 英數代碼(TM、DG6Z、RU6H…)「機型欄＋全文」兩路都查、用「或」合併去重(只查機型欄會漏掉約 730 筆拜訪內文真的在講 TM 機台的紀錄)。
+  - 防誤抓規則(網頁 SQL wechat_q_pattern 的 p_code 與 api/wechat-ask.js 的 codeRe「完全相同」,只用在機型框、全文框;客戶框/業務框不套):
+    - 只看純英數(可含 -)的搜尋字;含數字(TM4、DG6Z、RU6H):前面不能緊接英文字母,後面可接字母(系列代碼找得到 DG6ZM、RU6HM);
+    - 純字母且 3 碼以內(TM、GEP):前後都不能緊接英文字母 → 擋掉 FTM、TTM(公司名)、SmartMapping、JTMD、TTTMESSAGE;
+    - 純字母 4 碼以上(SAMSUNG、INVESTMENT…):一般包含比對。
+  - 實測(2026-10-24 正式資料):全文 TM 858 筆,851 筆真的在講 TM 機台、7 筆英文字誤抓;機型欄 TM 127 筆全部正確。
+  - SQL:sql/2026-10-25a_wechat_feed_code_boundary.sql(取代 16d;含 TL_projects 專案檢查),只讀驗收 sql/2026-10-25b_readonly_verify_code_boundary.sql
+    (預期:全文TM約 851、仍有誤抓 0、機型框TM約 127、DG6Z>0)。2026-10-25 本機 31 組條件比對全部一致。

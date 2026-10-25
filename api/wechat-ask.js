@@ -230,9 +230,18 @@ module.exports = async function handler(req, res) {
     // 「答案正確為主」（2026-10-24）：英數代碼（TM、DG6Z…）前後不能緊接英文字母，避免 FTM、TTM（公司名）、SmartMapping 這類誤抓。
     // 2026-10-24 實測：全文查 TM 共 858 筆，其中 7 筆是這種誤抓，其餘都是真的在講 TM 機台。
     const escRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // 規則：代碼前面不能緊接英文字母（擋 FTM、TTM、SmartMapping、JTMD）；純英文字母的代碼（例 TM）後面也不能緊接英文字母（擋 TMD、TMS）。
-    // 含數字的代碼（例 DG6Z、RU6H）後面可以接字母，才能用系列代碼找到 DG6ZM、RU6HM（Michelle 判斷高階就是看 DG＋數字＋Z、RU＋數字＋H）。
-    const codeHit = (text, codes) => codes.some((c) => new RegExp('(^|[^A-Za-z])' + escRe(c) + (/[0-9]/.test(c) ? '' : '(?![A-Za-z])'), 'i').test(String(text || '')));
+    // 防誤抓規則（跟 SQL 函式 wechat_q_pattern 的 p_code 規則「完全相同」，網頁機型框/全文框與 AI 一致；2026-10-25）：
+    //  - 只看「純英數（可含 -）」的搜尋字；含中文的詞照一般包含比對
+    //  - 含數字（TM4、DG6Z、RU6H）：前面不能緊接英文字母（擋 XRU6H）；後面可以接字母，系列代碼才找得到 DG6ZM、RU6HM
+    //  - 純字母且 3 碼以內（TM、GEP）：前後都不能緊接英文字母（擋 FTM、TTM、SmartMapping、JTMD、TTTMESSAGE）
+    //  - 純字母 4 碼以上（SAMSUNG…）：一般包含比對
+    const codeRe = (c) => {
+      if (!/^[A-Za-z0-9-]+$/.test(c)) return null;
+      if (/[0-9]/.test(c)) return new RegExp('(^|[^A-Za-z])' + escRe(c), 'i');
+      if (c.length <= 3) return new RegExp('(^|[^A-Za-z])' + escRe(c) + '(?![A-Za-z])', 'i');
+      return new RegExp(escRe(c), 'i');
+    };
+    const codeHit = (text, codes) => codes.some((c) => { const re = codeRe(c); return re ? re.test(String(text || '')) : matchQ(text, c); });
     const feedHay = (row, stage) => {
       const s = row.src || {};
       if (stage === 'model') return row.kind === 'wechat' ? [s.model, s.raw].join(' ') : String(s.model || '');
@@ -240,11 +249,14 @@ module.exports = async function handler(req, res) {
         ? [s.company, s.contact, s.model, s.price, s.delivery, s.status, s.note, s.raw]
         : [s.customer, s.sales, s.model, s.customer_info, s.competitor, s.market_info, s.other, s.work, s.work_purpose, s.next_action]).join(' ');
     };
-    // 英數代碼：先查「機型」欄位（＝網頁機型框）；機型欄位 0 筆才補全文查（＝網頁全文框）。兩段都排除緊接英文字母的誤抓
+    // 英數代碼：「機型」欄位（＝網頁機型框）＋全文（＝網頁全文框）兩路都查，用「或」合併去重（2026-10-25 小科組長：
+    // 只查機型欄會漏掉約 730 筆拜訪紀錄內文真的在講 TM 機台的紀錄，比誤抓 7 筆更嚴重）。兩路都套上方防誤抓規則。
     async function codeSearch(kind, codes) {
-      const byModel = (await feedCall(kind, { p_model: codes }, 200)).filter((r) => codeHit(feedHay(r, 'model'), codes));
-      if (byModel.length) return byModel;
-      return (await feedCall(kind, { p_keyword: codes }, 200)).filter((r) => codeHit(feedHay(r, 'all'), codes));
+      const [byModel, byText] = await Promise.all([
+        feedCall(kind, { p_model: codes }, 200),
+        feedCall(kind, { p_keyword: codes }, 200),
+      ]);
+      return [...byModel.filter((r) => codeHit(feedHay(r, 'model'), codes)), ...byText.filter((r) => codeHit(feedHay(r, 'all'), codes))];
     }
     async function fetchFeedByAnyDimension(kind) {
       const fieldCalls = [];

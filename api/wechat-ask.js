@@ -327,18 +327,21 @@ module.exports = async function handler(req, res) {
     const recordItems = [];
     (wmData || []).forEach((r) =>
       recordItems.push({
+        type: '商務訊息', sales: r.sales, customer: r.company,
         date: dateKey(r.date),
         text: `[商務訊息] 日期:${r.date} 客戶:${r.company} 機型:${r.model} 數量:${r.qty} 報價:${r.price} 交期:${r.delivery} 狀態:${r.status} 業務:${r.sales} 內容:${r.raw || ''} 備註:${r.note || ''} 其他:${r.other || ''}`,
       })
     );
     (crData || []).forEach((r) =>
       recordItems.push({
+        type: 'CRM需求', sales: r.sales, customer: r.customer,
         date: dateKey(r.import_date),
         text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} 上週狀態:${r.status_w1 || ''} 本週狀態:${r.status_w2 || ''} 業務:${r.sales} 終端產品(客戶的板子用在哪些終端應用):${r.end_product || '未填'}`,
       })
     );
     (vrData || []).forEach((r) =>
       recordItems.push({
+        type: '拜訪紀錄', sales: r.sales, customer: r.customer,
         date: dateKey(r.report_date),
         text: `[拜訪紀錄] 日期:${r.report_date} 客戶:${r.customer} 機型:${r.model} 客戶資訊:${r.customer_info || ''} 市場訊息:${r.market_info || ''} 其他:${r.other || ''} 業務:${r.sales}`,
       })
@@ -354,14 +357,28 @@ module.exports = async function handler(req, res) {
     }
 
     // 依「最新的優先」用字數預算收斂到安全範圍內，避免單次請求過大
-    const limitedRecords = [];
+    const limitedItems = [];
     let charBudget = MAX_PROMPT_CHARS;
-    for (const rec of records) {
-      if (charBudget - rec.length <= 0) break;
-      limitedRecords.push(rec);
-      charBudget -= rec.length;
+    for (const it of recordItems) {
+      if (charBudget - it.text.length <= 0) break;
+      limitedItems.push(it);
+      charBudget -= it.text.length;
     }
+    const limitedRecords = limitedItems.map((it) => it.text);
     const omittedCount = records.length - limitedRecords.length;
+
+    // 【數字正確】2026-10-25 小科組長：AI 曾寫「以上六位」實際只列 5 位 → 人數、筆數一律由程式算好，AI 照抄、不可自己數
+    const countBy = (key) => {
+      const m = new Map();
+      limitedItems.forEach((it) => { const v = String(it[key] || '').trim(); if (v) m.set(v, (m.get(v) || 0) + 1); });
+      return [...m.entries()];
+    };
+    const byType = countBy('type'), bySales = countBy('sales'), byCustomer = countBy('customer');
+    const programStats = '【程式統計（以下數字由系統計算，回答提到人數、筆數時只能照抄這裡，不可以自己數或估算）】\n'
+      + `提供給你的紀錄共 ${limitedItems.length} 筆（${byType.map(([k, n]) => k + ' ' + n + ' 筆').join('、')}）`
+      + (omittedCount > 0 ? `；另有 ${omittedCount} 筆較舊紀錄未列出` : '') + '\n'
+      + `紀錄中出現的業務共 ${bySales.length} 位：${bySales.map(([k, n]) => k + '（' + n + ' 筆）').join('、') || '無'}\n`
+      + `紀錄中出現的客戶共 ${byCustomer.length} 家：${byCustomer.map(([k, n]) => k + '（' + n + ' 筆）').join('、') || '無'}`;
 
     // ── 呼叫 AI，讓它只根據撈到的紀錄回答，不臆測 ──
     let aiRes, aiData;
@@ -384,11 +401,14 @@ module.exports = async function handler(req, res) {
                 + '資料紀錄裡沒有出現的客戶、機型、日期、數量、金額、狀態、終端產品，一律回答「查無資料」，或請使用者補充條件（例如完整客戶名稱、機型代碼），'
                 + '不可以推測、不可以補完、不可以用常識或一般產業知識填。問題問了好幾個對象、只有部分查得到時，查得到的照資料回答，其餘明確寫「查無資料」。'
                 + '如果資料最後註明有省略的紀錄，要提醒使用者還有較舊的資料沒列出，不可以說「沒有」。'
+                // 【數字正確】2026-10-25：人數、筆數、台數只能照程式統計或資料原文，不可自己估算
+                + '【數字規則】人數、家數、筆數、台數只能照抄「程式統計」或資料紀錄原文的數字，不可以自己數、估算或加總；'
+                + '列出名單時，若要寫「共幾位／幾家」，數字必須等於你實際列出的項目數，不確定就不要寫總數；需要台數總和而資料沒有現成總數時，逐筆列出、不要自己加總。'
                 + '一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。[CRM需求]紀錄裡的「終端產品」是業務填寫的「客戶的PCB板用在哪些終端應用」（例如AI伺服器、車載、光模組），被問到客戶的終端應用或用途時以這個欄位為準。',
             },
             {
               role: 'user',
-              content: `問題：${question}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
+              content: `問題：${question}\n\n${programStats}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
             },
           ],
           temperature: 0.2,

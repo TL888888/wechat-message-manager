@@ -389,7 +389,7 @@ module.exports = async function handler(req, res) {
       if (!hits.length) return '';
       const uniq = (key) => [...new Set(hits.map((it) => String(it[key] || '').trim()).filter(Boolean))];
       const salesList = uniq('sales'), custList = uniq('customer');
-      return `\n系統找到內容含「${term}」的紀錄共 ${hits.length} 筆（含因篇幅沒有列給你看的較舊紀錄）；業務共 ${salesList.length} 位：${salesList.join('、') || '無'}；客戶共 ${custList.length} 家：${custList.join('、') || '無'}`;
+      return `\n【答案名單】系統找到內容含「${term}」的紀錄共 ${hits.length} 筆（含因篇幅沒有列給你看的較舊紀錄）；業務共 ${salesList.length} 位：${salesList.join('、') || '無'}；客戶共 ${custList.length} 家：${custList.join('、') || '無'}`;
     }).join('');
     const programStats = '【程式統計（以下數字由系統計算，回答提到人數、筆數時只能照抄這裡，不可以自己數或估算）】\n'
       + `提供給你的紀錄共 ${limitedItems.length} 筆（${byType.map(([k, n]) => k + ' ' + n + ' 筆').join('、')}）`
@@ -421,8 +421,8 @@ module.exports = async function handler(req, res) {
                 + '如果資料最後註明有省略的紀錄，要提醒使用者還有較舊的資料沒列出，不可以說「沒有」。'
                 // 【數字正確】2026-10-25：人數、筆數、台數只能照程式統計或資料原文，不可自己估算
                 + '【數字規則】人數、家數、筆數、台數只能照抄「程式統計」或資料紀錄原文的數字，不可以自己數、估算或加總；'
-                + '問題問「誰」「哪些客戶」「幾家」「幾位」時，以程式統計裡「內容含某詞」那一行的名單為準：名單上每一位／每一家都要列出，不可以漏，總數照抄那一行的數字；'
-                + '若有較舊紀錄未列出，要說明這個名單只涵蓋目前列出的紀錄。'
+                + '問題問「誰」「哪些客戶」「幾家」「幾位」時，答案一律以程式統計裡【答案名單】那一行為準：名單上每一位／每一家都要列出、不可以漏，總數照抄那一行的數字；'
+                + '【答案名單】是系統搜尋全部資料算出來的，即使下面列給你的紀錄裡沒有某位業務或某家客戶的詳細內容，也一定要把他列進名單，不可以只用下面看得到的紀錄自己整理名單或數數；'
                 + '列出名單時，若要寫「共幾位／幾家」，數字必須等於你實際列出的項目數，不確定就不要寫總數；需要台數總和而資料沒有現成總數時，逐筆列出、不要自己加總。'
                 + '一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。[CRM需求]紀錄裡的「終端產品」是業務填寫的「客戶的PCB板用在哪些終端應用」（例如AI伺服器、車載、光模組），被問到客戶的終端應用或用途時以這個欄位為準。',
             },
@@ -496,6 +496,7 @@ module.exports = async function handler(req, res) {
     res.status(200).json({
       answer,
       matched_records_count: limitedRecords.length,
+      program_stats: programStats, // 驗收用：程式算好交給 AI 的數字與名單
       estimated_cost_usd: estimatedCost,
     });
   } catch (err) {

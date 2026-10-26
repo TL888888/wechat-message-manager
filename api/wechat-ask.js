@@ -279,6 +279,7 @@ module.exports = async function handler(req, res) {
     // CRM 需求：跟網頁「CRM需求統計」頁籤的客戶／機型／業務三個框同一套比對（包含比對、繁簡互通，matchQ），
     // 以前 AI 用「完全相同」比對，網頁打一部分就查得到的，AI 反而查不到（2026-10-24 修正）。
     // CRM 每次匯入整批取代，只有一份約幾百筆，在伺服器端讀進來比對即可（不會送到手機）。
+    let crmAllMatched = [];
     async function fetchCrm() {
       const all = [];
       for (let from = 0; ; from += 1000) {
@@ -302,6 +303,7 @@ module.exports = async function handler(req, res) {
         const more = all.filter((r) => [r.customer, r.model, r.sales, r.end_product].some((f) => termMatch(f, extra)));
         rows = [...new Set([...rows, ...more])];
       }
+      crmAllMatched = rows; // 統計用：全部符合的 CRM（不只最新 30 筆）
       return rows.slice(0, MAX_RECORDS_PER_TABLE);
     }
 
@@ -378,12 +380,16 @@ module.exports = async function handler(req, res) {
     // 針對問題裡的每個搜尋詞，程式算出「內容含這個詞」的紀錄筆數、業務名單、客戶名單，AI 照名單完整列出
     // （比對規則同搜尋：英數代碼用 codeHit 防誤抓，中文用網頁同款 matchQ）
     const statTerms = [...new Set([...searchTerms, ...matchedModels])];
+    // 統計範圍：微信／拜訪＝系統抓到的全部（不受篇幅省略影響）；CRM＝全部符合的列（不只最新 30 筆）
+    const crmStatItems = crmAllMatched.map((r) => ({ type: 'CRM需求', sales: r.sales, customer: r.customer,
+      text: `[CRM需求] 客戶:${r.customer} 機型:${r.model} 業務:${r.sales} 終端產品:${r.end_product || ''} 狀態:${r.status_w2 || r.status_w1 || ''}` }));
+    const statBase = [...recordItems.filter((it) => it.type !== 'CRM需求'), ...crmStatItems];
     const termStats = statTerms.map((term) => {
-      const hits = limitedItems.filter((it) => (/^[A-Za-z0-9-]+$/.test(term) ? codeHit(it.text, [term]) : matchQ(it.text, term)));
+      const hits = statBase.filter((it) => (/^[A-Za-z0-9-]+$/.test(term) ? codeHit(it.text, [term]) : matchQ(it.text, term)));
       if (!hits.length) return '';
       const uniq = (key) => [...new Set(hits.map((it) => String(it[key] || '').trim()).filter(Boolean))];
       const salesList = uniq('sales'), custList = uniq('customer');
-      return `\n內容含「${term}」的紀錄共 ${hits.length} 筆；業務共 ${salesList.length} 位：${salesList.join('、') || '無'}；客戶共 ${custList.length} 家：${custList.join('、') || '無'}`;
+      return `\n系統找到內容含「${term}」的紀錄共 ${hits.length} 筆（含因篇幅沒有列給你看的較舊紀錄）；業務共 ${salesList.length} 位：${salesList.join('、') || '無'}；客戶共 ${custList.length} 家：${custList.join('、') || '無'}`;
     }).join('');
     const programStats = '【程式統計（以下數字由系統計算，回答提到人數、筆數時只能照抄這裡，不可以自己數或估算）】\n'
       + `提供給你的紀錄共 ${limitedItems.length} 筆（${byType.map(([k, n]) => k + ' ' + n + ' 筆').join('、')}）`

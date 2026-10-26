@@ -383,14 +383,42 @@ module.exports = async function handler(req, res) {
     // 統計範圍：微信／拜訪＝系統抓到的全部（不受篇幅省略影響）；CRM＝全部符合的列（不只最新 30 筆）
     const crmStatItems = crmAllMatched.map((r) => ({ type: 'CRM需求', sales: r.sales, customer: r.customer,
       text: `[CRM需求] 客戶:${r.customer} 機型:${r.model} 業務:${r.sales} 終端產品:${r.end_product || ''} 狀態:${r.status_w2 || r.status_w1 || ''}` }));
-    const statBase = [...recordItems.filter((it) => it.type !== 'CRM需求'), ...crmStatItems];
-    const termStats = statTerms.map((term) => {
-      const hits = statBase.filter((it) => (/^[A-Za-z0-9-]+$/.test(term) ? codeHit(it.text, [term]) : matchQ(it.text, term)));
-      if (!hits.length) return '';
-      const uniq = (key) => [...new Set(hits.map((it) => String(it[key] || '').trim()).filter(Boolean))];
-      const salesList = uniq('sales'), custList = uniq('customer');
-      return `\n【答案名單】系統找到內容含「${term}」的紀錄共 ${hits.length} 筆（含因篇幅沒有列給你看的較舊紀錄）；業務共 ${salesList.length} 位：${salesList.join('、') || '無'}；客戶共 ${custList.length} 家：${custList.join('、') || '無'}`;
-    }).join('');
+    // 2026-10-26：AI 曾拿到正確名單仍只照「看得到的紀錄」自己整理（TM 客戶實際 34 家，AI 答 14 家）
+    // → 名單與總數改由程式直接附在答案最後（systemList），AI 不再自己寫總數
+    const cleanName = (v) => String(v || '').replace(/\s+/g, '').trim();
+    const uniqOf = (arr, key) => [...new Set(arr.map((it) => cleanName(it[key])).filter(Boolean))];
+    // 拜訪紀錄／商務訊息：另外向搜尋函式要「全部符合」的列來統計（只在伺服器端，最多 1000 筆；不受上面只取最新 30 筆影響）
+    // 英數代碼＝機型框＋全文框兩路聯集（SQL 25a 起兩路都已內建防誤抓），中文詞＝全文框
+    async function feedAllForStats(term) {
+      const isCode = /^[A-Za-z0-9-]+$/.test(term);
+      const call = (params) => userClient.rpc('wechat_customer_feed', { p_offset: 0, p_limit: 1000, p_include_src: false, ...params });
+      const results = await Promise.all(isCode ? [call({ p_model: [term] }), call({ p_keyword: [term] })] : [call({ p_keyword: [term] })]);
+      const byId = new Map(); let capped = false;
+      results.forEach((r) => {
+        const d = r.data || {}; if ((d.total || 0) > 1000) capped = true;
+        (d.rows || []).forEach((row) => byId.set(row.kind + ':' + row.id, { type: row.kind === 'visit' ? '拜訪紀錄' : '商務訊息', sales: row.sales, customer: row.customer }));
+      });
+      return { rows: [...byId.values()], capped };
+    }
+    const termDetails = (await Promise.all(statTerms.map(async (term) => {
+      const crm = crmStatItems.filter((it) => (/^[A-Za-z0-9-]+$/.test(term) ? codeHit(it.text, [term]) : matchQ(it.text, term)));
+      const fa = await feedAllForStats(term);
+      const other = fa.rows;
+      const hits = [...crm, ...other];
+      return { term, total: hits.length,
+        crm: { n: crm.length, custs: uniqOf(crm, 'customer'), sales: uniqOf(crm, 'sales') },
+        other: { n: other.length, custs: uniqOf(other, 'customer'), sales: uniqOf(other, 'sales'), capped: fa.capped } };
+    }))).filter((d) => d.total > 0);
+    // 名單太長時只顯示前 60 個名稱（總數仍是完整數字）
+    const showList = (arr) => (arr.length ? arr.slice(0, 60).join('、') + (arr.length > 60 ? '…（另 ' + (arr.length - 60) + ' 家未列出名稱）' : '') : '無');
+    const groupLine = (label, g) => g.n
+      ? `・${label}：${g.capped ? '至少 ' : ''}${g.n} 筆；客戶 ${g.custs.length} 家：${showList(g.custs)}；業務 ${g.sales.length} 位：${g.sales.join('、') || '無'}`
+      : `・${label}：0 筆`;
+    const systemList = termDetails.length
+      ? '\n\n——\n【系統統計（程式依搜尋結果計算的完整名單與總數，非 AI 產生）】'
+        + termDetails.map((d) => `\n內容含「${d.term}」的資料共 ${d.total} 筆：\n` + groupLine('CRM需求（客戶需求）', d.crm) + '\n' + groupLine('拜訪紀錄／商務訊息（提到）', d.other)).join('\n')
+      : '';
+    const termStats = systemList ? '\n' + systemList.replace('\n\n——\n', '') : '';
     const programStats = '【程式統計（以下數字由系統計算，回答提到人數、筆數時只能照抄這裡，不可以自己數或估算）】\n'
       + `提供給你的紀錄共 ${limitedItems.length} 筆（${byType.map(([k, n]) => k + ' ' + n + ' 筆').join('、')}）`
       + (omittedCount > 0 ? `；另有 ${omittedCount} 筆較舊紀錄未列出` : '') + '\n'
@@ -421,8 +449,8 @@ module.exports = async function handler(req, res) {
                 + '如果資料最後註明有省略的紀錄，要提醒使用者還有較舊的資料沒列出，不可以說「沒有」。'
                 // 【數字正確】2026-10-25：人數、筆數、台數只能照程式統計或資料原文，不可自己估算
                 + '【數字規則】人數、家數、筆數、台數只能照抄「程式統計」或資料紀錄原文的數字，不可以自己數、估算或加總；'
-                + '問題問「誰」「哪些客戶」「幾家」「幾位」時，答案一律以程式統計裡【答案名單】那一行為準：名單上每一位／每一家都要列出、不可以漏，總數照抄那一行的數字；'
-                + '【答案名單】是系統搜尋全部資料算出來的，即使下面列給你的紀錄裡沒有某位業務或某家客戶的詳細內容，也一定要把他列進名單，不可以只用下面看得到的紀錄自己整理名單或數數；'
+                + '問題問「誰」「哪些客戶」「幾家」「幾位」時：系統會在你的回答最後自動附上【系統統計】完整名單與總數（程式計算），'
+                + '所以你不要自己寫總數、不要自己列完整名單，只摘要下面紀錄裡的重點（可以舉幾個例子），並在結尾寫「完整名單與總數請見下方系統統計」；'
                 + '列出名單時，若要寫「共幾位／幾家」，數字必須等於你實際列出的項目數，不確定就不要寫總數；需要台數總和而資料沒有現成總數時，逐筆列出、不要自己加總。'
                 + '一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。[CRM需求]紀錄裡的「終端產品」是業務填寫的「客戶的PCB板用在哪些終端應用」（例如AI伺服器、車載、光模組），被問到客戶的終端應用或用途時以這個欄位為準。',
             },
@@ -450,7 +478,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const answer =
+    let answer =
       (aiData.choices && aiData.choices[0] && aiData.choices[0].message && aiData.choices[0].message.content) ||
       '（AI 沒有回傳內容）';
     const promptTokens = (aiData.usage && aiData.usage.prompt_tokens) || 0;
@@ -459,6 +487,7 @@ module.exports = async function handler(req, res) {
       (promptTokens / 1000000) * PRICE_PER_M_PROMPT_TOKENS +
       (completionTokens / 1000000) * PRICE_PER_M_COMPLETION_TOKENS;
 
+    answer += systemList; // 程式算的完整名單與總數，附在 AI 回答後面（不經 AI，避免漏列或數錯）
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
     // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──

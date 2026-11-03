@@ -220,4 +220,4 @@ alter table crm_records add column if not exists end_product text;
   - 匯入（index.html 匯入流程 crmClearedPromise）：寫入新資料前先把 crm_records 整張清空，清空失敗會中止匯入 → 是「覆蓋」不是累加。
   - 網頁 CRM 頁籤／終端應用分析：只讀最新 import_date 那一批。
   - AI 問答（api/wechat-ask.js fetchCrm）：讀整張 crm_records（沒有再篩 import_date），因為表裡本來就只剩最新一批。11/03 正式站實查：332 筆，全部是 2026-10-19 匯入。
-  - ⚠ 潛在風險（未改，已回報總管）：清空用的是登入者權限（RLS），若哪天匯入者的權限只能刪部分資料，刪除不會報錯、舊資料會留下；網頁仍只顯示最新一批，但 AI 會混到舊批次。若要保險，可讓 AI 也只取最新 import_date。
+  - 2026-11-03 加保險（Michelle 同意）：AI 問答 fetchCrm 也只取最新 import_date 那一批（跟網頁 loadAllData 同規則；沒有任何 import_date 才讀全部）。原因：清空舊資料走匯入者 RLS 權限，若只刪到部分不會報錯，舊批次會留下。

@@ -334,12 +334,20 @@ module.exports = async function handler(req, res) {
     // 以前 AI 用「完全相同」比對，網頁打一部分就查得到的，AI 反而查不到（2026-10-24 修正）。
     // CRM 每次匯入整批取代，只有一份約幾百筆，在伺服器端讀進來比對即可（不會送到手機）。
     let crmAllMatched = [];
+    // 2026-11-03 Michelle：CRM 永遠以最新一次匯入為準，不參考舊批次。匯入時雖然會先清空整表，
+    // 但清空走匯入者的 RLS 權限，若只刪到部分資料不會報錯 → 保險起見 AI 也只取「最新 import_date」那一批，
+    // 跟網頁 loadAllData() 同一規則（沒有任何 import_date 時才讀全部）。
     async function fetchCrm() {
+      const latest = await userClient.from('crm_records').select('import_date')
+        .not('import_date', 'is', null).order('import_date', { ascending: false }).limit(1);
+      noteErr('crm_records(最新匯入日)', latest.error);
+      const latestDate = latest.data && latest.data[0] ? latest.data[0].import_date : null;
       const all = [];
       for (let from = 0; ; from += 1000) {
-        const { data, error } = await userClient.from('crm_records')
-          .select('import_date,customer,model,qty,delivery,status_w1,status_w2,sales,end_product,created_at')
-          .order('created_at', { ascending: false }).range(from, from + 999);
+        let qy = userClient.from('crm_records')
+          .select('import_date,customer,model,qty,delivery,status_w1,status_w2,sales,end_product,created_at');
+        if (latestDate) qy = qy.eq('import_date', latestDate);
+        const { data, error } = await qy.order('created_at', { ascending: false }).range(from, from + 999);
         noteErr('crm_records', error);
         if (error || !data || !data.length) break;
         all.push(...data);

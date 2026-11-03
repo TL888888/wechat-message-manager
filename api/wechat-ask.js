@@ -106,12 +106,25 @@ module.exports = async function handler(req, res) {
     // 也不會因為表持續變大而重新踩到查詢筆數上限的問題
     // ──但注意：Supabase不管是一般查詢還是RPC，單次回應預設都還是有1000筆上限，
     // 資料庫幫忙去重後的結果如果本身還是超過1000筆，一樣會被砍掉，所以RPC呼叫也要分頁撈到底
+    // 2026-11-03 AI 品質巡檢：以前資料庫查詢出錯時程式把它當成「0 筆」，AI 就回「沒有相關紀錄」，
+    // 使用者會誤以為真的查無資料。現在每一個查詢出錯都記到 queryErrors，只要有一個出錯就整題回「查詢失敗，請稍後再試」，
+    // 不呼叫 AI、不附統計（查詢失敗不等於查無資料）。
+    const queryErrors = [];
+    const noteErr = (where, error) => { if (error) queryErrors.push(where + '：' + (error.message || String(error))); };
+    function queryFailedResponse() {
+      console.error('[wechat-ask] 資料庫查詢失敗', queryErrors);
+      const answer = '查詢失敗，請稍後再試。（這次是系統讀取資料時出錯，不代表沒有相關紀錄）';
+      // 不寫進問答歷史（logAttempt），避免之後被當成一般答案參考；回傳 query_failed 讓畫面與驗收辨識
+      res.status(200).json({ answer, matched_records_count: 0, query_failed: true });
+    }
+
     async function fetchAllRpc(fnName) {
       const PAGE_SIZE = 1000;
       let all = [];
       let from = 0;
       while (true) {
         const { data, error } = await userClient.rpc(fnName).range(from, from + PAGE_SIZE - 1);
+        noteErr(fnName, error);
         if (error || !data || data.length === 0) break;
         all = all.concat(data);
         if (data.length < PAGE_SIZE) break;
@@ -125,6 +138,7 @@ module.exports = async function handler(req, res) {
       fetchAllRpc('wechat_ai_qa_candidate_models'),
       fetchAllRpc('wechat_ai_qa_candidate_sales'),
     ]);
+    if (queryErrors.length) { queryFailedResponse(); return; }
 
     // （名片管理 2026-10-16 已移到行動秘書，AI 問答不再查 business_cards）
 
@@ -201,7 +215,46 @@ module.exports = async function handler(req, res) {
         });
       return [...terms];
     }
-    const searchTerms = extractSearchTerms(question);
+    // 2026-11-03 AI 品質巡檢：以前「今年」「本月」只被當成贅字拿掉，實際統計的是全部年份。
+    // 現在從問題讀出時間範圍，用跟網頁「客戶商務」日期區間同一組參數（p_from_key／p_to_key，YYYYMMDD）交給 wechat_customer_feed，
+    // 篩選規則跟網頁完全相同（日期看不懂的紀錄在篩日期時不算）。時間以台灣時間計算。
+    // CRM 需求是「最新一次匯入的目前需求清單」，沒有各自的發生日期，不依時間篩，回答與統計會註明。
+    function parseTimeRange(q) {
+      const tw = new Date(Date.now() + 8 * 3600 * 1000);
+      const Y = tw.getUTCFullYear(), M = tw.getUTCMonth() + 1, D = tw.getUTCDate();
+      const pad = (n) => ('0' + n).slice(-2);
+      const key = (y, m, d) => y + pad(m) + pad(d);
+      const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const today = key(Y, M, D);
+      const shift = (days) => { const t = new Date(Date.UTC(Y, M - 1, D) - days * 86400000); return key(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()); };
+      const cn = { 一: 1, 二: 2, 兩: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 半: 0.5 };
+      const num = (t) => (/^\d+$/.test(t) ? parseInt(t, 10) : t === '十' ? 10 : t.length === 2 && t[0] === '十' ? 10 + cn[t[1]] : t.length === 2 && t[1] === '十' ? cn[t[0]] * 10 : cn[t] || 0);
+      const show = (k) => k.slice(0, 4) + '/' + k.slice(4, 6) + '/' + k.slice(6, 8);
+      const out = (re, from, to, word) => ({ re, from, to, label: '「' + word + '」＝' + show(from) + '～' + show(to) });
+      let m;
+      if ((m = q.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/))) { const y = +m[1], mm = +m[2]; return out(m[0], key(y, mm, 1), key(y, mm, lastDay(y, mm)), m[0]); }
+      if ((m = q.match(/(\d{4})\s*年/))) { const y = +m[1]; return out(m[0], key(y, 1, 1), key(y, 12, 31), m[0]); }
+      if ((m = q.match(/今年/))) return out(m[0], key(Y, 1, 1), key(Y, 12, 31), m[0]);
+      if ((m = q.match(/去年/))) return out(m[0], key(Y - 1, 1, 1), key(Y - 1, 12, 31), m[0]);
+      if ((m = q.match(/(本|這個?|这个?)月/))) return out(m[0], key(Y, M, 1), key(Y, M, lastDay(Y, M)), m[0]);
+      if ((m = q.match(/上個?月|上个?月/))) { const y = M === 1 ? Y - 1 : Y, mm = M === 1 ? 12 : M - 1; return out(m[0], key(y, mm, 1), key(y, mm, lastDay(y, mm)), m[0]); }
+      if ((m = q.match(/今天|今日/))) return out(m[0], today, today, m[0]);
+      if ((m = q.match(/(本|這|这)(週|周|星期|禮拜|礼拜)/))) { const wd = (new Date(Date.UTC(Y, M - 1, D)).getUTCDay() + 6) % 7; return out(m[0], shift(wd), today, m[0]); }
+      if ((m = q.match(/上(週|周|星期|禮拜|礼拜)/))) { const wd = (new Date(Date.UTC(Y, M - 1, D)).getUTCDay() + 6) % 7; return out(m[0], shift(wd + 7), shift(wd + 1), m[0]); }
+      if ((m = q.match(/(?:最近|近|過去|过去)\s*(\d+|[一二兩两三四五六七八九十半]{1,2})\s*(天|日|週|周|個月|个月|月|年)/))) {
+        const n = num(m[1]); if (!n) return null;
+        // 天／週：往前算 n 天（含今天）；月／年：照日曆往前 n 個月（例 11/3 的「近3個月」＝8/4～11/3）
+        if (/天|日|週|周/.test(m[2])) return out(m[0], shift((/週|周/.test(m[2]) ? n * 7 : n) - 1), today, m[0]);
+        const months = /年/.test(m[2]) ? Math.round(n * 12) : Math.round(n) || 1;
+        const t = new Date(Date.UTC(Y, M - 1 - months, D + 1));
+        return out(m[0], key(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()), today, m[0]);
+      }
+      return null;
+    }
+    const timeRange = parseTimeRange(question);
+    const timeParams = timeRange ? { p_from_key: timeRange.from, p_to_key: timeRange.to } : {};
+    // 時間詞本身不能當成搜尋關鍵字（例「最近3個月」拆出「個月」）
+    const searchTerms = extractSearchTerms(timeRange ? question.replace(timeRange.re, ' ') : question);
     const codeTerms = searchTerms.filter((t) => /^[A-Z]/.test(t));
     const codesNotCoveredByModels = codeTerms.filter((t) => !matchedModels.some((m) => m.toUpperCase().includes(t)));
 
@@ -217,7 +270,8 @@ module.exports = async function handler(req, res) {
     // 比對規則（各條件比對哪些欄位、繁簡互通、包含比對、排序）三處一致：網頁 / SQL 函式 / AI 問答。
     // ⚠ 要改篩選規則時，同步改 sql/2026-10-16d_wechat_customer_feed_fast.sql 與 index.html 的 renderUnified
     async function feedCall(kind, params, limit) {
-      const r = await userClient.rpc('wechat_customer_feed', { p_kind: kind, p_offset: 0, p_limit: limit || MAX_RECORDS_PER_TABLE, p_include_src: true, ...params });
+      const r = await userClient.rpc('wechat_customer_feed', { p_kind: kind, p_offset: 0, p_limit: limit || MAX_RECORDS_PER_TABLE, p_include_src: true, ...timeParams, ...params });
+      noteErr('wechat_customer_feed', r.error);
       return (r.data && r.data.rows) || [];
     }
     function mergeFeedRows(lists) {
@@ -286,6 +340,7 @@ module.exports = async function handler(req, res) {
         const { data, error } = await userClient.from('crm_records')
           .select('import_date,customer,model,qty,delivery,status_w1,status_w2,sales,end_product,created_at')
           .order('created_at', { ascending: false }).range(from, from + 999);
+        noteErr('crm_records', error);
         if (error || !data || !data.length) break;
         all.push(...data);
         if (data.length < 1000) break;
@@ -312,6 +367,7 @@ module.exports = async function handler(req, res) {
       fetchCrm(),
       fetchFeedByAnyDimension('visit'),
     ]);
+    if (queryErrors.length) { queryFailedResponse(); return; }
 
     // 之前這裡有針對每個欄位個別截斷字數，現在已升級付費方案不用再省，
     // 拿掉單欄位截斷，改成完全依賴下面的MAX_PROMPT_CHARS整體字數預算去收斂要放幾筆記錄，
@@ -352,7 +408,7 @@ module.exports = async function handler(req, res) {
     const records = recordItems.map((it) => it.text);
 
     if (!records.length) {
-      const answer = '有比對到關鍵字，但你看得到的範圍內沒有相關紀錄。';
+      const answer = '查無資料：有比對到關鍵字，但你看得到的範圍內沒有相關紀錄' + (timeRange ? '（時間範圍 ' + timeRange.label + '）' : '') + '。';
       await logAttempt(answer, 0, 0);
       res.status(200).json({ answer, matched_records_count: 0 });
       return;
@@ -391,10 +447,11 @@ module.exports = async function handler(req, res) {
     // 英數代碼＝機型框＋全文框兩路聯集（SQL 25a 起兩路都已內建防誤抓），中文詞＝全文框
     async function feedAllForStats(term) {
       const isCode = /^[A-Za-z0-9-]+$/.test(term);
-      const call = (params) => userClient.rpc('wechat_customer_feed', { p_offset: 0, p_limit: 1000, p_include_src: false, ...params });
+      const call = (params) => userClient.rpc('wechat_customer_feed', { p_offset: 0, p_limit: 1000, p_include_src: false, ...timeParams, ...params });
       const results = await Promise.all(isCode ? [call({ p_model: [term] }), call({ p_keyword: [term] })] : [call({ p_keyword: [term] })]);
       const byId = new Map(); let capped = false;
       results.forEach((r) => {
+        noteErr('wechat_customer_feed(統計)', r.error);
         const d = r.data || {}; if ((d.total || 0) > 1000) capped = true;
         (d.rows || []).forEach((row) => byId.set(row.kind + ':' + row.id, { type: row.kind === 'visit' ? '拜訪紀錄' : '商務訊息', sales: row.sales, customer: row.customer }));
       });
@@ -409,13 +466,17 @@ module.exports = async function handler(req, res) {
         crm: { n: crm.length, custs: uniqOf(crm, 'customer'), sales: uniqOf(crm, 'sales') },
         other: { n: other.length, custs: uniqOf(other, 'customer'), sales: uniqOf(other, 'sales'), capped: fa.capped } };
     }))).filter((d) => d.total > 0);
+    if (queryErrors.length) { queryFailedResponse(); return; }
     // 名單太長時只顯示前 60 個名稱（總數仍是完整數字）
     const showList = (arr) => (arr.length ? arr.slice(0, 60).join('、') + (arr.length > 60 ? '…（另 ' + (arr.length - 60) + ' 家未列出名稱）' : '') : '無');
     const groupLine = (label, g) => g.n
       ? `・${label}：${g.capped ? '至少 ' : ''}${g.n} 筆；客戶 ${g.custs.length} 家：${showList(g.custs)}；業務 ${g.sales.length} 位：${g.sales.join('、') || '無'}`
       : `・${label}：0 筆`;
+    const timeNote = timeRange
+      ? `\n時間範圍：${timeRange.label}（拜訪紀錄／商務訊息依日期篩選；CRM需求是最新一次匯入的目前需求清單，不分日期）`
+      : '';
     const systemList = termDetails.length
-      ? '\n\n——\n【系統統計（程式依搜尋結果計算的完整名單與總數，非 AI 產生）】'
+      ? '\n\n——\n【系統統計（程式依搜尋結果計算的完整名單與總數，非 AI 產生）】' + timeNote
         + termDetails.map((d) => `\n內容含「${d.term}」的資料共 ${d.total} 筆：\n` + groupLine('CRM需求（客戶需求）', d.crm) + '\n' + groupLine('拜訪紀錄／商務訊息（提到）', d.other)).join('\n')
       : '';
     const termStats = systemList ? '\n' + systemList.replace('\n\n——\n', '') : '';
@@ -456,7 +517,7 @@ module.exports = async function handler(req, res) {
             },
             {
               role: 'user',
-              content: `問題：${question}\n\n${programStats}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
+              content: `問題：${question}\n${timeRange ? '【時間範圍】' + timeRange.label + '：下面的拜訪紀錄／商務訊息已經只包含這段期間；CRM需求是最新一次匯入的目前需求清單，不分日期。回答時要說明時間範圍。\n' : ''}\n${programStats}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
             },
           ],
           temperature: 0.2,

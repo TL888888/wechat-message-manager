@@ -233,7 +233,22 @@ module.exports = async function handler(req, res) {
       const out = (re, from, to, word) => ({ re, from, to, label: '「' + word + '」＝' + show(from) + '～' + show(to) });
       let m;
       if ((m = q.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/))) { const y = +m[1], mm = +m[2]; return out(m[0], key(y, mm, 1), key(y, mm, lastDay(y, mm)), m[0]); }
+      // 2026-11-04 巡檢第2項補：「今年／去年／前年／YYYY年」＋月、季（Q1～Q4、第N季）、上／下半年；單獨「前年」；單獨「10月」（沒寫年份）
+      const yearOf = (w) => (!w ? Y : w === '今年' ? Y : w === '去年' ? Y - 1 : w === '前年' ? Y - 2 : parseInt(w, 10));
+      const YW = '(今年|去年|前年|\\d{4}\\s*年)?\\s*';
+      if ((m = q.match(new RegExp('(今年|去年|前年)\\s*(\\d{1,2}|[一二三四五六七八九十]{1,3})\\s*月')))) {
+        const y = yearOf(m[1]), mm = num(m[2]); if (mm >= 1 && mm <= 12) return out(m[0], key(y, mm, 1), key(y, mm, lastDay(y, mm)), m[0]);
+      }
+      if ((m = q.match(new RegExp(YW + '(?:Q\\s*([1-4])|第\\s*([一二三四1-4])\\s*季度?|([一二三四])\\s*季度)', 'i')))) {
+        const y = yearOf(m[1] && m[1].replace(/\s/g, '')), qn = num(m[2] || m[3] || m[4]);
+        if (qn >= 1 && qn <= 4) return out(m[0], key(y, qn * 3 - 2, 1), key(y, qn * 3, lastDay(y, qn * 3)), m[0]);
+      }
+      if ((m = q.match(new RegExp(YW + '(上|下)半年(?:度)?')))) {
+        const y = yearOf(m[1] && m[1].replace(/\s/g, ''));
+        return m[2] === '上' ? out(m[0], key(y, 1, 1), key(y, 6, 30), m[0]) : out(m[0], key(y, 7, 1), key(y, 12, 31), m[0]);
+      }
       if ((m = q.match(/(\d{4})\s*年/))) { const y = +m[1]; return out(m[0], key(y, 1, 1), key(y, 12, 31), m[0]); }
+      if ((m = q.match(/前年/))) return out(m[0], key(Y - 2, 1, 1), key(Y - 2, 12, 31), m[0]);
       if ((m = q.match(/今年/))) return out(m[0], key(Y, 1, 1), key(Y, 12, 31), m[0]);
       if ((m = q.match(/去年/))) return out(m[0], key(Y - 1, 1, 1), key(Y - 1, 12, 31), m[0]);
       if ((m = q.match(/(本|這個?|这个?)月/))) return out(m[0], key(Y, M, 1), key(Y, M, lastDay(Y, M)), m[0]);
@@ -249,9 +264,18 @@ module.exports = async function handler(req, res) {
         const t = new Date(Date.UTC(Y, M - 1 - months, D + 1));
         return out(m[0], key(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()), today, m[0]);
       }
+      // 單獨「10月」「十月」（沒寫年份）：取「不超過本月的最近一個」該月（今年該月還沒到就算去年），label 會寫出實際年月
+      if ((m = q.match(/(?<![\d年])(\d{1,2}|[一二三四五六七八九十]{1,3})\s*月(?:份)?(?!\s*[前後后內内以])/))) {
+        const mm = num(m[1]);
+        if (mm >= 1 && mm <= 12) { const y = mm > M ? Y - 1 : Y; return out(m[0], key(y, mm, 1), key(y, mm, lastDay(y, mm)), m[0] + '（沒寫年份，取最近的' + mm + '月）'); }
+      }
       return null;
     }
+    // 問題裡有時間字眼、卻沒被解析出來時，答案開頭要明講「未能辨識，以下為全部期間」（不可默默統計全部）
+    const TIME_HINT_RE = /\d{4}\s*年|[\d一二三四五六七八九十]+\s*月|Q\s*[1-4]|[季]|半年|年度|年初|年底|昨天|昨日|前天|明年|下[個个]?月|下[週周]|上上|去年|前年|今年|最近|過去|过去|以來|以来|至今|期間|期间|歷年|历年|本月|上月|上[個个]?月|[本這这上][週周]|今[天日]|近\s*[\d一二兩两三四五六七八九十半]+\s*[天日週周月年個个]/;
     const timeRange = parseTimeRange(question);
+    const timeHint = !timeRange ? (question.match(TIME_HINT_RE) || [])[0] : '';
+    const timeUnparsedNote = timeHint ? '【注意】未能辨識時間範圍「' + timeHint + '」，以下為全部期間（未依時間篩選）。\n\n' : '';
     const timeParams = timeRange ? { p_from_key: timeRange.from, p_to_key: timeRange.to } : {};
     // 時間詞本身不能當成搜尋關鍵字（例「最近3個月」拆出「個月」）
     const searchTerms = extractSearchTerms(timeRange ? question.replace(timeRange.re, ' ') : question);
@@ -416,7 +440,7 @@ module.exports = async function handler(req, res) {
     const records = recordItems.map((it) => it.text);
 
     if (!records.length) {
-      const answer = '查無資料：有比對到關鍵字，但你看得到的範圍內沒有相關紀錄' + (timeRange ? '（時間範圍 ' + timeRange.label + '）' : '') + '。';
+      const answer = timeUnparsedNote + '查無資料：有比對到關鍵字，但你看得到的範圍內沒有相關紀錄' + (timeRange ? '（時間範圍 ' + timeRange.label + '）' : '') + '。';
       await logAttempt(answer, 0, 0);
       res.status(200).json({ answer, matched_records_count: 0 });
       return;
@@ -520,7 +544,7 @@ module.exports = async function handler(req, res) {
             },
             {
               role: 'user',
-              content: `問題：${question}\n${timeRange ? '【時間範圍】' + timeRange.label + '：下面的拜訪紀錄／商務訊息已經只包含這段期間；CRM需求是最新一次匯入的目前需求清單，不分日期。回答時要說明時間範圍。\n' : ''}\n${programStats}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
+              content: `問題：${question}\n${timeUnparsedNote ? '【時間範圍】未能辨識問題中的時間說法，下面資料沒有依時間篩選（全部期間）；回答時要照實說明這點，不可以假裝是某段期間。\n' : ''}${timeRange ? '【時間範圍】' + timeRange.label + '：下面的拜訪紀錄／商務訊息已經只包含這段期間；CRM需求是最新一次匯入的目前需求清單，不分日期。回答時要說明時間範圍。\n' : ''}\n${programStats}\n\n以下是相關資料紀錄（依最新優先，若有省略會另外註明）：\n${limitedRecords.join('\n')}${omittedCount > 0 ? `\n（還有 ${omittedCount} 筆較舊的紀錄因篇幅限制未列出）` : ''}`,
             },
           ],
           temperature: 0.2,
@@ -610,14 +634,14 @@ module.exports = async function handler(req, res) {
     let answer = aiText;
     if (badWhy) {
       // 仍不合格：不放 AI 的話，只回程式計算的統計
-      answer = '【AI 說明未通過檢查】AI 這次產生的文字不合格，為避免給你錯的內容，只提供下方由程式計算的統計；可以換個問法再問一次。'
+      answer = timeUnparsedNote + '【AI 說明未通過檢查】AI 這次產生的文字不合格，為避免給你錯的內容，只提供下方由程式計算的統計；可以換個問法再問一次。'
         + (systemList || ('\n\n——\n' + programStats));
       await logAttempt(answer, limitedRecords.length, estimatedCost);
       res.status(200).json({ answer, matched_records_count: limitedRecords.length, ai_check_failed: badWhy });
       return;
     }
 
-    answer += systemList; // 程式算的完整名單與總數，附在 AI 回答後面（不經 AI，避免漏列或數錯）
+    answer = timeUnparsedNote + answer + systemList; // 程式算的完整名單與總數，附在 AI 回答後面（不經 AI，避免漏列或數錯）
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
     // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──

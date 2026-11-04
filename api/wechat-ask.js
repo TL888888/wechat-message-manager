@@ -446,16 +446,52 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // 依「最新的優先」用字數預算收斂到安全範圍內，避免單次請求過大
-    const limitedItems = [];
-    let charBudget = MAX_PROMPT_CHARS;
-    for (const it of recordItems) {
-      if (charBudget - it.text.length <= 0) break;
-      limitedItems.push(it);
-      charBudget -= it.text.length;
+    // 依字數預算收斂到安全範圍內，避免單次請求過大。
+    // 【2026-11-04 巡檢第3項】以前是「全部混在一起、最新的優先」逐筆塞：CRM 匯入日期最新又筆數多時，
+    // 預算被 CRM 用光，拜訪紀錄／商務訊息擠不進去；最新一筆若本身超過預算，AI 會拿到 0 筆。
+    // 現在：①每一類（商務訊息／CRM需求／拜訪紀錄）先各保證分到「總預算 ÷ 有資料的類別數」的名額（每類內仍最新優先）；
+    // ②某類的第一筆就超過名額時，截斷這一筆（不是整筆丟掉）；③名額沒用完的字數，再依日期最新優先分給還放得下的紀錄。
+    // 被省略／截斷的筆數由程式算出，寫進【程式統計】與給 AI 的說明（AI 與答案都知道「只列前 N 筆，共 M 筆」）。
+    const typeList = [...new Set(recordItems.map((it) => it.type))];
+    const typeShare = Math.floor(MAX_PROMPT_CHARS / Math.max(typeList.length, 1));
+    const picked = new Map(); // recordItems 的 index → 要放進去的 item（可能是截斷後的副本）
+    let usedChars = 0;
+    let truncatedCount = 0;
+    const TRUNC_MARK = '…（此筆過長，已截斷）';
+    for (const ty of typeList) {
+      let room = typeShare, took = 0;
+      for (let i = 0; i < recordItems.length; i++) {
+        const it = recordItems[i];
+        if (it.type !== ty) continue;
+        if (it.text.length <= room) { picked.set(i, it); room -= it.text.length; took++; }
+        else {
+          if (!took && room > TRUNC_MARK.length + 50) { picked.set(i, { ...it, text: it.text.slice(0, room - TRUNC_MARK.length) + TRUNC_MARK }); room = 0; truncatedCount++; }
+          break;
+        }
+      }
+      usedChars += typeShare - room;
     }
+    let spare = MAX_PROMPT_CHARS - usedChars;
+    const blockedTypes = new Set();
+    for (let i = 0; i < recordItems.length; i++) {
+      const it = recordItems[i];
+      if (picked.has(i) || blockedTypes.has(it.type)) continue;
+      if (it.text.length <= spare) { picked.set(i, it); spare -= it.text.length; }
+      else blockedTypes.add(it.type); // 該類最新優先，放不下就停，不跳著放更舊的
+    }
+    const limitedItems = recordItems.map((it, i) => picked.get(i)).filter(Boolean); // 維持日期新→舊順序
     const limitedRecords = limitedItems.map((it) => it.text);
     const omittedCount = records.length - limitedRecords.length;
+    // 每一類：查到幾筆（程式算）、列給 AI 幾筆
+    const typeCoverage = typeList.map((ty) => {
+      const total = recordItems.filter((it) => it.type === ty).length;
+      const shown = limitedItems.filter((it) => it.type === ty).length;
+      return { ty, total, shown };
+    });
+    const coverageNote = omittedCount > 0 || truncatedCount > 0
+      ? typeCoverage.map((c) => `${c.ty}：只列前 ${c.shown} 筆，共 ${c.total} 筆${c.total >= MAX_RECORDS_PER_TABLE ? '（每類查詢最多取 ' + MAX_RECORDS_PER_TABLE + ' 筆，實際可能更多）' : ''}`).join('；')
+        + (truncatedCount > 0 ? `；其中 ${truncatedCount} 筆因過長已截斷` : '')
+      : '';
 
     // 【數字正確】2026-10-25 小科組長：AI 曾寫「以上六位」實際只列 5 位 → 人數、筆數一律由程式算好，AI 照抄、不可自己數
     const countBy = (key) => {
@@ -515,6 +551,7 @@ module.exports = async function handler(req, res) {
     const programStats = '【程式統計（以下數字由系統計算，回答提到人數、筆數時只能照抄這裡，不可以自己數或估算）】\n'
       + `提供給你的紀錄共 ${limitedItems.length} 筆（${byType.map(([k, n]) => k + ' ' + n + ' 筆').join('、')}）`
       + (omittedCount > 0 ? `；另有 ${omittedCount} 筆較舊紀錄未列出` : '') + '\n'
+      + (coverageNote ? `各類資料列出狀況（程式計算）：${coverageNote}\n` : '')
       + `紀錄中出現的業務共 ${bySales.length} 位：${bySales.map(([k, n]) => k + '（' + n + ' 筆）').join('、') || '無'}\n`
       + `紀錄中出現的客戶共 ${byCustomer.length} 家：${byCustomer.map(([k, n]) => k + '（' + n + ' 筆）').join('、') || '無'}`
       + termStats;
@@ -641,7 +678,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    answer = timeUnparsedNote + answer + systemList; // 程式算的完整名單與總數，附在 AI 回答後面（不經 AI，避免漏列或數錯）
+    answer = timeUnparsedNote + answer + (coverageNote ? '\n\n（資料涵蓋說明，程式計算：' + coverageNote + '。）' : '') + systemList; // 程式算的完整名單與總數，附在 AI 回答後面（不經 AI，避免漏列或數錯）
     await logAttempt(answer, limitedRecords.length, estimatedCost);
 
     // ── 推播到中央用量統計（總經理需求），失敗也不擋這次回答 ──

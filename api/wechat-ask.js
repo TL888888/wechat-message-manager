@@ -529,6 +529,8 @@ module.exports = async function handler(req, res) {
     const AI_DEADLINE_MS = 50000;                   // 總時間上限（vercel.json 設函式上限 60 秒，留餘裕給收尾）
     const aiStart = Date.now();
     const isBusyMsg = (m) => /busy|overload|retry later|rate.?limit|too many|temporar|unavailable|timeout|timed out/i.test(String(m || ''));
+    // 呼叫一次（含忙線重試）；第二次「重問」也走同一段，共用同一個總時間上限
+    const callModel = async () => {
     let aiRes, aiData, aiFetchErr;
     for (let attempt = 0; attempt <= AI_RETRY_DELAYS_MS.length; attempt++) {
       aiRes = null; aiData = null; aiFetchErr = null;
@@ -553,6 +555,10 @@ module.exports = async function handler(req, res) {
       console.error('[wechat-ask] AI 忙線/失敗，第 ' + (attempt + 1) + ' 次重試：' + (aiFetchErr ? aiFetchErr.message : (aiRes.status + ' ' + errMsg)));
       await new Promise((r) => setTimeout(r, AI_RETRY_DELAYS_MS[attempt]));
     }
+    return { aiRes, aiData, aiFetchErr };
+    };
+    let { aiRes, aiData, aiFetchErr } = await callModel();
+
     if (aiFetchErr || !aiRes) {
       const answer = '查詢失敗，請稍後再問（AI 服務忙線或無法連線）' + (aiFetchErr ? '：' + String(aiFetchErr.message || aiFetchErr) : '');
       await logAttempt(answer, limitedRecords.length, 0);
@@ -568,14 +574,48 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    let answer =
-      (aiData.choices && aiData.choices[0] && aiData.choices[0].message && aiData.choices[0].message.content) ||
-      '（AI 沒有回傳內容）';
-    const promptTokens = (aiData.usage && aiData.usage.prompt_tokens) || 0;
-    const completionTokens = (aiData.usage && aiData.usage.completion_tokens) || 0;
+    const pickContent = (d) => (d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
+    let aiText = pickContent(aiData) || '（AI 沒有回傳內容）';
+    let promptTokens = (aiData.usage && aiData.usage.prompt_tokens) || 0;
+    let completionTokens = (aiData.usage && aiData.usage.completion_tokens) || 0;
+
+    // ── 程式把關（2026-11-04 巡檢第1項）：AI 白話段不合格就同模型重問一次，仍不合格就只留程式算的統計 ──
+    // 不合格條件：①沒有中文（整段英文）②含 "continue with" 之類的偷懶字樣
+    // ③AI 自己把名單列出來（名單只能由程式產生；提示詞已禁止）：答案裡出現 10 家以上「紀錄中的客戶名稱」
+    const knownCusts = [...new Set([...byCustomer.map(([k]) => k), ...termDetails.flatMap((d) => d.crm.custs.concat(d.other.custs))])]
+      .filter((n) => n && String(n).length >= 2);
+    const aiTextBad = (t) => {
+      if (!/[一-鿿]/.test(t)) return '沒有中文';
+      if (/continue with|remaining names|and so on|\.\.\.\s*\(/i.test(t)) return '含英文偷懶字樣';
+      const lc = t.toLowerCase();
+      const hit = knownCusts.filter((n) => lc.includes(String(n).toLowerCase())).length;
+      if (hit >= 10) return 'AI 自己列出名單（提到 ' + hit + ' 家客戶）';
+      return '';
+    };
+    let badWhy = aiTextBad(aiText);
+    if (badWhy) {
+      console.error('[wechat-ask] AI 說明未通過檢查（' + badWhy + '），同模型重問一次');
+      const r2 = await callModel(); // 失敗時 aiRes 為空或非 ok → 視同不合格
+      const t2 = r2.aiRes && r2.aiRes.ok ? pickContent(r2.aiData) : '';
+      if (r2.aiRes && r2.aiRes.ok && r2.aiData && r2.aiData.usage) {
+        promptTokens += r2.aiData.usage.prompt_tokens || 0;
+        completionTokens += r2.aiData.usage.completion_tokens || 0;
+      }
+      badWhy = t2 ? aiTextBad(t2) : '重問失敗';
+      if (!badWhy) aiText = t2;
+    }
     const estimatedCost =
       (promptTokens / 1000000) * PRICE_PER_M_PROMPT_TOKENS +
       (completionTokens / 1000000) * PRICE_PER_M_COMPLETION_TOKENS;
+    let answer = aiText;
+    if (badWhy) {
+      // 仍不合格：不放 AI 的話，只回程式計算的統計
+      answer = '【AI 說明未通過檢查】AI 這次產生的文字不合格，為避免給你錯的內容，只提供下方由程式計算的統計；可以換個問法再問一次。'
+        + (systemList || ('\n\n——\n' + programStats));
+      await logAttempt(answer, limitedRecords.length, estimatedCost);
+      res.status(200).json({ answer, matched_records_count: limitedRecords.length, ai_check_failed: badWhy });
+      return;
+    }
 
     answer += systemList; // 程式算的完整名單與總數，附在 AI 回答後面（不經 AI，避免漏列或數錯）
     await logAttempt(answer, limitedRecords.length, estimatedCost);

@@ -231,3 +231,13 @@ alter table crm_records add column if not exists end_product text;
 - 時間說法 parseTimeRange：今年/去年/前年/YYYY年、N月、Q1~Q4、上下半年、本月/上月/本週/上週/今天/最近N天週月年、沒寫年份的「10月」；看不懂的時間字眼會在答案開頭明講「未能辨識，以下為全部期間」。CRM 需求是最新匯入批次，不依時間篩。
 - 失敗照實說「查詢失敗，請稍後再問」，絕不當查無資料。
 - 正式站驗收題：本月TM有哪些客戶／10月TM／Q3 TM拜訪紀錄／ZZQX999（查無）。11/04 實測「本月TM」曾因回答太長逾時（原因見 TODO 派工④）。
+
+## 換更快模型:切換機制(2026-11-04,評估階段,未 push)
+- 起因:11/04 正式站 DeepInfra gpt-oss-120b 同題 27~57 秒、「本月TM」常逾時。Michelle 決定換更快模型,但**答案正確優先**:新模型品質較差或會編造就不換。
+- api/wechat-ask.js 現在由環境變數決定供應商(**全部不設＝跟以前完全一樣**):
+  - `AI_BASE_URL_WECHAT`(或舊的 `AI_BASE_URL`)、`AI_MODEL_WECHAT`、金鑰依網址挑:Gemini 網址用 `GEMINI_API_KEY_SALES`,否則用 `DEEPINFRA_API_KEY_SALES`(不會把 A 家金鑰送去 B 家)。
+  - 選用 `AI_REASONING_EFFORT_WECHAT`(Gemini 2.5 設 none;gpt-oss 可設 low):模型回 400 說不支援時自動拿掉重送。選用 `AI_PRICE_IN_WECHAT`/`AI_PRICE_OUT_WECHAT` 覆蓋費用概估。
+  - 用量推播(AI用量統計)的 ai_provider / api_key_name / ai_model 改成跟著實際使用的跑。
+- Gemini 設定範例:`AI_BASE_URL_WECHAT=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`、`AI_MODEL_WECHAT=gemini-2.5-flash`、`GEMINI_API_KEY_SALES=(金鑰)`。TL_technology 的 bom/qa/secretary 等 ask 已用同一套(BOM 10/02 實測 gemini-2.5-flash 正常);品保 10/08 曾發現 Gemini 偶爾不呼叫工具、直接編數字(營業商務沒有工具呼叫,風險不同,但仍須實測)。
+- 模擬測試 `node test/ai-switch-sim.js`(假資料庫＋假 AI,不用金鑰):驗證切換與程式把關,19 項通過。**真實速度與品質尚未實測**(需 Google 金鑰)。
+- Gemini 注意:思考 token 會算進 max_tokens(2000),思考沒關時答案可能被截斷 → 程式視為不合格重問。所以建議搭配 reasoning_effort=none。

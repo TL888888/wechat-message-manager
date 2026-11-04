@@ -6,9 +6,17 @@ const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
 
 const STATS_PUSH_URL = process.env.STATS_PUSH_URL || 'https://bvuygyajzupeqpqfwmgi.supabase.co/functions/v1/stats-ai-usage-push';
-const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.deepinfra.com/v1/openai/chat/completions';
+// ── AI 供應商／模型由環境變數決定(2026-11-04 換更快模型的切換機制;全部不設＝跟以前完全一樣:DeepInfra gpt-oss-120b)──
+//  換 Gemini:AI_BASE_URL_WECHAT=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+//             AI_MODEL_WECHAT=gemini-2.5-flash  GEMINI_API_KEY_SALES=(Google 金鑰)  AI_REASONING_EFFORT_WECHAT=none(可選)
+//  金鑰依「網址是哪家」挑,不會把 Gemini 金鑰送到 DeepInfra(反之亦然)。金鑰只存在 Vercel 環境變數,不寫進程式。
+const AI_BASE_URL = process.env.AI_BASE_URL_WECHAT || process.env.AI_BASE_URL || 'https://api.deepinfra.com/v1/openai/chat/completions';
 const AI_MODEL = process.env.AI_MODEL_WECHAT || 'openai/gpt-oss-120b';
-const AI_API_KEY = process.env.DEEPINFRA_API_KEY_SALES;
+const AI_PROVIDER_NAME = AI_BASE_URL.includes('generativelanguage.googleapis.com') ? 'gemini' : (AI_BASE_URL.includes('deepinfra.com') ? 'deepinfra' : 'other');
+const AI_KEY_NAME = AI_PROVIDER_NAME === 'gemini' ? 'GEMINI_API_KEY_SALES' : 'DEEPINFRA_API_KEY_SALES';
+const AI_API_KEY = process.env[AI_KEY_NAME];
+// 思考(推理)強度,可選:不設＝不帶這個參數(維持現狀)。Gemini 2.5 可設 none;gpt-oss 可設 low/medium/high。模型不接受時自動拿掉重送。
+const AI_REASONING_EFFORT = process.env.AI_REASONING_EFFORT_WECHAT || '';
 const MAX_RECORDS_PER_TABLE = 30; // 資料庫查詢階段先抓，實際餵給AI的量由下面的字數預算再收斂
 // 餵給AI的資料總字數預算（粗抓，避免單次請求過大；中文一個字通常不只1個token，這裡故意抓得保守一點，
 // 含系統提示與問題本身的空間）
@@ -17,8 +25,9 @@ const MAX_PROMPT_CHARS = 3200;
 // DeepInfra 定價（每百萬 token 美元），這是預留位置數字，請上 DeepInfra 官網
 // https://deepinfra.com/pricing 核對 openai/gpt-oss-120b 目前實際費率後再更新這兩個數字，
 // 否則統計出來的 estimated_cost_usd 只是概估，不是真實帳單金額
-const PRICE_PER_M_PROMPT_TOKENS = 0.15;
-const PRICE_PER_M_COMPLETION_TOKENS = 0.75;
+// 換成 Gemini 時預設用 gemini-2.5-flash 公開價(輸入0.30/輸出2.50)當概估,也可用 AI_PRICE_IN_WECHAT／AI_PRICE_OUT_WECHAT 覆蓋
+const PRICE_PER_M_PROMPT_TOKENS = Number(process.env.AI_PRICE_IN_WECHAT) || (AI_PROVIDER_NAME === 'gemini' ? 0.30 : 0.15);
+const PRICE_PER_M_COMPLETION_TOKENS = Number(process.env.AI_PRICE_OUT_WECHAT) || (AI_PROVIDER_NAME === 'gemini' ? 2.50 : 0.75);
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -53,7 +62,7 @@ module.exports = async function handler(req, res) {
   const userEmail = userData.user.email;
 
   if (!AI_API_KEY) {
-    res.status(500).json({ error: '伺服器未設定 DEEPINFRA_API_KEY_SALES' });
+    res.status(500).json({ error: '伺服器未設定 ' + AI_KEY_NAME });
     return;
   }
 
@@ -561,7 +570,7 @@ module.exports = async function handler(req, res) {
     // 【2026-11-04 Michelle：「如果備用模型會出錯，以後寧願讓他稍久一點，也不要用會出錯的」】
     // 這裡沒有、也不可以加備援模型：忙線/過載/逾時時，一律用「同一個主要模型」間隔遞增重試，
     // 仍失敗才回「查詢失敗」（照實說，不當成查無資料）。
-    const aiBody = JSON.stringify({
+    const aiBodyObj = {
           model: AI_MODEL,
           messages: [
             {
@@ -590,7 +599,8 @@ module.exports = async function handler(req, res) {
           ],
           temperature: 0.2,
           max_tokens: 2000, // 限制輸出長度（回答太長會逾時）；提示詞要求 AI 只寫簡短摘要
-        });
+        };
+    if (AI_REASONING_EFFORT) aiBodyObj.reasoning_effort = AI_REASONING_EFFORT;
     const AI_RETRY_DELAYS_MS = [2000]; // 只重試 1 次（共 2 次嘗試）：單次放寬到 48 秒，重試太多次會超過函式上限
     const AI_DEADLINE_MS = 55000;                   // 從函式開始算的總時間上限（vercel.json 設函式上限 60 秒，留餘裕給收尾）
     const aiStart = reqStart;
@@ -606,10 +616,24 @@ module.exports = async function handler(req, res) {
         aiRes = await fetch(AI_BASE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_API_KEY}` },
-          body: aiBody,
+          body: JSON.stringify(aiBodyObj),
           signal: AbortSignal.timeout(Math.min(48000, remain - 1000)),
         });
         aiData = await aiRes.json().catch(() => null);
+        if (Array.isArray(aiData)) aiData = aiData[0] || null; // Gemini 相容端點出錯時可能回陣列
+        // 模型不接受 reasoning_effort(400 且訊息提到 reason/think)→ 拿掉這個參數、同一次嘗試立刻重送
+        if (aiRes.status === 400 && aiBodyObj.reasoning_effort && /reason|think/i.test(JSON.stringify(aiData || {}))) {
+          console.error('[wechat-ask] 模型不接受 reasoning_effort,拿掉後重送');
+          delete aiBodyObj.reasoning_effort;
+          aiRes = await fetch(AI_BASE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_API_KEY}` },
+            body: JSON.stringify(aiBodyObj),
+            signal: AbortSignal.timeout(Math.min(48000, Math.max(5000, AI_DEADLINE_MS - (Date.now() - aiStart) - 1000))),
+          });
+          aiData = await aiRes.json().catch(() => null);
+          if (Array.isArray(aiData)) aiData = aiData[0] || null;
+        }
       } catch (e) { aiFetchErr = e; }
       const errMsg = aiData && aiData.error && (aiData.error.message || aiData.error);
       const retryable = aiFetchErr
@@ -709,8 +733,8 @@ module.exports = async function handler(req, res) {
         },
         body: JSON.stringify({
           system_name: 'wechat',
-          api_key_name: 'DEEPINFRA_API_KEY_SALES',
-          ai_provider: 'deepinfra',
+          api_key_name: AI_KEY_NAME,
+          ai_provider: AI_PROVIDER_NAME,
           ai_model: AI_MODEL,
           asker_email: userEmail || null,
           prompt_tokens: promptTokens,

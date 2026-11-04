@@ -1,5 +1,8 @@
 {
   "buildCommand": "",
   "outputDirectory": ".",
-  "devCommand": ""
+  "devCommand": "",
+  "functions": {
+    "api/wechat-ask.js": { "maxDuration": 60 }
+  }
 }

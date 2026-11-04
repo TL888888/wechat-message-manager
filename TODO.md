@@ -93,5 +93,6 @@
 - [x] （11/03 Michelle 同意，已加）AI 問答 fetchCrm 是否也只取最新 import_date：目前匯入會先清空整表，所以實際只有最新一批；但清空走匯入者 RLS 權限，若只刪到部分資料不會報錯，AI 會混到舊批次。詳見 NOTES「CRM 需求＝永遠以最新一次匯入為準」。
 
 ## 2026-11-04 CRM 匯入後驗證發現
-- [ ] AI 問答「本月TM有哪些客戶」：第一次回「查詢失敗：Model busy, retry later」，第二次 AI 白話段是英文且錯（說全部26位客戶都有TM、列「(continue with the remaining names)」），只有程式附的【系統統計】正確（CRM 57筆/35家，與網頁機型欄打TM的57筆一致）。疑似模型忙線時換用備援模型、品質差；待查 api/wechat-ask.js 的備援模型與 Model busy 處理（失敗時應回查詢失敗，不讓爛答案上線）。待 Michelle 決定是否處理。
+- [x] 2026-11-04 已處理：程式裡本來就沒有備援模型（只有 openai/gpt-oss-120b 一個）；忙線改同模型遞增重試3次（2/4/8秒，總上限50秒），仍失敗回「查詢失敗，請稍後再問」；vercel.json 加 maxDuration 60；網頁等 12 秒顯示「AI 比較忙…」。英文／亂列名單疑為同一模型偶發品質問題（待觀察，見下），尚未 push。
+- （原紀錄）AI 問答「本月TM有哪些客戶」：第一次回「查詢失敗：Model busy, retry later」，第二次 AI 白話段是英文且錯（說全部26位客戶都有TM、列「(continue with the remaining names)」），只有程式附的【系統統計】正確（CRM 57筆/35家，與網頁機型欄打TM的57筆一致）。疑似模型忙線時換用備援模型、品質差；待查 api/wechat-ask.js 的備援模型與 Model busy 處理（失敗時應回查詢失敗，不讓爛答案上線）。待 Michelle 決定是否處理。
 - [x] 2026-11-04 Michelle 用 7a413d3 匯入新 CRM Excel：335 筆、終端應用分析 158 廠區，網頁正常。

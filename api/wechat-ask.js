@@ -496,15 +496,10 @@ module.exports = async function handler(req, res) {
       + termStats;
 
     // ── 呼叫 AI，讓它只根據撈到的紀錄回答，不臆測 ──
-    let aiRes, aiData;
-    try {
-      aiRes = await fetch(AI_BASE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${AI_API_KEY}`,
-        },
-        body: JSON.stringify({
+    // 【2026-11-04 Michelle：「如果備用模型會出錯，以後寧願讓他稍久一點，也不要用會出錯的」】
+    // 這裡沒有、也不可以加備援模型：忙線/過載/逾時時，一律用「同一個主要模型」間隔遞增重試，
+    // 仍失敗才回「查詢失敗」（照實說，不當成查無資料）。
+    const aiBody = JSON.stringify({
           model: AI_MODEL,
           messages: [
             {
@@ -529,11 +524,37 @@ module.exports = async function handler(req, res) {
             },
           ],
           temperature: 0.2,
-        }),
-      });
-      aiData = await aiRes.json();
-    } catch (fetchErr) {
-      const answer = '查詢失敗（無法連線到AI服務）：' + String(fetchErr.message || fetchErr);
+        });
+    const AI_RETRY_DELAYS_MS = [2000, 4000, 8000]; // 最多重試 3 次（共 4 次嘗試）
+    const AI_DEADLINE_MS = 50000;                   // 總時間上限（vercel.json 設函式上限 60 秒，留餘裕給收尾）
+    const aiStart = Date.now();
+    const isBusyMsg = (m) => /busy|overload|retry later|rate.?limit|too many|temporar|unavailable|timeout|timed out/i.test(String(m || ''));
+    let aiRes, aiData, aiFetchErr;
+    for (let attempt = 0; attempt <= AI_RETRY_DELAYS_MS.length; attempt++) {
+      aiRes = null; aiData = null; aiFetchErr = null;
+      const remain = AI_DEADLINE_MS - (Date.now() - aiStart);
+      if (remain < 5000) break;
+      try {
+        aiRes = await fetch(AI_BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_API_KEY}` },
+          body: aiBody,
+          signal: AbortSignal.timeout(Math.min(30000, remain)),
+        });
+        aiData = await aiRes.json().catch(() => null);
+      } catch (e) { aiFetchErr = e; }
+      const errMsg = aiData && aiData.error && (aiData.error.message || aiData.error);
+      const retryable = aiFetchErr
+        ? true
+        : (!aiRes.ok && ([408, 429, 500, 502, 503, 504, 529].includes(aiRes.status) || isBusyMsg(errMsg)));
+      if (!retryable) break;
+      if (attempt >= AI_RETRY_DELAYS_MS.length) break;
+      if (Date.now() - aiStart + AI_RETRY_DELAYS_MS[attempt] > AI_DEADLINE_MS - 5000) break;
+      console.error('[wechat-ask] AI 忙線/失敗，第 ' + (attempt + 1) + ' 次重試：' + (aiFetchErr ? aiFetchErr.message : (aiRes.status + ' ' + errMsg)));
+      await new Promise((r) => setTimeout(r, AI_RETRY_DELAYS_MS[attempt]));
+    }
+    if (aiFetchErr || !aiRes) {
+      const answer = '查詢失敗，請稍後再問（AI 服務忙線或無法連線）' + (aiFetchErr ? '：' + String(aiFetchErr.message || aiFetchErr) : '');
       await logAttempt(answer, limitedRecords.length, 0);
       res.status(200).json({ answer, matched_records_count: limitedRecords.length });
       return;
@@ -541,7 +562,7 @@ module.exports = async function handler(req, res) {
 
     if (!aiRes.ok) {
       const errMsg = (aiData && aiData.error && aiData.error.message) || 'AI服務呼叫失敗';
-      const answer = '查詢失敗：' + errMsg;
+      const answer = '查詢失敗，請稍後再問：' + errMsg;
       await logAttempt(answer, limitedRecords.length, 0);
       res.status(200).json({ answer, matched_records_count: limitedRecords.length });
       return;

@@ -4446,7 +4446,8 @@ async function submitAiQuestion(){
     var wrapEl=document.getElementById('aiqa-conversation');wrapEl.scrollTop=wrapEl.scrollHeight;
   }
   // 答案(或錯誤)回來時:停止小女生、把泡泡恢復成原本的對話樣式
-  var showAnswer=function(text){stopMascot();var d=loadingBubble.querySelector('div');d.style.padding='9px 13px';d.style.border='1px solid var(--border)';d.style.background='var(--bg)';d.textContent=text;};
+  var busyTimer=setTimeout(function(){var h=document.createElement('div');h.className='aiqa-busy-hint';h.style.cssText='font-size:12px;color:var(--text-s);margin:4px 0 0 4px;';h.textContent='AI 比較忙,系統正在自動重試,請再稍等一下…';loadingBubble.appendChild(h);},12000);
+  var showAnswer=function(text){clearTimeout(busyTimer);var bh=loadingBubble.querySelector('.aiqa-busy-hint');if(bh)bh.remove();stopMascot();var d=loadingBubble.querySelector('div');d.style.padding='9px 13px';d.style.border='1px solid var(--border)';d.style.background='var(--bg)';d.textContent=text;};
   btn.disabled=true;
   try{
     var {data:{session}}=await sb.auth.getSession();

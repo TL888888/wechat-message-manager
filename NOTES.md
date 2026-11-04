@@ -224,3 +224,10 @@ alter table crm_records add column if not exists end_product text;
   - 網頁 CRM 頁籤／終端應用分析：只讀最新 import_date 那一批。
   - AI 問答（api/wechat-ask.js fetchCrm）：讀整張 crm_records（沒有再篩 import_date），因為表裡本來就只剩最新一批。11/03 正式站實查：332 筆，全部是 2026-10-19 匯入。
   - 2026-11-03 加保險（Michelle 同意）：AI 問答 fetchCrm 也只取最新 import_date 那一批（跟網頁 loadAllData 同規則；沒有任何 import_date 才讀全部）。原因：清空舊資料走匯入者 RLS 權限，若只刪到部分不會報錯，舊批次會留下。
+
+## AI 問答（api/wechat-ask.js）2026-11-04 交接重點
+- 模型只有一個：DeepInfra `openai/gpt-oss-120b`（環境變數 AI_MODEL_WECHAT 可覆蓋，Vercel 上實際值待確認）。**程式裡沒有、也不可以加備援模型**（Michelle：寧可慢也不要錯）。
+- 流程：拆詞/查詢 → 依字數預算（3200字，三類資料各保證名額、過長截斷）挑紀錄給 AI → 呼叫 AI（單次逾時48秒、忙線/逾時只重試1次、總時限從函式開始算55秒，vercel.json 上限60秒）→ 程式把關（無中文／偷懶字樣／自列10家以上名單／「共N筆」不在程式總數內／被長度截斷 → 同模型重問1次，仍不合格只回程式統計並註明「AI 說明未通過檢查」）→ 附【系統統計】（程式算，不經 AI）與「資料涵蓋說明」。
+- 時間說法 parseTimeRange：今年/去年/前年/YYYY年、N月、Q1~Q4、上下半年、本月/上月/本週/上週/今天/最近N天週月年、沒寫年份的「10月」；看不懂的時間字眼會在答案開頭明講「未能辨識，以下為全部期間」。CRM 需求是最新匯入批次，不依時間篩。
+- 失敗照實說「查詢失敗，請稍後再問」，絕不當查無資料。
+- 正式站驗收題：本月TM有哪些客戶／10月TM／Q3 TM拜訪紀錄／ZZQX999（查無）。11/04 實測「本月TM」曾因回答太長逾時（原因見 TODO 派工④）。

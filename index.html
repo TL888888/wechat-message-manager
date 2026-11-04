@@ -3921,7 +3921,7 @@ function closeExcelImport(){document.getElementById('excel-modal').style.display
 // ══ CRM 分頁解析：只取「終端產品」欄＋緊鄰左邊的一週區塊（2026-11，Michelle 規則）══
 // 一個週區塊固定 4 欄：機種/機型、數量、需求時間、進度；「終端產品」緊接在最新一週區塊右邊。
 // 業務會自行往右延伸（多加週別），所以不能用「最右邊的週別」，要以終端產品欄往左數 4 欄。
-// 緊鄰區塊再往左的區塊（若存在）只取其「進度」當上週狀態（status_w1，網頁「上週狀態」欄用），更早的一律忽略。
+// 緊鄰區塊再往左的所有區塊（含上週）一律不讀（Michelle 2026-11-04）：status_w1／week_w1 匯入後固定是空值，也不依賴「本週／上週」等週別文字。
 // 回傳 {error} 或 {rows:[...]}。rows 的 sales 是原文（空白時用分頁名），由呼叫端做 normalizeSalesName。
 function crmParseSheet(rows,sheetName){
   var norm=function(v){return String(v==null?'':v).replace(/\s/g,'');};
@@ -3943,7 +3943,6 @@ function crmParseSheet(rows,sheetName){
   if(m2<2||!isModelH(h[m2])||!isQtyH(h[m2+1])||!isDateH(h[m2+2])||!isProgH(h[m2+3])){
     return {error:'「終端產品」左邊緊鄰的4欄不是「機種/機型、數量、需求時間、進度」（實際：'+[h[epCol-4],h[epCol-3],h[epCol-2],h[epCol-1]].join('、')+'）'};
   }
-  var m1=m2-4,hasW1=(m1>=2&&isModelH(h[m1])&&isQtyH(h[m1+1])&&isDateH(h[m1+2])&&isProgH(h[m1+3]));
   // 週別標籤（只拿來排序／顯示，抓不到就用欄位編號）：在表頭上方幾列、該區塊4欄裡找
   var labelOf=function(start){
     for(var r=hdr-1;r>=0;r--){
@@ -3972,7 +3971,7 @@ function crmParseSheet(rows,sheetName){
     }
     out.push({
       sales:sales||sheetName,customer:customer,model:model,qty:qty,delivery:deliveryStr,
-      status_w1:hasW1?String(row[m1+3]||'').trim():'',week_w1:hasW1?labelOf(m1):'',
+      status_w1:'',week_w1:'',
       status_w2:String(row[m2+3]||'').trim(),week_w2:labelOf(m2),
       end_product:endProduct
     });

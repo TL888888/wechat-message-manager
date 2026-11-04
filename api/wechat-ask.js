@@ -26,6 +26,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const reqStart = Date.now(); // 整支函式開始時間：AI 總時限從這裡算（Vercel 上限 60 秒）
   const authHeader = req.headers['authorization'] || '';
   const accessToken = authHeader.replace(/^Bearer\s+/i, '');
   if (!accessToken) {
@@ -577,6 +578,9 @@ module.exports = async function handler(req, res) {
                 + '問題問「誰」「哪些客戶」「幾家」「幾位」時：系統會在你的回答最後自動附上【系統統計】完整名單與總數（程式計算），'
                 + '所以你不要自己寫總數、不要自己列完整名單，只摘要下面紀錄裡的重點（可以舉幾個例子），並在結尾寫「完整名單與總數請見下方系統統計」；'
                 + '列出名單時，若要寫「共幾位／幾家」，數字必須等於你實際列出的項目數，不確定就不要寫總數；需要台數總和而資料沒有現成總數時，逐筆列出、不要自己加總。'
+                // 【2026-11-04 巡檢】回答要短（資料量大時寫太長會逾時）；筆數不可把「列出幾筆」說成總筆數
+                + '【篇幅規則】只寫簡短白話摘要：最多約 5 句或 5 個重點、總長不超過約 300 字，不要逐筆複述；客戶名單、家數、筆數會由系統附在回答後面，你不用寫。'
+                + '【筆數規則】提供給你的資料只是「列出的部分」；不可以把「列出 N 筆」說成「共 N 筆」。想講總筆數時，只能引用【程式統計】或各類「只列前 N 筆，共 M 筆」的 M；沒有把握就只說「列出的紀錄中…」。'
                 + '一律用繁體中文回答，用自然口語的段落把重點彙整說清楚，就像同事跟你口頭報告一樣；可以用條列式列重點，但絕對不要輸出markdown表格語法（不要用|和---組成的表格），也不要把每一筆原始紀錄的所有欄位都逐條列出——先講結論、再視需要補充關鍵細節（日期、金額、狀態），無關緊要的欄位不用提。如果資料不足以回答，要明確告知使用者資料不足，不要臆測。[CRM需求]紀錄裡的「終端產品」是業務填寫的「客戶的PCB板用在哪些終端應用」（例如AI伺服器、車載、光模組），被問到客戶的終端應用或用途時以這個欄位為準。',
             },
             {
@@ -585,10 +589,11 @@ module.exports = async function handler(req, res) {
             },
           ],
           temperature: 0.2,
+          max_tokens: 2000, // 限制輸出長度（回答太長會逾時）；提示詞要求 AI 只寫簡短摘要
         });
-    const AI_RETRY_DELAYS_MS = [2000, 4000, 8000]; // 最多重試 3 次（共 4 次嘗試）
-    const AI_DEADLINE_MS = 50000;                   // 總時間上限（vercel.json 設函式上限 60 秒，留餘裕給收尾）
-    const aiStart = Date.now();
+    const AI_RETRY_DELAYS_MS = [2000]; // 只重試 1 次（共 2 次嘗試）：單次放寬到 48 秒，重試太多次會超過函式上限
+    const AI_DEADLINE_MS = 55000;                   // 從函式開始算的總時間上限（vercel.json 設函式上限 60 秒，留餘裕給收尾）
+    const aiStart = reqStart;
     const isBusyMsg = (m) => /busy|overload|retry later|rate.?limit|too many|temporar|unavailable|timeout|timed out/i.test(String(m || ''));
     // 呼叫一次（含忙線重試）；第二次「重問」也走同一段，共用同一個總時間上限
     const callModel = async () => {
@@ -602,7 +607,7 @@ module.exports = async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_API_KEY}` },
           body: aiBody,
-          signal: AbortSignal.timeout(Math.min(30000, remain)),
+          signal: AbortSignal.timeout(Math.min(48000, remain - 1000)),
         });
         aiData = await aiRes.json().catch(() => null);
       } catch (e) { aiFetchErr = e; }
@@ -636,7 +641,10 @@ module.exports = async function handler(req, res) {
     }
 
     const pickContent = (d) => (d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
-    let aiText = pickContent(aiData) || '（AI 沒有回傳內容）';
+    // AI 回答被長度上限截斷或沒內容 → 視同不合格（走重問／只回程式統計），不把半截答案送出
+    const cutOff = (d) => !!(d && d.choices && d.choices[0] && d.choices[0].finish_reason === 'length');
+    let aiText = pickContent(aiData) || '';
+    if (!aiText || cutOff(aiData)) aiText = '';
     let promptTokens = (aiData.usage && aiData.usage.prompt_tokens) || 0;
     let completionTokens = (aiData.usage && aiData.usage.completion_tokens) || 0;
 
@@ -651,13 +659,19 @@ module.exports = async function handler(req, res) {
       const lc = t.toLowerCase();
       const hit = knownCusts.filter((n) => lc.includes(String(n).toLowerCase())).length;
       if (hit >= 10) return 'AI 自己列出名單（提到 ' + hit + ' 家客戶）';
+      // 「共 N 筆」的 N 必須是程式算出的總數（各類查到的總筆數、系統統計的總數）；
+      // 不可把「列出的筆數」當成總筆數（2026-11-04 Q3 題 AI 寫「共 2 筆」，實際該類共 30 筆只列 2 筆）
+      const okTotals = new Set([records.length, ...typeCoverage.map((c) => c.total), ...termDetails.flatMap((d) => [d.total, d.crm.n, d.other.n])]);
+      for (const mm of t.matchAll(/共(?:有|計)?\s*(\d+)\s*筆/g)) {
+        if (!okTotals.has(parseInt(mm[1], 10))) return '把列出的筆數說成總筆數（共 ' + mm[1] + ' 筆不在程式統計內）';
+      }
       return '';
     };
     let badWhy = aiTextBad(aiText);
     if (badWhy) {
       console.error('[wechat-ask] AI 說明未通過檢查（' + badWhy + '），同模型重問一次');
       const r2 = await callModel(); // 失敗時 aiRes 為空或非 ok → 視同不合格
-      const t2 = r2.aiRes && r2.aiRes.ok ? pickContent(r2.aiData) : '';
+      const t2 = r2.aiRes && r2.aiRes.ok && !cutOff(r2.aiData) ? pickContent(r2.aiData) : '';
       if (r2.aiRes && r2.aiRes.ok && r2.aiData && r2.aiData.usage) {
         promptTokens += r2.aiData.usage.prompt_tokens || 0;
         completionTokens += r2.aiData.usage.completion_tokens || 0;

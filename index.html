@@ -3918,6 +3918,68 @@ function openExcelImport(){
 }
 function closeExcelImport(){document.getElementById('excel-modal').style.display='none';}
 
+// ══ CRM 分頁解析：只取「終端產品」欄＋緊鄰左邊的一週區塊（2026-11，Michelle 規則）══
+// 一個週區塊固定 4 欄：機種/機型、數量、需求時間、進度；「終端產品」緊接在最新一週區塊右邊。
+// 業務會自行往右延伸（多加週別），所以不能用「最右邊的週別」，要以終端產品欄往左數 4 欄。
+// 緊鄰區塊再往左的區塊（若存在）只取其「進度」當上週狀態（status_w1，網頁「上週狀態」欄用），更早的一律忽略。
+// 回傳 {error} 或 {rows:[...]}。rows 的 sales 是原文（空白時用分頁名），由呼叫端做 normalizeSalesName。
+function crmParseSheet(rows,sheetName){
+  var norm=function(v){return String(v==null?'':v).replace(/\s/g,'');};
+  var isEnd=function(t){return t==='終端產品'||t==='终端产品';};
+  var isModelH=function(t){return t==='機種/機型'||t==='機型'||t==='机种/机型'||t==='机型';};
+  var isQtyH=function(t){return t==='數量'||t==='数量';};
+  var isDateH=function(t){return t==='需求時間'||t==='需求时间';};
+  var isProgH=function(t){return t==='進度'||t==='进度';};
+  var hdr=-1,epCol=-1,epCount=0;
+  for(var ri=0;ri<Math.min(rows.length,10);ri++){
+    var cnt=0,col=-1;
+    (rows[ri]||[]).forEach(function(c,ci){if(isEnd(norm(c))){cnt++;col=ci;}});
+    if(cnt>0){hdr=ri;epCol=col;epCount=cnt;break;}
+  }
+  if(hdr<0) return {error:'找不到「終端產品」欄（前10列都沒有），無法判斷要抓哪一週'};
+  if(epCount>1) return {error:'同一列出現 '+epCount+' 個「終端產品」欄，無法判斷'};
+  var h=rows[hdr].map(norm);
+  var m2=epCol-4;
+  if(m2<2||!isModelH(h[m2])||!isQtyH(h[m2+1])||!isDateH(h[m2+2])||!isProgH(h[m2+3])){
+    return {error:'「終端產品」左邊緊鄰的4欄不是「機種/機型、數量、需求時間、進度」（實際：'+[h[epCol-4],h[epCol-3],h[epCol-2],h[epCol-1]].join('、')+'）'};
+  }
+  var m1=m2-4,hasW1=(m1>=2&&isModelH(h[m1])&&isQtyH(h[m1+1])&&isDateH(h[m1+2])&&isProgH(h[m1+3]));
+  // 週別標籤（只拿來排序／顯示，抓不到就用欄位編號）：在表頭上方幾列、該區塊4欄裡找
+  var labelOf=function(start){
+    for(var r=hdr-1;r>=0;r--){
+      for(var c=start;c<start+4;c++){var t=String((rows[r]||[])[c]||'').trim();var mm=t.match(/\d{4}[-\/]\d{2}[-\/]?W\d/i);if(mm) return mm[0];}
+    }
+    return '機型欄位#'+start;
+  };
+  var out=[],lastCustomer='',lastEndProduct='';
+  for(var i=hdr+1;i<rows.length;i++){
+    var row=rows[i];
+    var sales=String(row[0]||'').trim();
+    var customer=String(row[1]||'').trim();
+    var endProduct=String(row[epCol]||'').trim();
+    if(isEnd(norm(endProduct))) endProduct='';
+    var model=String(row[m2]||'').trim();
+    var qty=String(row[m2+1]||'').trim();
+    var delivery=String(row[m2+2]||'').trim();
+    if(!model) continue;
+    if(isModelH(norm(model))) continue;
+    if(!customer) customer=lastCustomer;
+    if(customer!==lastCustomer){lastCustomer=customer;lastEndProduct='';}
+    if(endProduct) lastEndProduct=endProduct; else endProduct=lastEndProduct;
+    var deliveryStr=delivery;
+    if(!isNaN(delivery)&&delivery!==''){
+      try{var d=XLSX.SSF.parse_date_code(Number(delivery));if(d)deliveryStr=d.y+'/'+(d.m<10?'0':'')+d.m+'/'+(d.d<10?'0':'')+d.d;}catch(ex){}
+    }
+    out.push({
+      sales:sales||sheetName,customer:customer,model:model,qty:qty,delivery:deliveryStr,
+      status_w1:hasW1?String(row[m1+3]||'').trim():'',week_w1:hasW1?labelOf(m1):'',
+      status_w2:String(row[m2+3]||'').trim(),week_w2:labelOf(m2),
+      end_product:endProduct
+    });
+  }
+  return {rows:out};
+}
+
 function handleExcelFile(e){
   var files=Array.from(e.target.files||[]);
   if(!files.length) return;
@@ -3946,6 +4008,7 @@ function handleExcelFile(e){
         var parsedVisit=[];
         var parsedReport=[];
         var unrecognizedSheets=[];
+        var crmProblems=[];
         var sheetCount=0,rowCount=0,visitRowCount=0,visitReportRowCount=0;
 
         workbook.SheetNames.forEach(function(sheetName){
@@ -4055,131 +4118,31 @@ function handleExcelFile(e){
             return; // 這個sheet是工作日報格式，不走CRM那套解析
           }
 
-          // 自動偵測週次標題列
-          // 舊格式：表頭是「2026-08-W3」這種週別代碼，直接當成該週的狀態欄位位置
-          // 新格式（業務改成用純文字「上週」「本週」標示、且移除週別代碼後）：
-          // 改成偵測「機種/機型」這個欄位標題在同一列出現兩次（上週一組、本週一組），
-          // 不再依賴週別代碼字串，且掃描範圍從5列放寬到10列，
-          // 避免像這次一樣、業務在表頭上方新增了3行填寫說明，把真正的表頭往下推就抓不到
-          var weekHeaderRowIdx=-1;
-          var weekCols=[];
-          for(var ri=0;ri<Math.min(rows.length,10);ri++){
-            var row=rows[ri];
-            var found=[];
-            var modelIdxs=[];
-            for(var ci=0;ci<row.length;ci++){
-              var hs=String(row[ci]||'').trim();
-              if(hs.length>=8&&(
-                /\d{4}-\d{2}-W\d/i.test(hs)||
-                /\d{4}\/\d{2}\/W\d/i.test(hs)||
-                /\d{4}-\d{2}W\d/i.test(hs)
-              )){
-                found.push({idx:ci,label:hs});
-              }
-              if(hs==='機種/機型'||hs==='機型') modelIdxs.push(ci);
-            }
-            if(found.length>0){
-              weekHeaderRowIdx=ri;
-              weekCols=found;
-              break;
-            }
-            if(modelIdxs.length>=2){
-              // 「機種/機型」欄位出現兩次：每組固定是 機型/數量/需求時間/進度 這4欄，
-              // 「進度」欄位（機型欄位+3）沿用原本weekCols的角色（w2.idx-3/-2/-1分別對應機型/數量/需求時間）
-              weekHeaderRowIdx=ri;
-              weekCols=modelIdxs.map(function(mi){return {idx:mi+3,label:'機型欄位#'+mi};});
-              break;
-            }
+          // CRM 分頁解析（2026-11 改版）：只抓「終端產品」欄＋緊鄰它左邊的那一週區塊。
+          // 業務會自行往右延伸週別，各分頁欄位數／位置都不同，所以不再用「最右邊的週別」，
+          // 一律以「終端產品」欄當錨點。細節與規則見 crmParseSheet（檔案後段）與 NOTES.md。
+          var crmRes=crmParseSheet(rows,sheetName);
+          if(crmRes.error){
+            // 找不到終端產品欄／緊鄰區塊格式不對：明確回報、整批中止，不猜、不略過、不清空資料庫
+            crmProblems.push(sheetName+'：'+crmRes.error);
+            return;
           }
-          var w1=weekCols.length>=2?weekCols[weekCols.length-2]:null;
-          var w2=weekCols.length>=1?weekCols[weekCols.length-1]:null;
-          var dataStartRow=weekHeaderRowIdx>=0?weekHeaderRowIdx+1:3;
-
-          // 安全防護（這次CRM資料被誤清空的破口就在這裡）：
-          // 完全找不到週次欄位時，舊邏輯會硬套「第3欄當機型」繼續猜下去，
-          // 遇到跟CRM完全無關的檔案（例如這次的工作日報格式）也會猜出一堆垃圾資料，
-          // 而「有猜到資料」又會觸發「清空舊CRM、整批取代」——等於用垃圾洗掉了真正的資料。
-          // 這裡先擋一道：找不到週次欄位時，表頭至少要出現「業務」「客戶」「機型」其中一個，
-          // 才當作是CRM舊格式繼續解析；一個都沒有的話，直接跳過這個分頁，不猜、不清空，
-          // 並且記錄下來讓匯入完成後的訊息告訴使用者「這個分頁看不懂、已略過」
-          // （這裡也放寬成掃描前10列，不再只看第1列，理由跟上面一樣：表頭可能被說明文字往下推）
-          if(weekHeaderRowIdx<0){
-            var looksLikeCRM=false;
-            for(var crmCheckI=0;crmCheckI<Math.min(rows.length,10);crmCheckI++){
-              var crmCheckRow=(rows[crmCheckI]||[]).map(function(c){return String(c||'').trim();});
-              if(crmCheckRow.indexOf('業務')>-1||crmCheckRow.indexOf('承辦業務')>-1||crmCheckRow.indexOf('客戶')>-1||crmCheckRow.indexOf('機型')>-1||crmCheckRow.indexOf('機種/機型')>-1){
-                looksLikeCRM=true;break;
-              }
-            }
-            if(!looksLikeCRM){
-              unrecognizedSheets.push(sheetName);
-              return;
-            }
-          }
-
-          // 判斷是「上週/本週並排區塊」的新格式，還是只有單一欄位的舊格式
-          // 新格式：機型/數量/需求時間 緊接在該週次欄位左邊3欄（型/量/期/狀態）
-          // 舊格式：機型/數量/需求時間 固定在最前面幾欄，週次欄位只用來記錄狀態文字
-          var isDualBlockFormat=weekCols.length>=2;
-
-          // 「終端產品」欄（2026-10 新增，給「終端應用分析」頁籤用）：
-          // 各業務分頁的欄位位置不一樣（黃榮傑分頁三週並排在第15欄，其他人在第11欄），
-          // 所以一律用表頭文字去找，不寫死欄位位置；找不到就當作這個分頁沒有這欄
-          var endProductCol=-1;
-          for(var epi=0;epi<Math.min(rows.length,10);epi++){
-            var epRow=rows[epi]||[];
-            for(var epc=0;epc<epRow.length;epc++){
-              var epText=String(epRow[epc]||'').replace(/\s/g,'');
-              if(epText==='終端產品'||epText==='终端产品'){endProductCol=epc;}
-            }
-            if(endProductCol>-1) break;
-          }
-          // 同一個客戶有好幾個機型時，業務常常只在第一列填客戶名稱、終端產品，下面幾列留白，
-          // 這裡「往下沿用」上一列的客戶名稱與終端產品，避免這些列在統計時變成「沒有客戶/沒填」
-          var lastCustomer='',lastEndProduct='';
-
-          rows.forEach(function(row,idx){
-            if(idx<dataStartRow) return;
-            var sales=String(row[0]||'').trim();
-            var customer=String(row[1]||'').trim();
-            var endProduct=endProductCol>-1?String(row[endProductCol]||'').trim():'';
-            if(endProduct==='終端產品'||endProduct==='终端产品') endProduct='';
-
-            var model,qty,delivery;
-            if(isDualBlockFormat&&w2){
-              // 永遠只看「本週」欄位的機型/數量/需求時間/進度，本週留空就是空白，不回頭抓上週
-              model=String(row[w2.idx-3]||'').trim();
-              qty=String(row[w2.idx-2]||'').trim();
-              delivery=String(row[w2.idx-1]||'').trim();
-            } else {
-              model=String(row[2]||'').trim();
-              qty=String(row[3]||'').trim();
-              delivery=String(row[4]||'').trim();
-            }
-            if(!model) return;
-            if(model==='機種/機型'||model==='機型') return;
-            if(!customer) customer=lastCustomer; // 客戶欄空白但有機型＝延續上一個客戶
-            if(customer!==lastCustomer){lastCustomer=customer;lastEndProduct='';}
-            if(endProduct) lastEndProduct=endProduct; else endProduct=lastEndProduct;
-
-            var deliveryStr=delivery;
-            if(!isNaN(delivery)&&delivery!==''){
-              try{var d=XLSX.SSF.parse_date_code(Number(delivery));if(d)deliveryStr=d.y+'/'+(d.m<10?'0':'')+d.m+'/'+(d.d<10?'0':'')+d.d;}catch(ex){}
-            }
-
-            var status1=w1?String(row[w1.idx]||'').trim():'';
-            var status2=w2?String(row[w2.idx]||'').trim():'';
-
+          crmRes.rows.forEach(function(p){
             rowCount++;
             parsed.push({
-              sales:normalizeSalesName(sales||sheetName),customer:customer,model:model,qty:qty,
-              delivery:deliveryStr,status_w1:status1,week_w1:w1?w1.label:'',
-              status_w2:status2,week_w2:w2?w2.label:'',
-              end_product:endProduct,
+              sales:normalizeSalesName(p.sales),customer:p.customer,model:p.model,qty:p.qty,
+              delivery:p.delivery,status_w1:p.status_w1,week_w1:p.week_w1,
+              status_w2:p.status_w2,week_w2:p.week_w2,
+              end_product:p.end_product,
               sheet:sheetName,import_date:importDate,created_by:currentUser.id
             });
           });
         });
+
+        // 有任何 CRM 分頁格式異常 → 整個檔案不匯入，資料庫完全沒動
+        if(crmProblems.length){
+          throw new Error('以下分頁格式不符，已中止匯入（資料庫完全沒有被改動）：\n'+crmProblems.join('\n'));
+        }
 
         // 匯入時只用免費規則解析，不呼叫AI，瞬間完成、不燒token
         for(var pi=0;pi<parsed.length;pi++){

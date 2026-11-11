@@ -3944,10 +3944,12 @@ function crmParseSheet(rows,sheetName){
   // 同一張分頁裡「客戶名稱完全相同」的另一列（含沒寫機型、只寫終端產品的那種說明列）已填終端產品時，
   // 這一列沒填就沿用它（2026-11-11：魏得志「黃石超颖」的 TM4／DR1 在 Excel 其實有填，
   // 終端產品寫在同客戶下方一列、那列沒有機型，舊程式只往下沿用、又會跳過沒機型的列，所以被誤判成沒填）。
-  // 只比對「去掉空白後完全一樣」的客戶名，不做模糊猜測（例：「黃石超颖（P2)」與「黃石超颖」不同名，不會互相借）。
+  // 比對用的客戶名：去掉空白、並拿掉括號備註（全形／半形，含只有單邊括號的「（P2)」），
+  // 所以「黃石超颖（P2)」與「黃石超颖」視為同一客戶（Michelle 2026-11-11 確認）。其餘不做模糊猜測。
+  var custKey=function(v){return norm(v).replace(/[（(][^）)]*[）)]?/g,'').replace(/[（(].*$/,'');};
   var epByCust={};
   for(var pi=hdr+1;pi<rows.length;pi++){
-    var pc=norm(rows[pi][1]),pe=String(rows[pi][epCol]||'').trim();
+    var pc=custKey(rows[pi][1]),pe=String(rows[pi][epCol]||'').trim();
     if(pc&&pe&&!isEnd(norm(pe))&&!epByCust[pc]) epByCust[pc]=pe;
   }
   var out=[],lastCustomer='',lastEndProduct='';
@@ -3965,7 +3967,7 @@ function crmParseSheet(rows,sheetName){
     if(!customer) customer=lastCustomer;
     if(customer!==lastCustomer){lastCustomer=customer;lastEndProduct='';}
     if(endProduct) lastEndProduct=endProduct; else endProduct=lastEndProduct;
-    if(!endProduct&&epByCust[norm(customer)]) endProduct=epByCust[norm(customer)];
+    if(!endProduct&&epByCust[custKey(customer)]) endProduct=epByCust[custKey(customer)];
     var deliveryStr=delivery;
     if(!isNaN(delivery)&&delivery!==''){
       try{var d=XLSX.SSF.parse_date_code(Number(delivery));if(d)deliveryStr=d.y+'/'+(d.m<10?'0':'')+d.m+'/'+(d.d<10?'0':'')+d.d;}catch(ex){}

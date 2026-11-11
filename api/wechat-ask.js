@@ -436,7 +436,7 @@ module.exports = async function handler(req, res) {
       recordItems.push({
         type: 'CRM需求', sales: r.sales, customer: r.customer,
         date: dateKey(r.import_date),
-        text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} ${r.status_w1?'上週狀態:'+r.status_w1+' ':''}本週狀態:${r.status_w2 || ''} 業務:${r.sales} 終端產品(客戶的板子用在哪些終端應用):${r.end_product || '未填'}`,
+        text: `[CRM需求] 日期:${r.import_date} 客戶:${r.customer} 機型:${r.model} 數量:${r.qty} 交期:${r.delivery} ${r.status_w1?'上週狀態:'+r.status_w1+' ':''}本週狀態:${r.status_w2 || ''} 業務:${r.sales} ${r.end_product?'終端產品(客戶的板子用在哪些終端應用):'+r.end_product:''}`,
       })
     );
     (vrData || []).forEach((r) =>

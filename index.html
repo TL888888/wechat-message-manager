@@ -2957,10 +2957,9 @@ function renderEndApps(){
   var filled=R.total-R.unfilled.length;
   var notCounted=R.total-R.counted;
   var kpis='<div class="ea-kpis">'
-    +eaKpi('計入統計的需求台數',eaFmtUnits(R.totalUnits)+'<small>台</small>','來自 '+R.counted+' 個客戶廠區'+(notCounted?('（另有 '+notCounted+' 家未填或未計入）'):''))
+    +eaKpi('計入統計的需求台數',eaFmtUnits(R.totalUnits)+'<small>台</small>','來自 '+R.counted+' 個客戶廠區')
     +eaKpi('第一大應用',top?escH(top.name):'—',top?('占 '+eaFmt1(top.pct)+'%（約 '+eaFmtUnits(top.units)+' 台）'):'')
     +eaKpi('前三大應用合計',eaFmt1(top3Pct)+'<small>%</small>',top3.map(function(x){return x.name;}).join('、'))
-    +eaKpi('終端產品填寫率',Math.round(filled/R.total*100)+'<small>%</small>',R.unfilled.length+' 家客戶廠區尚未填寫')
     +'</div>';
 
   var rankCard='<div class="ea-card">'
@@ -3158,7 +3157,7 @@ function eaCustomerCard(R){
 }
 function eaStatusTag(c){
   if(c.status==='counted') return c.cats.map(function(k){return '<span class="ea-tag"><span class="ea-swatch" style="background:'+eaCategoryColor(k)+'"></span>'+escH(k)+'</span>';}).join('');
-  var label={unfilled:'未填終端產品',foundry:'代工廠（未計入）',board:'只寫板型（未計入）'}[c.status]||'';
+  var label={unfilled:'',foundry:'代工廠（未計入）',board:'只寫板型（未計入）'}[c.status]||'';
   return '<span class="ea-tag ea-tag-gray">'+label+'</span>';
 }
 function eaRenderCustList(){
@@ -3191,7 +3190,7 @@ function openEaCustomer(ci){
   var c=eaResult&&eaResult.customers[ci];
   if(!c) return;
   var appsHtml=eaStatusTag(c);
-  var rowLabel={unfilled:'該列未填，未計入',foundry:'代工廠，未計入',board:'只寫板型，未計入'};
+  var rowLabel={unfilled:'未計入',foundry:'代工廠，未計入',board:'只寫板型，未計入'};
   var rows=c.rows.map(function(x){
     var r=x.r;
     var delivery=(Array.isArray(r.delivery_parsed)&&r.delivery_parsed.length)
@@ -3244,12 +3243,6 @@ function eaSummaryCard(R){
     items.push('需求台數最多的機型是 <b>'+escH(topModel)+'</b>（約 '+eaFmtUnits(mt[topModel].units)+' 台），主要用在 '
       +cats.map(function(c){return '「'+escH(c)+'」'+Math.round(byCat[c]/mt[topModel].units*100)+'%';}).join('、')+'。');
   }
-  if(R.unfilled.length){
-    var bySales={};
-    R.unfilled.forEach(function(u){(u.sales.length?u.sales:['(未知)']).forEach(function(s){bySales[s]=(bySales[s]||0)+1;});});
-    var worst=Object.keys(bySales).sort(function(a,b){return bySales[b]-bySales[a];}).slice(0,3);
-    items.push('資料完整度：有 <b>'+R.unfilled.length+'</b> 個客戶廠區還沒填終端產品（較多在 '+worst.map(function(s){return escH(s)+' '+bySales[s]+' 家';}).join('、')+'），補填後重新匯入，數字會更準確。');
-  }
   return '<div class="ea-card"><div class="ea-card-head"><div class="ea-card-title"><i class="fa-regular fa-lightbulb" style="color:var(--amber);margin-right:6px;"></i>簡要說明</div></div>'
     +'<ul class="ea-summary">'+items.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></div>';
 }
@@ -3275,11 +3268,9 @@ function eaNotesCard(R){
     +'<div class="ea-note"><div class="ea-note-title">計算方式（以需求台數為主）</div>每一列機型需求的台數，依「該列」寫的應用類數平分'
       +'（例：RU6M2 100 台、寫了光模組／AI伺服／車載 → 三類各約 33.3 台），全部加總後排名；占比＝該類台數 ÷ 計入的總台數。「家數」是有提到該應用的客戶廠區數，僅供參考。'
       +'業務的寫法會自動歸類，例如「Server、服务器、NV、谷歌」都歸到「AI伺服器/伺服器」，「特斯拉、車載」歸到「汽車電子」。'
-      +(R.partialRows.length?'<div style="color:var(--amber);margin-top:4px;">另有 '+R.partialRows.length+' 列機型需求（約 '+eaFmtUnits(R.partialRows.reduce(function(a,p){return a+p.x.units;},0))+' 台）該列沒填終端產品，未計入：'+R.partialRows.map(function(p){return escH(p.c.name)+' '+escH(String(p.x.r.model||'').split(/\n/)[0]);}).join('、')+'</div>':'')
       +(R.zeroQty.length?'<div style="color:var(--amber);margin-top:4px;">有 '+R.zeroQty.length+' 家數量寫「確認中」或讀不出數字，台數算 0（家數仍有算到）：'+names(R.zeroQty)+'</div>':'')+'</div>'
     +'<div class="ea-note"><div class="ea-note-title">板型／製程（另列，不計入）</div><div style="color:var(--text-m);margin-bottom:4px;">HDI、mSAP 等是 PCB 板子的做法，不是終端產品</div>'+boardHtml+(R.boardOnly.length?'<div style="color:var(--amber);margin-top:4px;">其中 '+R.boardOnly.length+' 家只寫板型、沒寫應用，未計入排名：'+names(R.boardOnly)+'</div>':'')+'</div>'
     +'<div class="ea-note"><div class="ea-note-title">未計入：只寫「代工廠」（'+R.foundry.length+' 家）</div>'+foundryHtml+'</div>'
-    +'<div class="ea-note"><div class="ea-note-title">未計入：尚未填寫終端產品（'+R.unfilled.length+' 家）</div>'+unfilledHtml+'</div>'
     +(R.otherTexts.length?'<div class="ea-note" style="grid-column:1/-1;"><div class="ea-note-title">歸到「其他」的寫法（對照表認不出來，可再補關鍵字）</div>'+otherHtml+'</div>':'')
     +'</div></div>';
 }
@@ -3288,7 +3279,7 @@ function exportEndAppsDetail(){
   var R=eaResult;
   if(!R) return;
   var catNames=R.ranking.map(function(x){return x.name;});
-  var statusLabel={counted:'計入',unfilled:'未填終端產品',foundry:'代工廠(未計入)',board:'只寫板型(未計入)'};
+  var statusLabel={counted:'計入',unfilled:'',foundry:'代工廠(未計入)',board:'只寫板型(未計入)'};
   var data=[];
   R.customers.forEach(function(c){
     c.rows.forEach(function(x){
@@ -3950,6 +3941,15 @@ function crmParseSheet(rows,sheetName){
     }
     return '機型欄位#'+start;
   };
+  // 同一張分頁裡「客戶名稱完全相同」的另一列（含沒寫機型、只寫終端產品的那種說明列）已填終端產品時，
+  // 這一列沒填就沿用它（2026-11-11：魏得志「黃石超颖」的 TM4／DR1 在 Excel 其實有填，
+  // 終端產品寫在同客戶下方一列、那列沒有機型，舊程式只往下沿用、又會跳過沒機型的列，所以被誤判成沒填）。
+  // 只比對「去掉空白後完全一樣」的客戶名，不做模糊猜測（例：「黃石超颖（P2)」與「黃石超颖」不同名，不會互相借）。
+  var epByCust={};
+  for(var pi=hdr+1;pi<rows.length;pi++){
+    var pc=norm(rows[pi][1]),pe=String(rows[pi][epCol]||'').trim();
+    if(pc&&pe&&!isEnd(norm(pe))&&!epByCust[pc]) epByCust[pc]=pe;
+  }
   var out=[],lastCustomer='',lastEndProduct='';
   for(var i=hdr+1;i<rows.length;i++){
     var row=rows[i];
@@ -3965,6 +3965,7 @@ function crmParseSheet(rows,sheetName){
     if(!customer) customer=lastCustomer;
     if(customer!==lastCustomer){lastCustomer=customer;lastEndProduct='';}
     if(endProduct) lastEndProduct=endProduct; else endProduct=lastEndProduct;
+    if(!endProduct&&epByCust[norm(customer)]) endProduct=epByCust[norm(customer)];
     var deliveryStr=delivery;
     if(!isNaN(delivery)&&delivery!==''){
       try{var d=XLSX.SSF.parse_date_code(Number(delivery));if(d)deliveryStr=d.y+'/'+(d.m<10?'0':'')+d.m+'/'+(d.d<10?'0':'')+d.d;}catch(ex){}
